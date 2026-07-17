@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Control de material d'ambulàncies
 
 Aplicació web instal·lable per registrar el material utilitzat a les ambulàncies.
@@ -38,3 +39,6 @@ El flux de treball `.github/workflows/deploy-pages.yml` publica l'app cada vegad
 3. Espera que acabi l'acció **Publica a GitHub Pages**. L'adreça pública apareixerà a l'apartat **Actions** o a **Settings → Pages**.
 
 No pugis dades d'incidents reals al repositori: les dades de l'app s'emmagatzemen localment i no formen part del codi.
+=======
+# Control-material-ambulancies
+>>>>>>> 391bc5f15dff95e029faa511c80d7519fd69e188
