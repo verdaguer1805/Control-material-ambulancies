@@ -7,6 +7,13 @@ export const UNITS = {
   "G413": "Banyoles",
   "G305": "Sant Joan de les Abadesses"
 };
+export const SUPERVISIONS = {
+  'Blanes': {},
+  'Figueres': {},
+  'Girona': {},
+  'Olot': UNITS
+};
+
 export const MATERIALS = [
   "Filtro LSU",
   "Bolsa recambio LSU",
