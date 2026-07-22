@@ -11,7 +11,7 @@ export const SUPERVISIONS = {
   'Blanes': {},
   'Figueres': {},
   'Girona': {},
-  'Olot': UNITS
+  'Olot': { ...UNITS, 'SUPERVISOR_OLOT': 'Material supervisor' }
 };
 
 export const MATERIALS = [
