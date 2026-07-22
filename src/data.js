@@ -8,9 +8,9 @@ export const UNITS = {
   "G305": "Sant Joan de les Abadesses"
 };
 export const SUPERVISIONS = {
-  'Blanes': {},
-  'Figueres': {},
-  'Girona': {},
+  'Blanes': { 'SUPERVISOR_BLANES': 'Material supervisor' },
+  'Figueres': { 'SUPERVISOR_FIGUERES': 'Material supervisor' },
+  'Girona': { 'SUPERVISOR_GIRONA': 'Material supervisor' },
   'Olot': { ...UNITS, 'SUPERVISOR_OLOT': 'Material supervisor' }
 };
 
