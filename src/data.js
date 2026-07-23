@@ -207,7 +207,14 @@ export const SUPERVISOR_ONLY_MATERIALS = [
   "Manguitos esfingo manual: pediátrico",
   "Manguitos esfingo manual: adulto",
   "Manguitos esfingo manual: obeso",
+  "Manguitos esfingo manual: neonatal",
   "Fonendoescopio adulto",
   "Linterna pupilar",
-  "Glucómetro"
+  "Glucómetro",
+  "Tijeras cortaropa",
+  "Talonario FALCK",
+  "Desengrasante",
+  "Papel WC",
+  "Bobina papel",
+  "Bayetas"
 ];
