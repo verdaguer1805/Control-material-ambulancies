@@ -227,5 +227,12 @@ export const SUPERVISOR_ONLY_MATERIALS = [
   "Palos Recogedor",
   "Escobilla WC",
   "BOLSAS ESCOMBRERIES NEGRE",
-  "Producto limpieza pulverizador TSU"
+  "Producto limpieza pulverizador TSU",
+  "jabon platos",
+  "limpia cristales",
+  "pulsioximetre didal",
+  "desinfectante",
+  "pilas cr123",
+  "pilas aa",
+  "pilas aaa"
 ];
