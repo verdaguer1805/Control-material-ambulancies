@@ -186,5 +186,28 @@ export const CRITICAL_KEYWORDS = [
 // Material reservat al registre de Material supervisor.
 export const SUPERVISOR_ONLY_MATERIALS = [
   "Cable ECG 4 derivadas",
-  "Cable ECG 12 derivadas"
+  "Cable ECG 12 derivadas",
+  "Sensor pulsioximetria adulto",
+  "Manguito TA pediátrico Schiller",
+  "Manguito TA adulto Schiller",
+  "Manguito TA obeso schiller",
+  "Tensiometro digital",
+  "Tensiometro infrarojos",
+  "Manguito tensiometro infantil",
+  "Detector de monoxido",
+  "Mascarilla Ambu 0",
+  "Mascarilla Ambu 0A",
+  "Mascarilla Ambu 2",
+  "Mascarilla Ambu 3/4",
+  "Mascarilla Ambu 5",
+  "Mascarilla Ambu 6",
+  "Termómetro digital",
+  "Termómetro infrarojos",
+  "Esfingotensiómetro manual",
+  "Manguitos esfingo manual: pediátrico",
+  "Manguitos esfingo manual: adulto",
+  "Manguitos esfingo manual: obeso",
+  "Fonendoescopio adulto",
+  "Linterna pupilar",
+  "Glucómetro"
 ];
