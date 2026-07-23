@@ -182,3 +182,9 @@ export const CRITICAL_KEYWORDS = [
   "parches schiller adulto",
   "parches schiller pediátrico"
 ];
+
+// Material reservat al registre de Material supervisor.
+export const SUPERVISOR_ONLY_MATERIALS = [
+  "Cable ECG 4 derivadas",
+  "Cable ECG 12 derivadas"
+];
