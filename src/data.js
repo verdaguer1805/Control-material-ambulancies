@@ -15,7 +15,6 @@ export const SUPERVISIONS = {
 };
 
 export const MATERIALS = [
-  "Filtro LSU",
   "Bolsa recambio LSU",
   "Conector de vacio LSU",
   "Tubo silicona LSU",
