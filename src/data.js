@@ -216,5 +216,15 @@ export const SUPERVISOR_ONLY_MATERIALS = [
   "Desengrasante",
   "Papel WC",
   "Bobina papel",
-  "Bayetas"
+  "Bayetas",
+  "Estropajos",
+  "Fregona",
+  "Escobas",
+  "Palos Escoba-Fregona",
+  "Cubo fregar",
+  "Recogedor",
+  "Palos Recogedor",
+  "Escobilla WC",
+  "BOLSAS ESCOMBRERIES NEGRE",
+  "Producto limpieza pulverizador TSU"
 ];
