@@ -116,6 +116,7 @@ export const MATERIALS = [
   "Suero fisiológico 5ml",
   "Suero fisiológico 10ml",
   "Suero fisiológico 100ml",
+  "Sueros de 100 ml",
   "Suero fisiológico 250 ml",
   "Clorhexidina 2%",
   "Venda Crepe 4x7",
