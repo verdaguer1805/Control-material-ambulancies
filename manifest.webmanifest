@@ -9,7 +9,7 @@
   "theme_color": "#0b5f73",
   "icons": [
     {
-      "src": "./icon.svg",
+      "src": "/Control-material-ambulancies/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
