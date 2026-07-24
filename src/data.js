@@ -54,7 +54,32 @@ export const SUPERVISIONS = {
     'G303': "La Bisbal d'Empordà",
     'SUPERVISOR_FIGUERES': 'Material supervisor'
   },
-  'Girona': { 'SUPERVISOR_GIRONA': 'Material supervisor' },
+  'Girona': {
+    'SL50': 'Girona',
+    'G213': 'Palamós',
+    'G202': 'Llagostera',
+    'G211': 'Salt',
+    'G210': 'Girona',
+    'G212': 'Santa Coloma de Farners',
+    'G431': 'Palamós',
+    'G432': 'Palafrugell',
+    'G435': 'Sant Feliu de Guíxols',
+    'G436': "Castell d'Aro",
+    'G438': 'Palafrugell',
+    'G439': 'Palamós',
+    'G410': 'Girona',
+    'G411': 'Girona',
+    'G412': 'Salt',
+    'G414': 'Salt',
+    'G415': 'Girona',
+    'G425': 'Cassà de la Selva',
+    'G420': 'Sant Hilari de Sacalm',
+    'G421': 'Santa Coloma de Farners',
+    'G423': 'Anglès',
+    'BP50': 'Girona',
+    'G300': 'Girona',
+    'SUPERVISOR_GIRONA': 'Material supervisor'
+  },
   'Olot': { ...UNITS, 'SUPERVISOR_OLOT': 'Material supervisor' }
 };
 
