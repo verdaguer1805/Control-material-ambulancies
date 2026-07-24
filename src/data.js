@@ -33,7 +33,27 @@ export const SUPERVISIONS = {
     'G307': 'Blanes',
     'SUPERVISOR_BLANES': 'Material supervisor'
   },
-  'Figueres': { 'SUPERVISOR_FIGUERES': 'Material supervisor' },
+  'Figueres': {
+    'SL51': 'Figueres',
+    'G216': "Castelló d'Empúries",
+    'G206': 'Figueres',
+    'G460': 'Figueres',
+    'G461': 'Figueres',
+    'G462': 'Cadaqués',
+    'G463': 'Portbou',
+    'G464': "L'Escala",
+    'G465': 'La Jonquera',
+    'G466': "Castelló d'Empúries",
+    'G467': 'Roses',
+    'G468': 'Llançà',
+    'G469': "L'Escala",
+    'G433': "La Bisbal d'Empordà",
+    'G434': 'Torroella de Montgrí/Estartit',
+    'G437': 'Torroella de Montgrí/Estartit',
+    'G306': 'Figueres',
+    'G303': "La Bisbal d'Empordà",
+    'SUPERVISOR_FIGUERES': 'Material supervisor'
+  },
   'Girona': { 'SUPERVISOR_GIRONA': 'Material supervisor' },
   'Olot': { ...UNITS, 'SUPERVISOR_OLOT': 'Material supervisor' }
 };
