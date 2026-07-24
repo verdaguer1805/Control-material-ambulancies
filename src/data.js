@@ -8,7 +8,31 @@ export const UNITS = {
   "G305": "Sant Joan de les Abadesses"
 };
 export const SUPERVISIONS = {
-  'Blanes': { 'SUPERVISOR_BLANES': 'Material supervisor' },
+  'Blanes': {
+    'G204': 'Calella',
+    'G218': 'Lloret de Mar',
+    'G217': 'Blanes',
+    'G440': 'Calella',
+    'G441': 'Canet de Mar',
+    'G442': 'Malgrat de Mar',
+    'G443': 'Pineda de Mar',
+    'G444': 'Pineda de Mar',
+    'G445': 'Pineda de Mar',
+    'G446': 'Calella',
+    'G471': 'Tordera',
+    'G422': 'Hostalric',
+    'G424': 'Maçanet de la Selva',
+    'G472': 'Blanes',
+    'G473': 'Blanes',
+    'G474': 'Lloret de Mar',
+    'G475': 'Lloret de Mar',
+    'G476': 'Tossa de Mar',
+    'G477': 'Blanes',
+    'G478': 'Lloret de Mar',
+    'BP51': 'Blanes',
+    'G307': 'Blanes',
+    'SUPERVISOR_BLANES': 'Material supervisor'
+  },
   'Figueres': { 'SUPERVISOR_FIGUERES': 'Material supervisor' },
   'Girona': { 'SUPERVISOR_GIRONA': 'Material supervisor' },
   'Olot': { ...UNITS, 'SUPERVISOR_OLOT': 'Material supervisor' }
