@@ -1,7 +1,9 @@
 export const UNITS = {
-  "G215": "Olot",
+  "G205": "Olot",
+  "G215": "Campdevànol",
   "G450": "Olot",
   "G451": "Olot",
+  "BP52": "Olot",
   "G452": "Campdevànol",
   "G453": "Camprodon",
   "G413": "Banyoles",
