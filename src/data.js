@@ -236,8 +236,6 @@ export const MATERIALS = [
   "Jabon platos",
   "Limpia cristales",
   "Pulsioximetre didal",
-  "Gases 20x40",
-  "Sueros 250 ml",
   "Faixa pèlvica",
   "Torniquet",
 ];
