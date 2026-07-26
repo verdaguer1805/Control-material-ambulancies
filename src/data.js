@@ -238,13 +238,8 @@ export const MATERIALS = [
   "Pulsioximetre didal",
   "Gases 20x40",
   "Sueros 250 ml",
-  "Llancetes (caixeta de 50)",
   "Faixa pèlvica",
   "Torniquet",
-  "Iode",
-  "Guedel número 2",
-  "Pegats dea adult",
-  "Pegats dea pediàtrics"
 ];
 export const CRITICAL_KEYWORDS = [
   "torniquet",
