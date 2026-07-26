@@ -1,4 +1,4 @@
-const CACHE = "cma-v5";
+const CACHE = "cma-v6";
 const APP_SHELL = ["./", "./index.html", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -22,17 +22,9 @@ self.addEventListener("fetch", (event) => {
     return response;
   };
 
-  // La pantalla principal comprova sempre primer la versió publicada.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then(updateCache)
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("./") || Response.error()))
-    );
-    return;
-  }
-
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then(updateCache).catch(() => Response.error()))
+    fetch(request)
+      .then(updateCache)
+      .catch(() => caches.match(request).then((cached) => cached || (request.mode === "navigate" ? caches.match("./") : Response.error())))
   );
 });
