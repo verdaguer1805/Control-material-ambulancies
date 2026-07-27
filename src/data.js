@@ -86,7 +86,7 @@ export const SUPERVISIONS = {
 };
 
 export const MATERIALS = [
-  "Bolsa recambio lsu",
+  "Bolsa recambio LSU",
   "Conector de vacio lsu",
   "Tubo silicona lsu",
   "Sonda aspiración yankauer",
@@ -97,7 +97,7 @@ export const MATERIALS = [
   "Sonda aspiración 14",
   "Sonda aspiración 16",
   "Sonda aspiración 18",
-  "Conexión en y",
+  "Conexión en Y",
   "Parches schiller adulto",
   "Parches schiller pediátrico",
   "Parches monitorización schiller",
