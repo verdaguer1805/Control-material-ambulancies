@@ -236,12 +236,12 @@ export const MATERIALS = [
   "Jabon platos",
   "Limpia cristales",
   "Pulsioximetre didal",
-  "Faixa pèlvica",
-  "Torniquet",
 ];
 export const CRITICAL_KEYWORDS = [
   "torniquet",
+  "faja pélvica",
   "faixa pèlvica",
+  "parches dea",
   "pegats dea adult",
   "pegats dea pediàtrics",
   "parches schiller adulto",
