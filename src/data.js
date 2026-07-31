@@ -239,6 +239,7 @@ export const MATERIALS = [
 ];
 export const CRITICAL_KEYWORDS = [
   "torniquet",
+  "kit quemados",
   "faja pélvica",
   "faixa pèlvica",
   "parches dea",
