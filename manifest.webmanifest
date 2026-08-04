@@ -1,7 +1,7 @@
 {
   "name": "Control de material d’ambulàncies",
   "short_name": "Material SEM",
-  "description": "Registre del material utilitzat a les ambulàncies.",
+  "description": "Registro del material utilizado en las ambulancias.",
   "start_url": "/Control-material-ambulancies/",
   "scope": "/Control-material-ambulancies/",
   "display": "standalone",
