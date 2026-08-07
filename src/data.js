@@ -302,3 +302,10 @@ export const SUPERVISOR_ONLY_MATERIALS = [
   "Pilas AA",
   "Pilas AAA"
 ];
+
+
+export const LOTS = {
+  'Lot 5 · Girona - Alt Maresme': SUPERVISIONS,
+  'Lot 7 · Àmbit Metropolità Barcelonès Sud': {},
+  'Lot 10 · Penedès': {}
+};
