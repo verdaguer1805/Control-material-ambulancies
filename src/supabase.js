@@ -7,7 +7,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 export async function hasSupabaseConnection() {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
+  const timer = setTimeout(() => controller.abort(), 2000);
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/`, {
       headers: { apikey: SUPABASE_PUBLISHABLE_KEY },
