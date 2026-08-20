@@ -798,6 +798,33 @@ function App() {
     setChangeUnitOpen(false);
     flash("Unidad cambiada correctamente", 2000);
   }
+  async function unassignDevice() {
+    const enteredPin = changeUnitPin;
+    setChangeUnitPin("");
+    const valid = await verifyAdminPin(enteredPin);
+    if (valid !== true) {
+      if (valid === false) denyPin(true);
+      return;
+    }
+    if (records.some((record) => !record.synced)) {
+      return flash(
+        "No se puede retirar la asignación: hay registros pendientes de sincronizar",
+      );
+    }
+    localStorage.removeItem(KEY.unit);
+    localStorage.removeItem(KEY.lot);
+    localStorage.removeItem(KEY.shift);
+    setUnit("");
+    setLot("");
+    setSelectedLot("");
+    setSelectedZone("");
+    setSelectedShiftStart("");
+    setChangeZone("");
+    setNextUnit("");
+    setChangeShiftStart("");
+    setChangeUnitOpen(false);
+    flash("Móvil sin asignar. Ya puedes configurarlo de nuevo");
+  }
   function exportExcel(source = adminRecords) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
@@ -1664,6 +1691,13 @@ function App() {
                   Asignar unidad
                 </button>
               </div>
+              <button
+                className="secondary full"
+                style={{ marginTop: 12 }}
+                onClick={unassignDevice}
+              >
+                Dejar móvil sin asignar
+              </button>
             </div>
           </div>
         )}
@@ -2305,7 +2339,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=41", {
+    navigator.serviceWorker.register("./sw.js?v=42", {
       updateViaCache: "none",
     }),
   );
