@@ -133,7 +133,7 @@ export const MATERIALS = [
   "Collarín pediátrico",
   "Faja pélvica",
   "Inmovilizador de hombro",
-  "Férula Kramer",
+  "Férula Kramer (Hierro)",
   "Funda Kramer",
   "Férula maleable braquial",
   "Férula maleable digital",
