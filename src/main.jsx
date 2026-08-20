@@ -19,6 +19,7 @@ import {
   supabase,
 } from "./supabase";
 import "./styles.css";
+import "./material-selection.css";
 const KEY = {
   unit: "cma_unit",
   lot: "cma_lot",
@@ -2189,7 +2190,10 @@ function App() {
                 superior a cero.
               </p>
               {filtered.map((m) => (
-                <div className="material" key={m}>
+                <div
+                  className={`material${(quantities[m] || 0) > 0 ? " material-selected" : ""}`}
+                  key={m}
+                >
                   <span>
                     {m}
                     {isCritical(m) ? (
@@ -2339,7 +2343,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=44", {
+    navigator.serviceWorker.register("./sw.js?v=45", {
       updateViaCache: "none",
     }),
   );

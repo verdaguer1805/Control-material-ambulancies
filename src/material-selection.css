@@ -1,0 +1,7 @@
+.material.material-selected {
+  margin: 3px 0;
+  padding: 10px;
+  border: 1px solid #efd76a;
+  border-radius: 10px;
+  background: #fff8cf;
+}
