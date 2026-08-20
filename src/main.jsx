@@ -2339,7 +2339,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=43", {
+    navigator.serviceWorker.register("./sw.js?v=44", {
       updateViaCache: "none",
     }),
   );

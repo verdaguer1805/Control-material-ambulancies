@@ -1,4 +1,4 @@
-const CACHE = "cma-v43";
+const CACHE = "cma-v44";
 const APP_SHELL = ["./", "./index.html", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
