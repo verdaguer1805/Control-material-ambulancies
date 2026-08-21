@@ -6,13 +6,15 @@
     <meta name="theme-color" content="#d71920" />
     <meta name="description" content="Panel de administración de material." />
     <link rel="manifest" href="./admin-manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="./falck.png" />
     <title>Administración de material</title>
-    <script>
-      // Entrada independiente para el icono de Administración.
-      // Conserva la app de unidades como acceso separado.
-      location.replace("./#admin");
-    </script>
+    <style>
+      html, body, iframe { width: 100%; height: 100%; margin: 0; border: 0; }
+      iframe { display: block; }
+    </style>
   </head>
-  <body></body>
+  <body>
+    <!-- Mantiene el manifiesto propio al instalar este acceso en iPhone. -->
+    <iframe title="Administración" src="./?panel=admin"></iframe>
+  </body>
 </html>

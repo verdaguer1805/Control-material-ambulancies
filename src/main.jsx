@@ -155,9 +155,14 @@ const aggregate = (r) => {
   return o;
 };
 const recordCritical = (r) => Object.keys(aggregate(r)).some(isCritical);
+const currentMode = () =>
+  location.hash === "#admin" ||
+  new URLSearchParams(location.search).get("panel") === "admin"
+    ? "admin"
+    : "worker";
 function App() {
   const [mode, setMode] = useState(
-      location.hash === "#admin" ? "admin" : "worker",
+      currentMode,
     ),
     [unit, setUnit] = useState(localStorage.getItem(KEY.unit) || ""),
     [lot, setLot] = useState(
@@ -222,7 +227,7 @@ function App() {
     [stockEditQuantity, setStockEditQuantity] = useState("");
   React.useEffect(() => {
     const h = () => {
-      const next = location.hash === "#admin" ? "admin" : "worker";
+      const next = currentMode();
       setMode(next);
       setPinInput("");
       setAdminOk(false);
@@ -2774,7 +2779,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=58", {
+    navigator.serviceWorker.register("./sw.js?v=59", {
       updateViaCache: "none",
     }),
   );

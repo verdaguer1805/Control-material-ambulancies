@@ -1,5 +1,5 @@
-const CACHE = "cma-v58";
-const APP_SHELL = ["./", "./index.html", "./admin.html", "./icon.svg"];
+const CACHE = "cma-v59";
+const APP_SHELL = ["./", "./index.html", "./admin.html", "./icon.svg", "./falck.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)));
