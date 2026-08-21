@@ -131,7 +131,9 @@ const nowParts = () => {
     time: `${p(d.getHours())}:${p(d.getMinutes())}`,
   };
 };
-const isSupervisorMaterial = (u) => u.startsWith("SUPERVISOR_");
+const isSupervisorMaterial = (u) =>
+  /^SUPERVISOR_/i.test(String(u || "")) ||
+  /^Material supervisor(?:\s*·|$)/i.test(String(u || ""));
 const supervisorZone = (u) =>
   u.replace("SUPERVISOR_", "").charAt(0) +
   u.replace("SUPERVISOR_", "").slice(1).toLowerCase();
@@ -2672,7 +2674,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=48", {
+    navigator.serviceWorker.register("./sw.js?v=49", {
       updateViaCache: "none",
     }),
   );
