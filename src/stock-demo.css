@@ -159,6 +159,11 @@
   font-weight: 800;
 }
 
+.stock-empty {
+  padding: 18px 4px 6px;
+  text-align: center;
+}
+
 .stock-demo-subtitle select {
   width: auto;
   max-width: 60%;

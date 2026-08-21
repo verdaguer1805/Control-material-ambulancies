@@ -214,7 +214,7 @@ function App() {
     [stockDemo, setStockDemo] = useState(getStockDemo),
     [stockDemoLot, setStockDemoLot] = useState(() => Object.keys(LOTS)[0]),
     [stockDemoZone, setStockDemoZone] = useState("Olot"),
-    [stockDemoLocation, setStockDemoLocation] = useState(STOCK_DEMO_CENTRAL),
+    [stockDemoLocation, setStockDemoLocation] = useState(""),
     [stockInventorySearch, setStockInventorySearch] = useState(""),
     [stockDemoTarget, setStockDemoTarget] = useState("Subalmacén Camprodon"),
     [stockDemoUnit, setStockDemoUnit] = useState("G453"),
@@ -2570,46 +2570,53 @@ function App() {
                         value={stockDemoLocation}
                         onChange={(e) => setStockDemoLocation(e.target.value)}
                       >
+                        <option value="">Selecciona un almacén...</option>
                         {STOCK_DEMO_LOCATIONS.map((location) => (
                           <option key={location}>{location}</option>
                         ))}
                       </select>
                     </div>
-                    <label>Buscar material en inventario</label>
-                    <input
-                      value={stockInventorySearch}
-                      onChange={(e) => setStockInventorySearch(e.target.value)}
-                      placeholder="Escribe el nombre del material..."
-                    />
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Material</th>
-                          <th>Cantidad</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {STOCK_DEMO_MATERIALS.filter((material) =>
-                          material.toLowerCase().includes(stockInventorySearch.toLowerCase()),
-                        ).map((material) => (
-                          <tr key={material}>
-                            <td>{material}</td>
-                            <td>
-                              {stockDemo.levels[stockDemoLocation][material]}
-                            </td>
-                            <td>
-                              <button
-                                className="stock-edit-button"
-                                onClick={() => openStockEdit(material)}
-                              >
-                                Editar
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    {stockDemoLocation ? (
+                      <>
+                        <label>Buscar material en inventario</label>
+                        <input
+                          value={stockInventorySearch}
+                          onChange={(e) => setStockInventorySearch(e.target.value)}
+                          placeholder="Escribe el nombre del material..."
+                        />
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Material</th>
+                              <th>Cantidad</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {STOCK_DEMO_MATERIALS.filter((material) =>
+                              material.toLowerCase().includes(stockInventorySearch.toLowerCase()),
+                            ).map((material) => (
+                              <tr key={material}>
+                                <td>{material}</td>
+                                <td>{stockDemo.levels[stockDemoLocation][material]}</td>
+                                <td>
+                                  <button
+                                    className="stock-edit-button"
+                                    onClick={() => openStockEdit(material)}
+                                  >
+                                    Editar
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </>
+                    ) : (
+                      <p className="muted stock-empty">
+                        Selecciona un almacén para consultar o modificar sus existencias.
+                      </p>
+                    )}
                   </div>
                 </div>
                 {stockPickerOpen && (
@@ -2777,7 +2784,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=61", {
+    navigator.serviceWorker.register("./sw.js?v=62", {
       updateViaCache: "none",
     }),
   );
