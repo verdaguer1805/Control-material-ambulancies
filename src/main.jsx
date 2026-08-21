@@ -27,7 +27,7 @@ const KEY = {
   shift: "cma_shift_start",
   records: "cma_records",
 };
-const STOCK_DEMO_KEY = "cma_stock_demo_olot_v2";
+const STOCK_DEMO_KEY = "cma_stock_demo_olot_v3";
 const STOCK_DEMO_CENTRAL = "Almacén central Olot";
 const STOCK_DEMO_LOCATIONS = [
   STOCK_DEMO_CENTRAL,
@@ -64,46 +64,11 @@ const stockLevel = (values = {}, defaultQuantity = 0) =>
 const createStockDemo = () => ({
   levels: {
     [STOCK_DEMO_CENTRAL]: stockLevel({}, 200),
-    "Subalmacén Olot": stockLevel({
-      "Guantes M (caja)": 12,
-      "Suero fisiológico 250 ml": 18,
-      Empapador: 10,
-      "Venda crep 10cm x 4m": 8,
-      "Lancetas (caja)": 4,
-      "Pañuelos de papel (caja)": 5,
-    }),
-    "Subalmacén Banyoles": stockLevel({
-      "Guantes M (caja)": 8,
-      "Suero fisiológico 250 ml": 12,
-      Empapador: 6,
-      "Venda crep 10cm x 4m": 5,
-      "Lancetas (caja)": 3,
-      "Pañuelos de papel (caja)": 4,
-    }),
-    "Subalmacén Campdevànol": stockLevel({
-      "Guantes M (caja)": 10,
-      "Suero fisiológico 250 ml": 14,
-      Empapador: 7,
-      "Venda crep 10cm x 4m": 6,
-      "Lancetas (caja)": 3,
-      "Pañuelos de papel (caja)": 4,
-    }),
-    "Subalmacén Camprodon": stockLevel({
-      "Guantes M (caja)": 6,
-      "Suero fisiológico 250 ml": 8,
-      Empapador: 4,
-      "Venda crep 10cm x 4m": 4,
-      "Lancetas (caja)": 2,
-      "Pañuelos de papel (caja)": 3,
-    }),
-    "Subalmacén Sant Joan de les Abadesses": stockLevel({
-      "Guantes M (caja)": 7,
-      "Suero fisiológico 250 ml": 9,
-      Empapador: 5,
-      "Venda crep 10cm x 4m": 4,
-      "Lancetas (caja)": 2,
-      "Pañuelos de papel (caja)": 3,
-    }),
+    "Subalmacén Olot": stockLevel({}, 25),
+    "Subalmacén Banyoles": stockLevel({}, 25),
+    "Subalmacén Campdevànol": stockLevel({}, 25),
+    "Subalmacén Camprodon": stockLevel({}, 25),
+    "Subalmacén Sant Joan de les Abadesses": stockLevel({}, 25),
   },
   movements: [
     {
@@ -2742,7 +2707,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=55", {
+    navigator.serviceWorker.register("./sw.js?v=56", {
       updateViaCache: "none",
     }),
   );
