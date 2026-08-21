@@ -27,11 +27,10 @@ const KEY = {
   shift: "cma_shift_start",
   records: "cma_records",
 };
-const STOCK_DEMO_KEY = "cma_stock_demo_olot_v3";
+const STOCK_DEMO_KEY = "cma_stock_demo_olot_v4";
 const STOCK_DEMO_CENTRAL = "Almacén central Olot";
 const STOCK_DEMO_LOCATIONS = [
   STOCK_DEMO_CENTRAL,
-  "Subalmacén Olot",
   "Subalmacén Banyoles",
   "Subalmacén Campdevànol",
   "Subalmacén Camprodon",
@@ -43,10 +42,10 @@ const STOCK_DEMO_MATERIALS = [...MATERIALS].sort((a, b) =>
   a.localeCompare(b, "es", { sensitivity: "base", numeric: true }),
 );
 const STOCK_DEMO_UNITS = {
-  G205: "Subalmacén Olot",
-  G450: "Subalmacén Olot",
-  G451: "Subalmacén Olot",
-  BP52: "Subalmacén Olot",
+  G205: STOCK_DEMO_CENTRAL,
+  G450: STOCK_DEMO_CENTRAL,
+  G451: STOCK_DEMO_CENTRAL,
+  BP52: STOCK_DEMO_CENTRAL,
   G413: "Subalmacén Banyoles",
   G215: "Subalmacén Campdevànol",
   G452: "Subalmacén Campdevànol",
@@ -64,7 +63,6 @@ const stockLevel = (values = {}, defaultQuantity = 0) =>
 const createStockDemo = () => ({
   levels: {
     [STOCK_DEMO_CENTRAL]: stockLevel({}, 200),
-    "Subalmacén Olot": stockLevel({}, 25),
     "Subalmacén Banyoles": stockLevel({}, 25),
     "Subalmacén Campdevànol": stockLevel({}, 25),
     "Subalmacén Camprodon": stockLevel({}, 25),
@@ -2503,13 +2501,13 @@ function App() {
                   </div>
                   <div>
                     <small>Subalmacenes</small>
-                    <strong>5</strong>
-                    <span>Banyoles, Camprodon, Campdevànol, Olot y Sant Joan</span>
+                    <strong>4</strong>
+                    <span>Banyoles, Camprodon, Campdevànol y Sant Joan</span>
                   </div>
                   <div>
                     <small>Unidades vinculadas</small>
                     <strong>9</strong>
-                    <span>Consumo simulado por subalmacén</span>
+                    <span>Olot directo al central y resto por subalmacén</span>
                   </div>
                 </div>
                 <div className="stock-demo-actions">
@@ -2779,7 +2777,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=60", {
+    navigator.serviceWorker.register("./sw.js?v=61", {
       updateViaCache: "none",
     }),
   );
