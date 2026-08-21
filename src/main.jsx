@@ -27,7 +27,7 @@ const KEY = {
   shift: "cma_shift_start",
   records: "cma_records",
 };
-const STOCK_DEMO_KEY = "cma_stock_demo_olot_v1";
+const STOCK_DEMO_KEY = "cma_stock_demo_olot_v2";
 const STOCK_DEMO_CENTRAL = "Almacén central Olot";
 const STOCK_DEMO_LOCATIONS = [
   STOCK_DEMO_CENTRAL,
@@ -54,18 +54,16 @@ const STOCK_DEMO_UNITS = {
   G305: "Subalmacén Sant Joan de les Abadesses",
   "Material supervisor Olot": STOCK_DEMO_CENTRAL,
 };
-const stockLevel = (values = {}) =>
-  Object.fromEntries(STOCK_DEMO_MATERIALS.map((material) => [material, values[material] || 0]));
+const stockLevel = (values = {}, defaultQuantity = 0) =>
+  Object.fromEntries(
+    STOCK_DEMO_MATERIALS.map((material) => [
+      material,
+      values[material] ?? defaultQuantity,
+    ]),
+  );
 const createStockDemo = () => ({
   levels: {
-    [STOCK_DEMO_CENTRAL]: stockLevel({
-      "Guantes M (caja)": 50,
-      "Suero fisiológico 250 ml": 80,
-      Empapador: 40,
-      "Venda crep 10cm x 4m": 30,
-      "Lancetas (caja)": 15,
-      "Pañuelos de papel (caja)": 20,
-    }),
+    [STOCK_DEMO_CENTRAL]: stockLevel({}, 200),
     "Subalmacén Olot": stockLevel({
       "Guantes M (caja)": 12,
       "Suero fisiológico 250 ml": 18,
@@ -2744,7 +2742,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=53", {
+    navigator.serviceWorker.register("./sw.js?v=54", {
       updateViaCache: "none",
     }),
   );
