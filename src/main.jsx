@@ -241,11 +241,20 @@ function App() {
     [editingRecord, setEditingRecord] = useState(null),
     [stockDemoOpen, setStockDemoOpen] = useState(false),
     [stockDemo, setStockDemo] = useState(getStockDemo),
+    [stockDemoLot, setStockDemoLot] = useState(() => Object.keys(LOTS)[0]),
+    [stockDemoZone, setStockDemoZone] = useState("Olot"),
     [stockDemoLocation, setStockDemoLocation] = useState(STOCK_DEMO_CENTRAL),
     [stockDemoMaterial, setStockDemoMaterial] = useState(STOCK_DEMO_MATERIALS[0]),
     [stockDemoQuantity, setStockDemoQuantity] = useState(1),
     [stockDemoTarget, setStockDemoTarget] = useState("Subalmacén Camprodon"),
-    [stockDemoUnit, setStockDemoUnit] = useState("G453");
+    [stockDemoTransferMaterial, setStockDemoTransferMaterial] =
+      useState(STOCK_DEMO_MATERIALS[0]),
+    [stockDemoTransferQuantity, setStockDemoTransferQuantity] = useState(1),
+    [stockDemoUnit, setStockDemoUnit] = useState("G453"),
+    [stockDemoConsumptionMaterial, setStockDemoConsumptionMaterial] =
+      useState(STOCK_DEMO_MATERIALS[0]),
+    [stockDemoConsumptionQuantity, setStockDemoConsumptionQuantity] =
+      useState(1);
   React.useEffect(() => {
     const h = () => {
       const next = location.hash === "#admin" ? "admin" : "worker";
@@ -936,8 +945,8 @@ function App() {
     localStorage.setItem(STOCK_DEMO_KEY, JSON.stringify(next));
     setStockDemo(next);
   }
-  function stockDemoNumber() {
-    return Math.floor(Number(stockDemoQuantity));
+  function stockDemoNumber(value = stockDemoQuantity) {
+    return Math.floor(Number(value));
   }
   function addDemoMovement(next, type, detail) {
     next.movements.unshift({
@@ -962,37 +971,38 @@ function App() {
     flash("Entrada ficticia registrada en Olot central");
   }
   function demoTransfer() {
-    const quantity = stockDemoNumber();
+    const quantity = stockDemoNumber(stockDemoTransferQuantity);
     if (!Number.isFinite(quantity) || quantity <= 0)
       return flash("Introduce una cantidad válida");
     const next = JSON.parse(JSON.stringify(stockDemo));
-    const available = next.levels[STOCK_DEMO_CENTRAL][stockDemoMaterial] || 0;
+    const available =
+      next.levels[STOCK_DEMO_CENTRAL][stockDemoTransferMaterial] || 0;
     if (quantity > available)
       return flash("No hay suficiente stock en Olot central");
-    next.levels[STOCK_DEMO_CENTRAL][stockDemoMaterial] -= quantity;
-    next.levels[stockDemoTarget][stockDemoMaterial] += quantity;
+    next.levels[STOCK_DEMO_CENTRAL][stockDemoTransferMaterial] -= quantity;
+    next.levels[stockDemoTarget][stockDemoTransferMaterial] += quantity;
     addDemoMovement(
       next,
       "Reposición a subalmacén",
-      `${quantity} ${stockDemoMaterial}: Olot central → ${stockDemoTarget.replace("Subalmacén ", "")}`,
+      `${quantity} ${stockDemoTransferMaterial}: Olot central → ${stockDemoTarget.replace("Subalmacén ", "")}`,
     );
     saveStockDemo(next);
     flash("Reposición ficticia confirmada");
   }
   function demoConsumption() {
-    const quantity = stockDemoNumber();
+    const quantity = stockDemoNumber(stockDemoConsumptionQuantity);
     if (!Number.isFinite(quantity) || quantity <= 0)
       return flash("Introduce una cantidad válida");
     const location = STOCK_DEMO_UNITS[stockDemoUnit];
     const next = JSON.parse(JSON.stringify(stockDemo));
-    const available = next.levels[location][stockDemoMaterial] || 0;
+    const available = next.levels[location][stockDemoConsumptionMaterial] || 0;
     if (quantity > available)
       return flash(`No hay suficiente stock en ${location}`);
-    next.levels[location][stockDemoMaterial] -= quantity;
+    next.levels[location][stockDemoConsumptionMaterial] -= quantity;
     addDemoMovement(
       next,
       "Consumo simulado",
-      `${stockDemoUnit}: ${quantity} ${stockDemoMaterial} · ${location.replace("Subalmacén ", "")}`,
+      `${stockDemoUnit}: ${quantity} ${stockDemoConsumptionMaterial} · ${location.replace("Subalmacén ", "")}`,
     );
     saveStockDemo(next);
     flash("Consumo ficticio registrado");
@@ -1681,7 +1691,9 @@ function App() {
     setExportOpen(false);
   }
   const currentUnit = localStorage.getItem(KEY.unit),
-    pending = records.filter((r) => !r.synced).length;
+    pending = records.filter((r) => !r.synced).length,
+    stockDemoReady =
+      stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot";
   return (
     <div className="app">
       <header className="header">
@@ -2467,6 +2479,39 @@ function App() {
                   </div>
                   <span className="stock-demo-badge">PRUEBA</span>
                 </div>
+                <div className="stock-demo-scope">
+                  <div>
+                    <label>Lote</label>
+                    <select
+                      value={stockDemoLot}
+                      onChange={(e) => {
+                        setStockDemoLot(e.target.value);
+                        setStockDemoZone("");
+                      }}
+                    >
+                      {Object.keys(LOTS).map((lot) => (
+                        <option key={lot}>{lot}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Supervisión</label>
+                    <select
+                      value={stockDemoZone}
+                      onChange={(e) => setStockDemoZone(e.target.value)}
+                      disabled={!Object.keys(LOTS[stockDemoLot] || {}).length}
+                    >
+                      <option value="">Selecciona...</option>
+                      {Object.keys(LOTS[stockDemoLot] || {})
+                        .sort((a, b) => a.localeCompare(b))
+                        .map((zone) => (
+                          <option key={zone}>{zone}</option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+                {stockDemoReady ? (
+                  <>
                 <div className="stock-demo-cards">
                   <div>
                     <small>Almacén central</small>
@@ -2524,12 +2569,24 @@ function App() {
                         <option key={location}>{location}</option>
                       ))}
                     </select>
-                    <label>Material y cantidad</label>
-                    <p className="stock-demo-selection">
-                      {stockDemoQuantity} {stockDemoMaterial}
-                    </p>
+                    <label>Material</label>
+                    <select
+                      value={stockDemoTransferMaterial}
+                      onChange={(e) => setStockDemoTransferMaterial(e.target.value)}
+                    >
+                      {STOCK_DEMO_MATERIALS.map((material) => (
+                        <option key={material}>{material}</option>
+                      ))}
+                    </select>
+                    <label>Cantidad que estoy reponiendo</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={stockDemoTransferQuantity}
+                      onChange={(e) => setStockDemoTransferQuantity(e.target.value)}
+                    />
                     <button className="primary full" onClick={demoTransfer}>
-                      Confirmar reposición ficticia
+                      Registrar reposición ficticia
                     </button>
                   </div>
                   <div className="stock-demo-action">
@@ -2550,6 +2607,26 @@ function App() {
                     <p className="stock-demo-selection">
                       {STOCK_DEMO_UNITS[stockDemoUnit]}
                     </p>
+                    <label>Material</label>
+                    <select
+                      value={stockDemoConsumptionMaterial}
+                      onChange={(e) =>
+                        setStockDemoConsumptionMaterial(e.target.value)
+                      }
+                    >
+                      {STOCK_DEMO_MATERIALS.map((material) => (
+                        <option key={material}>{material}</option>
+                      ))}
+                    </select>
+                    <label>Cantidad consumida</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={stockDemoConsumptionQuantity}
+                      onChange={(e) =>
+                        setStockDemoConsumptionQuantity(e.target.value)
+                      }
+                    />
                     <button className="secondary full" onClick={demoConsumption}>
                       Registrar consumo ficticio
                     </button>
@@ -2601,6 +2678,21 @@ function App() {
                 <button className="danger" onClick={resetStockDemo}>
                   Restablecer datos ficticios
                 </button>
+                  </>
+                ) : (
+                  <div className="stock-demo-coming">
+                    <h3>Zona preparada para la siguiente fase</h3>
+                    <p>
+                      El selector ya permite trabajar por lote y supervisión. El
+                      piloto funcional con subalmacenes y cantidades ficticias está
+                      configurado actualmente para Supervisión Olot.
+                    </p>
+                    <p className="muted">
+                      Cuando definamos los subalmacenes de esta zona, tendrá la misma
+                      operativa: entrada de pedido, reposición y consumo vinculado.
+                    </p>
+                  </div>
+                )}
               </section>
             )}
             <div className="card">
@@ -2674,7 +2766,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=50", {
+    navigator.serviceWorker.register("./sw.js?v=51", {
       updateViaCache: "none",
     }),
   );
