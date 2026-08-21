@@ -2459,9 +2459,9 @@ function App() {
               <section className="card stock-demo">
                 <div className="stock-demo-title">
                   <div>
-                    <h2>Stock · SupervisiÃ³n Olot</h2>
+                    <h2>Stock · Supervisión Olot</h2>
                     <p className="muted">
-                      Modo demostraciÃ³n: datos ficticios guardados solo en este
+                      Modo demostración: datos ficticios guardados solo en este
                       navegador. No se conecta con Supabase ni modifica incidencias.
                     </p>
                   </div>
@@ -2469,26 +2469,26 @@ function App() {
                 </div>
                 <div className="stock-demo-cards">
                   <div>
-                    <small>AlmacÃ©n central</small>
+                    <small>Almacén central</small>
                     <strong>Olot</strong>
-                    <span>{STOCK_DEMO_MATERIALS.length} artÃ­culos demo</span>
+                    <span>{STOCK_DEMO_MATERIALS.length} artículos demo</span>
                   </div>
                   <div>
                     <small>Subalmacenes</small>
                     <strong>5</strong>
-                    <span>Banyoles, Camprodon, CampdevÃ nol, Olot y Sant Joan</span>
+                    <span>Banyoles, Camprodon, Campdevànol, Olot y Sant Joan</span>
                   </div>
                   <div>
                     <small>Unidades vinculadas</small>
                     <strong>9</strong>
-                    <span>Consumo simulado por subalmacÃ©n</span>
+                    <span>Consumo simulado por subalmacén</span>
                   </div>
                 </div>
                 <div className="stock-demo-actions">
                   <div className="stock-demo-action">
                     <h3>1. Recibir pedido</h3>
                     <p className="muted small">
-                      Suma material al almacÃ©n central de Olot.
+                      Suma material al almacén central de Olot.
                     </p>
                     <label>Material</label>
                     <select
@@ -2511,7 +2511,7 @@ function App() {
                     </button>
                   </div>
                   <div className="stock-demo-action">
-                    <h3>2. Reponer subalmacÃ©n</h3>
+                    <h3>2. Reponer subalmacén</h3>
                     <p className="muted small">
                       Resta del central y suma en el destino elegido.
                     </p>
@@ -2529,13 +2529,13 @@ function App() {
                       {stockDemoQuantity} {stockDemoMaterial}
                     </p>
                     <button className="primary full" onClick={demoTransfer}>
-                      Confirmar reposiciÃ³n ficticia
+                      Confirmar reposición ficticia
                     </button>
                   </div>
                   <div className="stock-demo-action">
                     <h3>3. Simular consumo</h3>
                     <p className="muted small">
-                      Demuestra cÃ³mo una unidad descuenta de su subalmacÃ©n.
+                      Demuestra cómo una unidad descuenta de su subalmacén.
                     </p>
                     <label>Unidad</label>
                     <select
@@ -2546,7 +2546,7 @@ function App() {
                         <option key={unit}>{unit}</option>
                       ))}
                     </select>
-                    <label>SubalmacÃ©n vinculado</label>
+                    <label>Subalmacén vinculado</label>
                     <p className="stock-demo-selection">
                       {STOCK_DEMO_UNITS[stockDemoUnit]}
                     </p>
@@ -2588,7 +2588,7 @@ function App() {
                     </table>
                   </div>
                   <div className="stock-demo-history">
-                    <h3>Ãšltimos movimientos demo</h3>
+                    <h3>Últimos movimientos demo</h3>
                     {stockDemo.movements.slice(0, 6).map((movement, index) => (
                       <div className="stock-demo-movement" key={index}>
                         <b>{movement.type}</b>
@@ -2674,7 +2674,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=49", {
+    navigator.serviceWorker.register("./sw.js?v=50", {
       updateViaCache: "none",
     }),
   );
