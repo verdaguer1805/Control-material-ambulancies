@@ -20,11 +20,108 @@ import {
 } from "./supabase";
 import "./styles.css";
 import "./material-selection.css";
+import "./stock-demo.css";
 const KEY = {
   unit: "cma_unit",
   lot: "cma_lot",
   shift: "cma_shift_start",
   records: "cma_records",
+};
+const STOCK_DEMO_KEY = "cma_stock_demo_olot_v1";
+const STOCK_DEMO_CENTRAL = "Almacén central Olot";
+const STOCK_DEMO_LOCATIONS = [
+  STOCK_DEMO_CENTRAL,
+  "Subalmacén Olot",
+  "Subalmacén Banyoles",
+  "Subalmacén Campdevànol",
+  "Subalmacén Camprodon",
+  "Subalmacén Sant Joan de les Abadesses",
+];
+const STOCK_DEMO_MATERIALS = [
+  "Guantes M (caja)",
+  "Suero fisiológico 250 ml",
+  "Empapador",
+  "Venda crep 10cm x 4m",
+  "Lancetas (caja)",
+  "Pañuelos de papel (caja)",
+];
+const STOCK_DEMO_UNITS = {
+  G205: "Subalmacén Olot",
+  G450: "Subalmacén Olot",
+  G451: "Subalmacén Olot",
+  BP52: "Subalmacén Olot",
+  G413: "Subalmacén Banyoles",
+  G215: "Subalmacén Campdevànol",
+  G452: "Subalmacén Campdevànol",
+  G453: "Subalmacén Camprodon",
+  G305: "Subalmacén Sant Joan de les Abadesses",
+  "Material supervisor Olot": STOCK_DEMO_CENTRAL,
+};
+const createStockDemo = () => ({
+  levels: {
+    [STOCK_DEMO_CENTRAL]: {
+      "Guantes M (caja)": 50,
+      "Suero fisiológico 250 ml": 80,
+      Empapador: 40,
+      "Venda crep 10cm x 4m": 30,
+      "Lancetas (caja)": 15,
+      "Pañuelos de papel (caja)": 20,
+    },
+    "Subalmacén Olot": {
+      "Guantes M (caja)": 12,
+      "Suero fisiológico 250 ml": 18,
+      Empapador: 10,
+      "Venda crep 10cm x 4m": 8,
+      "Lancetas (caja)": 4,
+      "Pañuelos de papel (caja)": 5,
+    },
+    "Subalmacén Banyoles": {
+      "Guantes M (caja)": 8,
+      "Suero fisiológico 250 ml": 12,
+      Empapador: 6,
+      "Venda crep 10cm x 4m": 5,
+      "Lancetas (caja)": 3,
+      "Pañuelos de papel (caja)": 4,
+    },
+    "Subalmacén Campdevànol": {
+      "Guantes M (caja)": 10,
+      "Suero fisiológico 250 ml": 14,
+      Empapador: 7,
+      "Venda crep 10cm x 4m": 6,
+      "Lancetas (caja)": 3,
+      "Pañuelos de papel (caja)": 4,
+    },
+    "Subalmacén Camprodon": {
+      "Guantes M (caja)": 6,
+      "Suero fisiológico 250 ml": 8,
+      Empapador: 4,
+      "Venda crep 10cm x 4m": 4,
+      "Lancetas (caja)": 2,
+      "Pañuelos de papel (caja)": 3,
+    },
+    "Subalmacén Sant Joan de les Abadesses": {
+      "Guantes M (caja)": 7,
+      "Suero fisiológico 250 ml": 9,
+      Empapador: 5,
+      "Venda crep 10cm x 4m": 4,
+      "Lancetas (caja)": 2,
+      "Pañuelos de papel (caja)": 3,
+    },
+  },
+  movements: [
+    {
+      at: "Datos ficticios",
+      type: "Inventario inicial",
+      detail: "Piloto de Supervisión Olot",
+    },
+  ],
+});
+const getStockDemo = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STOCK_DEMO_KEY)) || createStockDemo();
+  } catch {
+    return createStockDemo();
+  }
 };
 const nowParts = () => {
   const d = new Date(),
@@ -139,7 +236,14 @@ function App() {
     [changeShiftStart, setChangeShiftStart] = useState(""),
     [shiftPickerOpen, setShiftPickerOpen] = useState(false),
     [shiftPickerTarget, setShiftPickerTarget] = useState(""),
-    [editingRecord, setEditingRecord] = useState(null);
+    [editingRecord, setEditingRecord] = useState(null),
+    [stockDemoOpen, setStockDemoOpen] = useState(false),
+    [stockDemo, setStockDemo] = useState(getStockDemo),
+    [stockDemoLocation, setStockDemoLocation] = useState(STOCK_DEMO_CENTRAL),
+    [stockDemoMaterial, setStockDemoMaterial] = useState(STOCK_DEMO_MATERIALS[0]),
+    [stockDemoQuantity, setStockDemoQuantity] = useState(1),
+    [stockDemoTarget, setStockDemoTarget] = useState("Subalmacén Camprodon"),
+    [stockDemoUnit, setStockDemoUnit] = useState("G453");
   React.useEffect(() => {
     const h = () => {
       const next = location.hash === "#admin" ? "admin" : "worker";
@@ -825,6 +929,77 @@ function App() {
     setChangeShiftStart("");
     setChangeUnitOpen(false);
     flash("Móvil sin asignar. Ya puedes configurarlo de nuevo");
+  }
+  function saveStockDemo(next) {
+    localStorage.setItem(STOCK_DEMO_KEY, JSON.stringify(next));
+    setStockDemo(next);
+  }
+  function stockDemoNumber() {
+    return Math.floor(Number(stockDemoQuantity));
+  }
+  function addDemoMovement(next, type, detail) {
+    next.movements.unshift({
+      at: new Date().toLocaleString("es-ES"),
+      type,
+      detail,
+    });
+    next.movements = next.movements.slice(0, 20);
+  }
+  function demoEntry() {
+    const quantity = stockDemoNumber();
+    if (!Number.isFinite(quantity) || quantity <= 0)
+      return flash("Introduce una cantidad válida");
+    const next = JSON.parse(JSON.stringify(stockDemo));
+    next.levels[STOCK_DEMO_CENTRAL][stockDemoMaterial] += quantity;
+    addDemoMovement(
+      next,
+      "Entrada de pedido",
+      `${quantity} ${stockDemoMaterial} → Olot central`,
+    );
+    saveStockDemo(next);
+    flash("Entrada ficticia registrada en Olot central");
+  }
+  function demoTransfer() {
+    const quantity = stockDemoNumber();
+    if (!Number.isFinite(quantity) || quantity <= 0)
+      return flash("Introduce una cantidad válida");
+    const next = JSON.parse(JSON.stringify(stockDemo));
+    const available = next.levels[STOCK_DEMO_CENTRAL][stockDemoMaterial] || 0;
+    if (quantity > available)
+      return flash("No hay suficiente stock en Olot central");
+    next.levels[STOCK_DEMO_CENTRAL][stockDemoMaterial] -= quantity;
+    next.levels[stockDemoTarget][stockDemoMaterial] += quantity;
+    addDemoMovement(
+      next,
+      "Reposición a subalmacén",
+      `${quantity} ${stockDemoMaterial}: Olot central → ${stockDemoTarget.replace("Subalmacén ", "")}`,
+    );
+    saveStockDemo(next);
+    flash("Reposición ficticia confirmada");
+  }
+  function demoConsumption() {
+    const quantity = stockDemoNumber();
+    if (!Number.isFinite(quantity) || quantity <= 0)
+      return flash("Introduce una cantidad válida");
+    const location = STOCK_DEMO_UNITS[stockDemoUnit];
+    const next = JSON.parse(JSON.stringify(stockDemo));
+    const available = next.levels[location][stockDemoMaterial] || 0;
+    if (quantity > available)
+      return flash(`No hay suficiente stock en ${location}`);
+    next.levels[location][stockDemoMaterial] -= quantity;
+    addDemoMovement(
+      next,
+      "Consumo simulado",
+      `${stockDemoUnit}: ${quantity} ${stockDemoMaterial} · ${location.replace("Subalmacén ", "")}`,
+    );
+    saveStockDemo(next);
+    flash("Consumo ficticio registrado");
+  }
+  function resetStockDemo() {
+    if (!confirm("¿Restablecer los datos ficticios del piloto de Olot?")) return;
+    const next = createStockDemo();
+    saveStockDemo(next);
+    flash("Demostración restablecida");
   }
   function exportExcel(source = adminRecords) {
     if (!exportZone) return flash("Selecciona una supervisión");
@@ -2270,8 +2445,162 @@ function App() {
                 <button className="secondary" onClick={changePin}>
                   Cambiar PIN
                 </button>
+                <button
+                  className="secondary"
+                  onClick={() => setStockDemoOpen((open) => !open)}
+                >
+                  {stockDemoOpen ? "Cerrar demo de stock" : "Demo stock Olot"}
+                </button>
               </div>
             </div>
+            {stockDemoOpen && (
+              <section className="card stock-demo">
+                <div className="stock-demo-title">
+                  <div>
+                    <h2>Stock · SupervisiÃ³n Olot</h2>
+                    <p className="muted">
+                      Modo demostraciÃ³n: datos ficticios guardados solo en este
+                      navegador. No se conecta con Supabase ni modifica incidencias.
+                    </p>
+                  </div>
+                  <span className="stock-demo-badge">PRUEBA</span>
+                </div>
+                <div className="stock-demo-cards">
+                  <div>
+                    <small>AlmacÃ©n central</small>
+                    <strong>Olot</strong>
+                    <span>{STOCK_DEMO_MATERIALS.length} artÃ­culos demo</span>
+                  </div>
+                  <div>
+                    <small>Subalmacenes</small>
+                    <strong>5</strong>
+                    <span>Banyoles, Camprodon, CampdevÃ nol, Olot y Sant Joan</span>
+                  </div>
+                  <div>
+                    <small>Unidades vinculadas</small>
+                    <strong>9</strong>
+                    <span>Consumo simulado por subalmacÃ©n</span>
+                  </div>
+                </div>
+                <div className="stock-demo-actions">
+                  <div className="stock-demo-action">
+                    <h3>1. Recibir pedido</h3>
+                    <p className="muted small">
+                      Suma material al almacÃ©n central de Olot.
+                    </p>
+                    <label>Material</label>
+                    <select
+                      value={stockDemoMaterial}
+                      onChange={(e) => setStockDemoMaterial(e.target.value)}
+                    >
+                      {STOCK_DEMO_MATERIALS.map((material) => (
+                        <option key={material}>{material}</option>
+                      ))}
+                    </select>
+                    <label>Cantidad recibida</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={stockDemoQuantity}
+                      onChange={(e) => setStockDemoQuantity(e.target.value)}
+                    />
+                    <button className="primary full" onClick={demoEntry}>
+                      Registrar entrada ficticia
+                    </button>
+                  </div>
+                  <div className="stock-demo-action">
+                    <h3>2. Reponer subalmacÃ©n</h3>
+                    <p className="muted small">
+                      Resta del central y suma en el destino elegido.
+                    </p>
+                    <label>Destino</label>
+                    <select
+                      value={stockDemoTarget}
+                      onChange={(e) => setStockDemoTarget(e.target.value)}
+                    >
+                      {STOCK_DEMO_LOCATIONS.slice(1).map((location) => (
+                        <option key={location}>{location}</option>
+                      ))}
+                    </select>
+                    <label>Material y cantidad</label>
+                    <p className="stock-demo-selection">
+                      {stockDemoQuantity} {stockDemoMaterial}
+                    </p>
+                    <button className="primary full" onClick={demoTransfer}>
+                      Confirmar reposiciÃ³n ficticia
+                    </button>
+                  </div>
+                  <div className="stock-demo-action">
+                    <h3>3. Simular consumo</h3>
+                    <p className="muted small">
+                      Demuestra cÃ³mo una unidad descuenta de su subalmacÃ©n.
+                    </p>
+                    <label>Unidad</label>
+                    <select
+                      value={stockDemoUnit}
+                      onChange={(e) => setStockDemoUnit(e.target.value)}
+                    >
+                      {Object.keys(STOCK_DEMO_UNITS).map((unit) => (
+                        <option key={unit}>{unit}</option>
+                      ))}
+                    </select>
+                    <label>SubalmacÃ©n vinculado</label>
+                    <p className="stock-demo-selection">
+                      {STOCK_DEMO_UNITS[stockDemoUnit]}
+                    </p>
+                    <button className="secondary full" onClick={demoConsumption}>
+                      Registrar consumo ficticio
+                    </button>
+                  </div>
+                </div>
+                <div className="stock-demo-bottom">
+                  <div className="stock-demo-stock">
+                    <div className="stock-demo-subtitle">
+                      <h3>Existencias actuales</h3>
+                      <select
+                        value={stockDemoLocation}
+                        onChange={(e) => setStockDemoLocation(e.target.value)}
+                      >
+                        {STOCK_DEMO_LOCATIONS.map((location) => (
+                          <option key={location}>{location}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Material</th>
+                          <th>Cantidad</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {STOCK_DEMO_MATERIALS.map((material) => (
+                          <tr key={material}>
+                            <td>{material}</td>
+                            <td>
+                              {stockDemo.levels[stockDemoLocation][material]}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="stock-demo-history">
+                    <h3>Ãšltimos movimientos demo</h3>
+                    {stockDemo.movements.slice(0, 6).map((movement, index) => (
+                      <div className="stock-demo-movement" key={index}>
+                        <b>{movement.type}</b>
+                        <span>{movement.detail}</span>
+                        <small>{movement.at}</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button className="danger" onClick={resetStockDemo}>
+                  Restablecer datos ficticios
+                </button>
+              </section>
+            )}
             <div className="card">
               <h3>Resumen</h3>
               {adminLoaded ? (
@@ -2343,7 +2672,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=47", {
+    navigator.serviceWorker.register("./sw.js?v=48", {
       updateViaCache: "none",
     }),
   );

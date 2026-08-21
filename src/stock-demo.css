@@ -1,0 +1,128 @@
+.stock-demo {
+  border: 2px solid #d71920;
+}
+
+.stock-demo-title,
+.stock-demo-subtitle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stock-demo-title h2,
+.stock-demo-title p,
+.stock-demo-subtitle h3,
+.stock-demo-history h3 {
+  margin-top: 0;
+}
+
+.stock-demo-badge {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #fff3d6;
+  color: #9b5d00;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.stock-demo-cards,
+.stock-demo-actions,
+.stock-demo-bottom {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.stock-demo-cards {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stock-demo-cards > div {
+  padding: 12px;
+  border-radius: 12px;
+  background: #f6f8f9;
+}
+
+.stock-demo-cards small,
+.stock-demo-cards span {
+  display: block;
+}
+
+.stock-demo-cards strong {
+  display: block;
+  margin: 4px 0;
+  color: #d71920;
+  font-size: 21px;
+}
+
+.stock-demo-cards span {
+  color: #6b7d83;
+  font-size: 12px;
+}
+
+.stock-demo-actions {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stock-demo-action {
+  padding: 14px;
+  border: 1px solid #dce5e8;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.stock-demo-action h3 {
+  margin: 0;
+}
+
+.stock-demo-action button {
+  margin-top: 12px;
+}
+
+.stock-demo-selection {
+  min-height: 43px;
+  margin: 6px 0;
+  padding: 11px;
+  border-radius: 10px;
+  background: #f6f8f9;
+  font-weight: 700;
+}
+
+.stock-demo-bottom {
+  grid-template-columns: 1.2fr .8fr;
+}
+
+.stock-demo-stock,
+.stock-demo-history {
+  padding: 14px;
+  border-radius: 14px;
+  background: #f6f8f9;
+}
+
+.stock-demo-subtitle select {
+  width: auto;
+  max-width: 60%;
+  padding: 8px;
+}
+
+.stock-demo-movement {
+  display: grid;
+  gap: 2px;
+  padding: 9px 0;
+  border-bottom: 1px solid #dce5e8;
+}
+
+.stock-demo-movement span,
+.stock-demo-movement small {
+  color: #6b7d83;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .stock-demo-cards,
+  .stock-demo-actions,
+  .stock-demo-bottom {
+    grid-template-columns: 1fr;
+  }
+}
