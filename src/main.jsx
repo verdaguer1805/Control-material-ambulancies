@@ -212,11 +212,14 @@ function App() {
     [stockDemoLot, setStockDemoLot] = useState(() => Object.keys(LOTS)[0]),
     [stockDemoZone, setStockDemoZone] = useState("Olot"),
     [stockDemoLocation, setStockDemoLocation] = useState(STOCK_DEMO_CENTRAL),
+    [stockInventorySearch, setStockInventorySearch] = useState(""),
     [stockDemoTarget, setStockDemoTarget] = useState("Subalmacén Camprodon"),
     [stockDemoUnit, setStockDemoUnit] = useState("G453"),
     [stockPickerOpen, setStockPickerOpen] = useState(""),
     [stockPickerSearch, setStockPickerSearch] = useState(""),
-    [stockPickerQuantities, setStockPickerQuantities] = useState({});
+    [stockPickerQuantities, setStockPickerQuantities] = useState({}),
+    [stockEditMaterial, setStockEditMaterial] = useState(""),
+    [stockEditQuantity, setStockEditQuantity] = useState("");
   React.useEffect(() => {
     const h = () => {
       const next = location.hash === "#admin" ? "admin" : "worker";
@@ -962,6 +965,26 @@ function App() {
     }
     saveStockDemo(next);
     setStockPickerOpen("");
+  }
+  function openStockEdit(material) {
+    setStockEditMaterial(material);
+    setStockEditQuantity(String(stockDemo.levels[stockDemoLocation][material] || 0));
+  }
+  function saveStockEdit() {
+    const quantity = Math.floor(Number(stockEditQuantity));
+    if (!Number.isFinite(quantity) || quantity < 0)
+      return flash("Introduce una cantidad válida igual o superior a cero");
+    const previous = stockDemo.levels[stockDemoLocation][stockEditMaterial] || 0;
+    const next = JSON.parse(JSON.stringify(stockDemo));
+    next.levels[stockDemoLocation][stockEditMaterial] = quantity;
+    addDemoMovement(
+      next,
+      "Ajuste de inventario",
+      `${stockEditMaterial}: ${previous} → ${quantity} · ${stockDemoLocation}`,
+    );
+    saveStockDemo(next);
+    setStockEditMaterial("");
+    flash("Inventario ficticio actualizado");
   }
   function resetStockDemo() {
     if (!confirm("¿Restablecer los datos ficticios del piloto de Olot?")) return;
@@ -2549,19 +2572,36 @@ function App() {
                         ))}
                       </select>
                     </div>
+                    <label>Buscar material en inventario</label>
+                    <input
+                      value={stockInventorySearch}
+                      onChange={(e) => setStockInventorySearch(e.target.value)}
+                      placeholder="Escribe el nombre del material..."
+                    />
                     <table>
                       <thead>
                         <tr>
                           <th>Material</th>
                           <th>Cantidad</th>
+                          <th></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {STOCK_DEMO_MATERIALS.map((material) => (
+                        {STOCK_DEMO_MATERIALS.filter((material) =>
+                          material.toLowerCase().includes(stockInventorySearch.toLowerCase()),
+                        ).map((material) => (
                           <tr key={material}>
                             <td>{material}</td>
                             <td>
                               {stockDemo.levels[stockDemoLocation][material]}
+                            </td>
+                            <td>
+                              <button
+                                className="stock-edit-button"
+                                onClick={() => openStockEdit(material)}
+                              >
+                                Editar
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -2612,6 +2652,33 @@ function App() {
                         <button className="primary" onClick={applyStockPicker}>
                           {stockPickerOpen === "entry" ? "Registrar entrada" : stockPickerOpen === "transfer" ? "Confirmar reposición" : "Registrar consumo"}
                         </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {stockEditMaterial && (
+                  <div className="modal-backdrop">
+                    <div className="card export-modal stock-edit-modal">
+                      <h2>Actualizar inventario</h2>
+                      <p className="muted">
+                        {stockDemoLocation}
+                      </p>
+                      <p className="stock-edit-material">{stockEditMaterial}</p>
+                      <label>Cantidad real en stock</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        autoFocus
+                        value={stockEditQuantity}
+                        onChange={(e) => setStockEditQuantity(e.target.value)}
+                      />
+                      <p className="muted small">
+                        Esta corrección sustituye la cantidad ficticia actual.
+                      </p>
+                      <div className="toolbar">
+                        <button className="secondary" onClick={() => setStockEditMaterial("")}>Cancelar</button>
+                        <button className="primary" onClick={saveStockEdit}>Guardar stock</button>
                       </div>
                     </div>
                   </div>
@@ -2707,7 +2774,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=57", {
+    navigator.serviceWorker.register("./sw.js?v=58", {
       updateViaCache: "none",
     }),
   );
