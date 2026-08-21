@@ -2463,7 +2463,7 @@ function App() {
                   className="secondary"
                   onClick={() => setStockDemoOpen((open) => !open)}
                 >
-                  {stockDemoOpen ? "Cerrar demo de stock" : "Demo stock Olot"}
+                  {stockDemoOpen ? "Cerrar STOCK" : "STOCK"}
                 </button>
               </div>
             </div>
@@ -2471,13 +2471,12 @@ function App() {
               <section className="card stock-demo">
                 <div className="stock-demo-title">
                   <div>
-                    <h2>Stock · Supervisión Olot</h2>
+                    <h2>Stock</h2>
                     <p className="muted">
-                      Modo demostración: datos ficticios guardados solo en este
-                      navegador. No se conecta con Supabase ni modifica incidencias.
+                      Datos de prueba locales. No modifica Supabase ni las
+                      incidencias actuales.
                     </p>
                   </div>
-                  <span className="stock-demo-badge">PRUEBA</span>
                 </div>
                 <div className="stock-demo-scope">
                   <div>
@@ -2495,7 +2494,7 @@ function App() {
                     </select>
                   </div>
                   <div>
-                    <label>Supervisión</label>
+                    <label>Almacén central</label>
                     <select
                       value={stockDemoZone}
                       onChange={(e) => setStockDemoZone(e.target.value)}
@@ -2665,7 +2664,7 @@ function App() {
                     </table>
                   </div>
                   <div className="stock-demo-history">
-                    <h3>Últimos movimientos demo</h3>
+                    <h3>Últimos movimientos</h3>
                     {stockDemo.movements.slice(0, 6).map((movement, index) => (
                       <div className="stock-demo-movement" key={index}>
                         <b>{movement.type}</b>
@@ -2766,7 +2765,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=51", {
+    navigator.serviceWorker.register("./sw.js?v=52", {
       updateViaCache: "none",
     }),
   );
