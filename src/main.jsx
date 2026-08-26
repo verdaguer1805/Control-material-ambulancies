@@ -37,6 +37,13 @@ const STOCK_DEMO_LOCATIONS = [
   "Subalmacén Camprodon",
   "Subalmacén Sant Joan de les Abadesses",
 ];
+const STOCK_REMOTE_IDS = {
+  [STOCK_DEMO_CENTRAL]: "lot5_olot_central",
+  "Subalmacén Banyoles": "lot5_olot_banyoles",
+  "Subalmacén Campdevànol": "lot5_olot_campdevanol",
+  "Subalmacén Camprodon": "lot5_olot_camprodon",
+  "Subalmacén Sant Joan de les Abadesses": "lot5_olot_sant_joan",
+};
 // El stock utiliza la lista completa que puede registrar Material supervisor.
 // Así la demostración reproduce el flujo real sin tocar Supabase.
 const STOCK_DEMO_MATERIALS = [...MATERIALS].sort((a, b) =>
@@ -237,6 +244,7 @@ function App() {
     [editingRecord, setEditingRecord] = useState(null),
     [stockDemoOpen, setStockDemoOpen] = useState(false),
     [stockDemo, setStockDemo] = useState(getStockDemo),
+    [stockRemoteLoading, setStockRemoteLoading] = useState(false),
     [stockDemoLot, setStockDemoLot] = useState(() => Object.keys(LOTS)[0]),
     [stockDemoZone, setStockDemoZone] = useState("Olot"),
     [stockDemoLocation, setStockDemoLocation] = useState(""),
@@ -297,6 +305,15 @@ function App() {
     const timer = setInterval(() => setGuardTick(Date.now()), 30000);
     return () => clearInterval(timer);
   }, []);
+  React.useEffect(() => {
+    const currentUnit = localStorage.getItem(KEY.unit);
+    if (!currentUnit || unitZone(currentUnit) !== "Olot" || !navigator.onLine) return;
+    ensureAnonymousSession()
+      .then(() =>
+        supabase.rpc("initialize_olot_inventory", { p_materials: MATERIALS }),
+      )
+      .catch(() => {});
+  }, [unit]);
   React.useEffect(() => {
     const currentUnit = localStorage.getItem(KEY.unit);
     if (!currentUnit) return;
@@ -605,23 +622,15 @@ function App() {
     }
     try {
       await ensureAnonymousSession();
-      const remoteUnit = displayUnit(currentUnit),
-        { data: existing, error: checkError } = await supabase
-          .from("incidents").select("id").eq("incident_code", id).eq("unit", remoteUnit).limit(1);
-      if (checkError) throw checkError;
-      const payload = {
-          incident_code: id,
-          unit: remoteUnit,
-          warehouse: unitWarehouse(currentUnit),
-          occurred_at: isSupervisorMaterial(currentUnit)
-            ? new Date(`${guard.date}T12:00:00`).toISOString()
-            : guard.start.toISOString(),
-          materials: used,
-          updated_at: savedAt,
-        },
-        { error } = existing?.length
-          ? await supabase.from("incidents").update(payload).eq("id", existing[0].id)
-          : await supabase.from("incidents").insert(payload);
+      const { error } = await supabase.rpc("save_guard_consumption", {
+        p_incident_code: id,
+        p_unit: displayUnit(currentUnit),
+        p_warehouse: unitWarehouse(currentUnit),
+        p_occurred_at: isSupervisorMaterial(currentUnit)
+          ? new Date(`${guard.date}T12:00:00`).toISOString()
+          : guard.start.toISOString(),
+        p_materials: used,
+      });
       if (error) throw error;
       rec.synced = true;
       rec.pendingUpdate = false;
@@ -651,21 +660,13 @@ function App() {
           conflict = conflict || rec;
           continue;
         }
-        const remoteUnit = displayUnit(rec.unit),
-          { data: existing, error: checkError } = await supabase
-            .from("incidents").select("id").eq("incident_code", rec.id).eq("unit", remoteUnit).limit(1);
-        if (checkError) throw checkError;
-        const payload = {
-            incident_code: rec.id,
-            unit: remoteUnit,
-            warehouse: rec.warehouse || unitWarehouse(rec.unit),
-            occurred_at: new Date(`${rec.date}T${rec.time || "00:00"}`).toISOString(),
-            materials: aggregate(rec),
-            updated_at: rec.updatedAt || new Date().toISOString(),
-          },
-          { error } = existing?.length
-            ? await supabase.from("incidents").update(payload).eq("id", existing[0].id)
-            : await supabase.from("incidents").insert(payload);
+        const { error } = await supabase.rpc("save_guard_consumption", {
+          p_incident_code: rec.id,
+          p_unit: displayUnit(rec.unit),
+          p_warehouse: rec.warehouse || unitWarehouse(rec.unit),
+          p_occurred_at: new Date(`${rec.date}T${rec.time || "00:00"}`).toISOString(),
+          p_materials: aggregate(rec),
+        });
         if (error) throw error;
         rec.pendingUpdate = false;
         rec.synced = true;
@@ -851,6 +852,42 @@ function App() {
     localStorage.setItem(STOCK_DEMO_KEY, JSON.stringify(next));
     setStockDemo(next);
   }
+  async function loadRemoteStock() {
+    setStockRemoteLoading(true);
+    try {
+      await ensureAnonymousSession();
+      const { error: initError } = await supabase.rpc(
+        "initialize_olot_inventory",
+        { p_materials: MATERIALS },
+      );
+      if (initError) throw initError;
+      const inventoryResults = await Promise.all(
+        Object.values(STOCK_REMOTE_IDS).map((warehouseId) =>
+          supabase
+            .from("warehouse_inventory")
+            .select("warehouse_id,material,quantity")
+            .eq("warehouse_id", warehouseId),
+        ),
+      );
+      const failed = inventoryResults.find((result) => result.error);
+      if (failed) throw failed.error;
+      const data = inventoryResults.flatMap((result) => result.data || []);
+      const levels = Object.fromEntries(
+        STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 300)]),
+      );
+      (data || []).forEach((row) => {
+        const location = Object.keys(STOCK_REMOTE_IDS).find(
+          (name) => STOCK_REMOTE_IDS[name] === row.warehouse_id,
+        );
+        if (location) levels[location][row.material] = Number(row.quantity);
+      });
+      setStockDemo({ levels, movements: [] });
+    } catch (error) {
+      flash("No se ha podido cargar el inventario de Supabase");
+    } finally {
+      setStockRemoteLoading(false);
+    }
+  }
   function addDemoMovement(next, type, detail) {
     next.movements.unshift({
       at: new Date().toLocaleString("es-ES"),
@@ -870,62 +907,76 @@ function App() {
       [material]: Math.max(0, (current[material] || 0) + amount),
     }));
   }
-  function applyStockPicker() {
+  async function applyStockPicker() {
     const selected = Object.entries(stockPickerQuantities).filter(
       ([, quantity]) => Number(quantity) > 0,
     );
     if (!selected.length) return flash("Selecciona al menos un material");
-    const next = JSON.parse(JSON.stringify(stockDemo));
-    const total = selected.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
-    if (stockPickerOpen === "entry") {
-      selected.forEach(([material, quantity]) => {
-        next.levels[STOCK_DEMO_CENTRAL][material] += Number(quantity);
-      });
-      addDemoMovement(next, "Entrada de pedido", `${selected.length} artículos · ${total} unidades → Olot central`);
-      saveStockDemo(next);
-      setStockPickerOpen("");
-      flash("Entrada ficticia registrada en Olot central");
-      return;
-    }
-    const origin = stockPickerOpen === "transfer" ? STOCK_DEMO_CENTRAL : STOCK_DEMO_UNITS[stockDemoUnit];
-    const destination = stockPickerOpen === "transfer" ? stockDemoTarget : null;
-    const insufficient = selected.find(([material, quantity]) =>
-      Number(quantity) > (next.levels[origin][material] || 0),
+    const items = Object.fromEntries(
+      selected.map(([material, quantity]) => [material, Number(quantity)]),
     );
-    if (insufficient) return flash(`No hay suficiente stock de ${insufficient[0]}`);
-    selected.forEach(([material, quantity]) => {
-      next.levels[origin][material] -= Number(quantity);
-      if (destination) next.levels[destination][material] += Number(quantity);
-    });
-    if (stockPickerOpen === "transfer") {
-      addDemoMovement(next, "Reposición a subalmacén", `${selected.length} artículos · ${total} unidades: Olot central → ${destination.replace("Subalmacén ", "")}`);
-      flash("Reposición ficticia confirmada");
-    } else {
-      addDemoMovement(next, "Consumo simulado", `${stockDemoUnit}: ${selected.length} artículos · ${total} unidades · ${origin.replace("Subalmacén ", "")}`);
-      flash("Consumo ficticio registrado");
+    try {
+      await ensureAnonymousSession();
+      if (stockPickerOpen === "entry") {
+        const { error } = await supabase.rpc("receive_central_stock", {
+          p_warehouse_id: STOCK_REMOTE_IDS[STOCK_DEMO_CENTRAL],
+          p_items: items,
+        });
+        if (error) throw error;
+        flash("Entrada registrada en el almacén central de Olot");
+      } else if (stockPickerOpen === "transfer") {
+        const { error } = await supabase.rpc("transfer_stock", {
+          p_origin_id: STOCK_REMOTE_IDS[STOCK_DEMO_CENTRAL],
+          p_destination_id: STOCK_REMOTE_IDS[stockDemoTarget],
+          p_items: items,
+        });
+        if (error) throw error;
+        flash("Reposición del subalmacén confirmada");
+      } else {
+        return flash("La simulación de consumo está desactivada");
+      }
+      setStockPickerOpen("");
+      await loadRemoteStock();
+    } catch (error) {
+      const insufficient = String(error?.message || "").includes("Insufficient stock");
+      flash(
+        insufficient
+          ? "No hay suficiente material en el almacén central"
+          : "No se ha podido guardar el movimiento de stock",
+      );
     }
-    saveStockDemo(next);
-    setStockPickerOpen("");
   }
   function openStockEdit(material) {
     setStockEditMaterial(material);
     setStockEditQuantity(String(stockDemo.levels[stockDemoLocation][material] || 0));
   }
-  function saveStockEdit() {
+  async function saveStockEdit() {
     const quantity = Math.floor(Number(stockEditQuantity));
     if (!Number.isFinite(quantity) || quantity < 0)
       return flash("Introduce una cantidad válida igual o superior a cero");
-    const previous = stockDemo.levels[stockDemoLocation][stockEditMaterial] || 0;
-    const next = JSON.parse(JSON.stringify(stockDemo));
-    next.levels[stockDemoLocation][stockEditMaterial] = quantity;
-    addDemoMovement(
-      next,
-      "Ajuste de inventario",
-      `${stockEditMaterial}: ${previous} → ${quantity} · ${stockDemoLocation}`,
-    );
-    saveStockDemo(next);
-    setStockEditMaterial("");
-    flash("Inventario ficticio actualizado");
+    try {
+      await ensureAnonymousSession();
+      const { error } = await supabase.rpc("set_inventory_quantity", {
+        p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
+        p_material: stockEditMaterial,
+        p_quantity: quantity,
+      });
+      if (error) throw error;
+      setStockDemo((current) => ({
+        ...current,
+        levels: {
+          ...current.levels,
+          [stockDemoLocation]: {
+            ...current.levels[stockDemoLocation],
+            [stockEditMaterial]: quantity,
+          },
+        },
+      }));
+      setStockEditMaterial("");
+      flash("Inventario actualizado en Supabase");
+    } catch (error) {
+      flash("No se ha podido guardar el inventario");
+    }
   }
   function resetStockDemo() {
     if (!confirm("¿Restablecer los datos ficticios del piloto de Olot?")) return;
@@ -1619,7 +1670,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v65</span></h1>
+          <h1>Control de material <span className="app-version">v66</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2320,7 +2371,14 @@ function App() {
                 </button>
                 <button
                   className="secondary"
-                  onClick={() => setStockDemoOpen((open) => !open)}
+                  onClick={() => {
+                    const opening = !stockDemoOpen;
+                    setStockDemoOpen(opening);
+                    if (opening) {
+                      setStockDemoLocation("");
+                      loadRemoteStock();
+                    }
+                  }}
                 >
                   {stockDemoOpen ? "Cerrar STOCK" : "STOCK"}
                 </button>
@@ -2332,8 +2390,7 @@ function App() {
                   <div>
                     <h2>Stock</h2>
                     <p className="muted">
-                      Datos de prueba locales. No modifica Supabase ni las
-                      registros de guardia actuales.
+                      Inventario real compartido y guardado en Supabase.
                     </p>
                   </div>
                 </div>
@@ -2416,28 +2473,6 @@ function App() {
                       Seleccionar material para reponer
                     </button>
                   </div>
-                  <div className="stock-demo-action">
-                    <h3>3. Simular consumo</h3>
-                    <p className="muted small">
-                      Demuestra cómo una unidad descuenta de su subalmacén.
-                    </p>
-                    <label>Unidad</label>
-                    <select
-                      value={stockDemoUnit}
-                      onChange={(e) => setStockDemoUnit(e.target.value)}
-                    >
-                      {Object.keys(STOCK_DEMO_UNITS).map((unit) => (
-                        <option key={unit}>{unit}</option>
-                      ))}
-                    </select>
-                    <label>Subalmacén vinculado</label>
-                    <p className="stock-demo-selection">
-                      {STOCK_DEMO_UNITS[stockDemoUnit]}
-                    </p>
-                    <button className="secondary full" onClick={() => openStockPicker("consumption")}>
-                      Seleccionar consumo ficticio
-                    </button>
-                  </div>
                 </div>
                 <div className="stock-demo-bottom">
                   <div className="stock-demo-stock">
@@ -2446,6 +2481,7 @@ function App() {
                       <select
                         value={stockDemoLocation}
                         onChange={(e) => setStockDemoLocation(e.target.value)}
+                        disabled={stockRemoteLoading}
                       >
                         <option value="">Selecciona un almacén...</option>
                         {STOCK_DEMO_LOCATIONS.map((location) => (
@@ -2453,8 +2489,11 @@ function App() {
                         ))}
                       </select>
                     </div>
-                    {stockDemoLocation ? (
+                    {stockDemoLocation && !stockRemoteLoading ? (
                       <>
+                        {stockRemoteLoading && (
+                          <p className="muted">Cargando inventario...</p>
+                        )}
                         <label>Buscar material en inventario</label>
                         <input
                           value={stockInventorySearch}
@@ -2561,7 +2600,7 @@ function App() {
                         onChange={(e) => setStockEditQuantity(e.target.value)}
                       />
                       <p className="muted small">
-                        Esta corrección sustituye la cantidad ficticia actual.
+                        Esta corrección sustituye la cantidad actual y queda guardada en Supabase.
                       </p>
                       <div className="toolbar">
                         <button className="secondary" onClick={() => setStockEditMaterial("")}>Cancelar</button>
@@ -2570,7 +2609,7 @@ function App() {
                     </div>
                   </div>
                 )}
-                <button className="danger" onClick={resetStockDemo}>
+                <button className="danger" style={{ display: "none" }} onClick={resetStockDemo}>
                   Restablecer datos ficticios
                 </button>
                   </>
@@ -2661,7 +2700,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=65", {
+    navigator.serviceWorker.register("./sw.js?v=66", {
       updateViaCache: "none",
     }),
   );
