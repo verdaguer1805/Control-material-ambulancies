@@ -1541,10 +1541,15 @@ function App() {
       if (!groups.length) groups = [["Sin almacén", []]];
       groups = [
         [
-          "Almacén general",
+          `Almacén central ${exportZone}`,
           [...materialRows].sort(([a], [b]) => a.localeCompare(b)),
         ],
-        ...groups,
+        ...groups
+          .filter(
+            ([warehouse]) =>
+              String(warehouse).toLowerCase() !== exportZone.toLowerCase(),
+          )
+          .map(([warehouse, rows]) => [`Subalmacén ${warehouse}`, rows]),
       ];
       groups.forEach(([warehouse, rows]) => {
         const chunks = [];
@@ -1566,8 +1571,8 @@ function App() {
           doc.setFontSize(9);
           doc.setTextColor(107, 125, 131);
           doc.text(
-            warehouse === "Almacén general"
-              ? "Suma de todo el material que se debe reponer de la supervisión en este periodo."
+            warehouse === `Almacén central ${exportZone}`
+              ? "Suma de todo el material que el almacén central debe preparar para la supervisión en este periodo."
               : "El/la supervisor/a debe solicitar este material para reponer este almacén.",
             15,
             47,
@@ -1614,7 +1619,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v64</span></h1>
+          <h1>Control de material <span className="app-version">v65</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2656,7 +2661,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=64", {
+    navigator.serviceWorker.register("./sw.js?v=65", {
       updateViaCache: "none",
     }),
   );
