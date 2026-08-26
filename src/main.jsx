@@ -21,6 +21,7 @@ import {
 import "./styles.css";
 import "./material-selection.css";
 import "./stock-demo.css";
+import "./guard.css";
 const KEY = {
   unit: "cma_unit",
   lot: "cma_lot",
@@ -96,6 +97,29 @@ const nowParts = () => {
     date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
     time: `${p(d.getHours())}:${p(d.getMinutes())}`,
   };
+};
+const guardState = (u, shift, now = new Date()) => {
+  const p = (n) => String(n).padStart(2, "0"),
+    makeCode = (d) => `${p(d.getDate())}${p(d.getMonth() + 1)}${String(d.getFullYear()).slice(-2)}`,
+    makeDate = (d) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  if (isSupervisorMaterial(u)) {
+    const start = new Date(now), end = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    end.setDate(end.getDate() + 1);
+    return { active: true, start, end, code: makeCode(start), date: makeDate(start), label: "Día completo" };
+  }
+  if (!/^(07|08|09):00$/.test(shift || ""))
+    return { active: false, reason: "Falta configurar la hora de inicio de guardia" };
+  const hour = Number(shift.slice(0, 2)), start = new Date(now);
+  start.setHours(hour, 0, 0, 0);
+  if (hour !== 9 && now < start) start.setDate(start.getDate() - 1);
+  const end = new Date(start);
+  if (hour === 9) end.setHours(21, 0, 0, 0);
+  else end.setDate(end.getDate() + 1);
+  if (hour === 9 && (now < start || now >= end))
+    return { active: false, start, end, reason: "Fuera del horario de guardia (09:00–21:00)" };
+  return { active: now >= start && now < end, start, end, code: makeCode(start), date: makeDate(start), label: `${shift}–${hour === 9 ? "21:00" : shift}` };
 };
 const isSupervisorMaterial = (u) =>
   /^SUPERVISOR_/i.test(String(u || "")) ||
@@ -189,6 +213,7 @@ function App() {
     [message, setMessage] = useState(""),
     [status, setStatus] = useState("draft"),
     sentScrollRef = React.useRef(null),
+    loadedGuardRef = React.useRef(""),
     [syncing, setSyncing] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [exportLotOpen, setExportLotOpen] = useState(false),
@@ -222,7 +247,8 @@ function App() {
     [stockPickerSearch, setStockPickerSearch] = useState(""),
     [stockPickerQuantities, setStockPickerQuantities] = useState({}),
     [stockEditMaterial, setStockEditMaterial] = useState(""),
-    [stockEditQuantity, setStockEditQuantity] = useState("");
+    [stockEditQuantity, setStockEditQuantity] = useState(""),
+    [guardTick, setGuardTick] = useState(Date.now());
   React.useEffect(() => {
     const h = () => {
       const next = currentMode();
@@ -249,11 +275,7 @@ function App() {
       removeEventListener("scroll", keepPosition);
       sentScrollRef.current = null;
       setStatus("draft");
-      setIncident("");
-      setIncidentConfirmed(false);
-      setQuantities({});
       setSearch("");
-      setClock(nowParts());
       setTimeout(() => {
         const root = document.scrollingElement;
         if (root) root.scrollTop = 0;
@@ -271,6 +293,28 @@ function App() {
     addEventListener("online", retry);
     return () => removeEventListener("online", retry);
   }, []);
+  React.useEffect(() => {
+    const timer = setInterval(() => setGuardTick(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+  React.useEffect(() => {
+    const currentUnit = localStorage.getItem(KEY.unit);
+    if (!currentUnit) return;
+    const guard = guardState(currentUnit, localStorage.getItem(KEY.shift), new Date(guardTick));
+    const guardKey = `${currentUnit}:${localStorage.getItem(KEY.shift) || "supervisor"}:${guard.active ? guard.code : "closed"}`;
+    if (loadedGuardRef.current === guardKey) return;
+    loadedGuardRef.current = guardKey;
+    if (!guard.active) {
+      setQuantities({});
+      return;
+    }
+    const record = getRecords().find((r) => r.id === guard.code && r.unit === currentUnit);
+    setQuantities(record ? aggregate(record) : {});
+    setIncident(guard.code);
+    setIncidentConfirmed(true);
+    setEditingRecord(null);
+    setClock({ date: guard.date, time: localStorage.getItem(KEY.shift) || "00:00" });
+  }, [unit, guardTick]);
   const flash = (m, duration = 2000) => {
       setMessage(m);
       setTimeout(() => setMessage(""), duration);
@@ -519,138 +563,68 @@ function App() {
     document.activeElement?.blur();
   }
   async function submit(noMaterial = false) {
-    const currentUnit = localStorage.getItem(KEY.unit),
-      supervisorMode = isSupervisorMaterial(currentUnit),
-      id = supervisorMode ? "000000" : incident.trim();
-    if (!id) return missingIncident();
-    if (!supervisorMode && !incidentConfirmed)
-      return flash("Confirma el ID DE INCIDENCIA con el botón OK");
+    const currentUnit = localStorage.getItem(KEY.unit);
     if (!currentUnit)
       return flash("Primero hay que asignar el móvil a una unidad");
+    const guard = guardState(currentUnit, localStorage.getItem(KEY.shift));
+    if (!guard.active) return flash(guard.reason || "No hay una guardia activa");
+    const id = guard.code;
     const used = noMaterial
       ? {}
       : Object.fromEntries(Object.entries(quantities).filter(([, n]) => n > 0));
     let list = getRecords(),
       rec = list.find((r) => r.id === id && r.unit === currentUnit);
-    if (editingRecord) {
-      rec = list.find(
-        (r) =>
-          r.createdAt === editingRecord &&
-          r.id === id &&
-          r.unit === currentUnit,
-      );
-      if (!rec) {
-        setEditingRecord(null);
-        return flash("No se ha encontrado la incidencia para modificar");
-      }
-      if (!rec.synced)
-        return flash("Primero sincroniza la incidencia antes de modificarla");
-      const hasCoverage = await hasSupabaseConnection();
-      if (!hasCoverage) return showCoverageRequired();
-      const deadline = editDeadline(rec);
-      if (!deadline)
-        return flash(
-          "Configura la hora de inicio de guardia al asignar la unidad",
-        );
-      if (Date.now() > deadline.getTime())
-        return flash(
-          "El plazo de modificación de esta incidencia ha terminado",
-        );
-      const updatedAt = new Date().toISOString(),
-        nextEntries = [
-          {
-            createdAt: rec.entries?.[0]?.createdAt || rec.createdAt,
-            materials: used,
-          },
-        ];
-      try {
-        await ensureAnonymousSession();
-        const { error } = await supabase
-          .from("incidents")
-          .update({ materials: used, updated_at: updatedAt })
-          .eq("incident_code", id)
-          .eq("unit", displayUnit(currentUnit));
-        if (error) throw error;
-        rec.entries = nextEntries;
-        rec.updatedAt = updatedAt;
-        rec.synced = true;
-        rec.pendingUpdate = false;
-        saveRecords(list);
-        setRecords([...list]);
-        setEditingRecord(null);
-        sentScrollRef.current = window.scrollY;
-        setStatus("sent");
-      } catch (error) {
-        flash(
-          "No se ha podido modificar: comprueba la cobertura e inténtalo de nuevo",
-        );
-      }
-      return;
-    }
-    if (rec && !supervisorMode) return duplicateIncident();
-    const entry = { createdAt: new Date().toISOString(), materials: used };
-    if (rec && supervisorMode) {
-      rec.entries.push(entry);
-      rec.updatedAt = new Date().toISOString();
+    const savedAt = new Date().toISOString(),
+      entry = { createdAt: savedAt, materials: used };
+    if (rec) {
+      rec.entries = [entry];
+      rec.updatedAt = savedAt;
+      rec.synced = false;
+      rec.pendingUpdate = true;
     } else {
       rec = {
         id,
         unit: currentUnit,
         warehouse: unitWarehouse(currentUnit),
-        date: clock.date,
-        time: clock.time,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        date: guard.date,
+        time: isSupervisorMaterial(currentUnit) ? "12:00" : localStorage.getItem(KEY.shift),
+        createdAt: savedAt,
+        updatedAt: savedAt,
         entries: [entry],
         synced: false,
+        pendingUpdate: false,
       };
       list.push(rec);
     }
     saveRecords(list);
     setRecords([...list]);
     if (!navigator.onLine) {
-      rec.synced = false;
-      saveRecords(list);
-      setRecords([...list]);
       setStatus("queued");
-      flash("Sin cobertura: registro guardado en el móvil");
-      setIncident("");
-      setIncidentConfirmed(false);
-      setQuantities({});
-      setSearch("");
-      setClock(nowParts());
+      flash("Sin cobertura: consumo guardado en el móvil");
       return;
     }
     try {
       await ensureAnonymousSession();
-      const remoteUnit = displayUnit(currentUnit);
-      if (!supervisorMode) {
-        const { data: existing, error: checkError } = await supabase
-          .from("incidents")
-          .select("id")
-          .eq("incident_code", id)
-          .eq("unit", remoteUnit)
-          .limit(1);
-        if (checkError) throw checkError;
-        if (existing?.length) {
-          list = list.filter((item) => item !== rec);
-          saveRecords(list);
-          setRecords([...list]);
-          return duplicateIncident();
-        }
-      }
-      const occurredAt = new Date(`${clock.date}T${clock.time}`).toISOString(),
-        { error } = await supabase
-          .from("incidents")
-          .insert({
-            incident_code: id,
-            unit: remoteUnit,
-            warehouse: unitWarehouse(currentUnit),
-            occurred_at: occurredAt,
-            materials: used,
-          });
+      const remoteUnit = displayUnit(currentUnit),
+        { data: existing, error: checkError } = await supabase
+          .from("incidents").select("id").eq("incident_code", id).eq("unit", remoteUnit).limit(1);
+      if (checkError) throw checkError;
+      const payload = {
+          incident_code: id,
+          unit: remoteUnit,
+          warehouse: unitWarehouse(currentUnit),
+          occurred_at: isSupervisorMaterial(currentUnit)
+            ? new Date(`${guard.date}T12:00:00`).toISOString()
+            : guard.start.toISOString(),
+          materials: used,
+          updated_at: savedAt,
+        },
+        { error } = existing?.length
+          ? await supabase.from("incidents").update(payload).eq("id", existing[0].id)
+          : await supabase.from("incidents").insert(payload);
       if (error) throw error;
       rec.synced = true;
+      rec.pendingUpdate = false;
       saveRecords(list);
       setRecords([...list]);
       sentScrollRef.current = window.scrollY;
@@ -660,12 +634,7 @@ function App() {
       saveRecords(list);
       setRecords([...list]);
       setStatus("queued");
-      flash("Sin cobertura: registro guardado en el móvil");
-      setIncident("");
-      setIncidentConfirmed(false);
-      setQuantities({});
-      setSearch("");
-      setClock(nowParts());
+      flash("Sin cobertura: consumo guardado en el móvil");
     }
   }
   async function syncPending() {
@@ -682,55 +651,24 @@ function App() {
           conflict = conflict || rec;
           continue;
         }
-        if (rec.pendingUpdate) {
-          const remoteUnit = displayUnit(rec.unit),
-            { error } = await supabase
-              .from("incidents")
-              .update({
-                materials: aggregate(rec),
-                updated_at: rec.updatedAt || new Date().toISOString(),
-              })
-              .eq("incident_code", rec.id)
-              .eq("unit", remoteUnit);
-          if (error) throw error;
-          rec.pendingUpdate = false;
-          rec.synced = true;
-          continue;
-        }
-        let synced = true;
-        for (const entry of rec.entries || []) {
-          const remoteUnit = displayUnit(rec.unit);
-          if (!isSupervisorMaterial(rec.unit)) {
-            const { data: existing, error: checkError } = await supabase
-              .from("incidents")
-              .select("id")
-              .eq("incident_code", rec.id)
-              .eq("unit", remoteUnit)
-              .limit(1);
-            if (checkError) throw checkError;
-            if (existing?.length) {
-              rec.conflict = true;
-              rec.synced = false;
-              conflict = conflict || rec;
-              synced = false;
-              break;
-            }
-          }
-          const occurredAt =
-              entry.createdAt ||
-              new Date(`${rec.date}T${rec.time}`).toISOString(),
-            { error } = await supabase
-              .from("incidents")
-              .insert({
-                incident_code: rec.id,
-                unit: remoteUnit,
-                warehouse: rec.warehouse || unitWarehouse(rec.unit),
-                occurred_at: occurredAt,
-                materials: entry.materials || {},
-              });
-          if (error) throw error;
-        }
-        if (synced) rec.synced = true;
+        const remoteUnit = displayUnit(rec.unit),
+          { data: existing, error: checkError } = await supabase
+            .from("incidents").select("id").eq("incident_code", rec.id).eq("unit", remoteUnit).limit(1);
+        if (checkError) throw checkError;
+        const payload = {
+            incident_code: rec.id,
+            unit: remoteUnit,
+            warehouse: rec.warehouse || unitWarehouse(rec.unit),
+            occurred_at: new Date(`${rec.date}T${rec.time || "00:00"}`).toISOString(),
+            materials: aggregate(rec),
+            updated_at: rec.updatedAt || new Date().toISOString(),
+          },
+          { error } = existing?.length
+            ? await supabase.from("incidents").update(payload).eq("id", existing[0].id)
+            : await supabase.from("incidents").insert(payload);
+        if (error) throw error;
+        rec.pendingUpdate = false;
+        rec.synced = true;
       }
       saveRecords(list);
       setRecords([...list]);
@@ -1012,9 +950,8 @@ function App() {
       rows = selected.map((r) => {
         const a = aggregate(r);
         return {
-          "ID INCIDENT": r.id,
-          Fecha: r.date,
-          Hora: r.time,
+          "Fecha de guardia": r.date,
+          "Inicio de guardia": r.time,
           "Tipo de registro": origin(r),
           Unidad: r.unit,
           Almacén: reportWarehouse(r.warehouse),
@@ -1032,9 +969,8 @@ function App() {
     selected.forEach((r) => {
       const a = aggregate(r),
         base = {
-          "ID INCIDENT": r.id,
-          Fecha: r.date,
-          Hora: r.time,
+          "Fecha de guardia": r.date,
+          "Inicio de guardia": r.time,
           "Tipo de registro": origin(r),
           Unidad: r.unit,
           Almacén: reportWarehouse(r.warehouse),
@@ -1101,9 +1037,8 @@ function App() {
       ws3 = XLSX.utils.json_to_sheet(repRows),
       ws5 = XLSX.utils.json_to_sheet(dailyRows),
       criticalHeaders = [
-        "ID INCIDENT",
-        "Fecha",
-        "Hora",
+        "Fecha de guardia",
+        "Inicio de guardia",
         "Tipo de registro",
         "Unidad",
         "Almacén",
@@ -1125,8 +1060,7 @@ function App() {
     configure(ws3, [24, 16, 42, 20]);
     configure(ws4, [14, 12, 9, 18, 24, 22, 42, 12]);
     configure(ws5, [20, 24]);
-    XLSX.utils.book_append_sheet(wb, ws1, "Resumen incidencias");
-    XLSX.utils.book_append_sheet(wb, ws5, "Servicios por día");
+    XLSX.utils.book_append_sheet(wb, ws1, "Resumen guardias");
     XLSX.utils.book_append_sheet(wb, ws2, "Detalle consumo");
     XLSX.utils.book_append_sheet(wb, ws3, "Reposición almacenes");
     XLSX.utils.book_append_sheet(wb, ws4, "Material crítico");
@@ -1240,7 +1174,7 @@ function App() {
         totalMaterial ? (100 * value) / totalMaterial : 0,
       ]),
       topMaterialUnit = unitPercentRows[0],
-      inactiveUnits = serviceRows
+      inactiveUnits = unitMaterialRows
         .filter(([, value]) => value === 0)
         .map(([unit]) => unit),
       criticalMatrixRows = Object.entries(criticalUnits)
@@ -1297,11 +1231,11 @@ function App() {
     };
     const compactUnitCharts = (rows) => {
       doc.setFontSize(13);
-      doc.text("Servicios por unidad", 15, 88);
-      doc.text("Servicios por unidad", 151, 88);
+      doc.text("Material consumido por unidad", 15, 88);
+      doc.text("Material consumido por unidad", 151, 88);
       if (!rows.length) {
         doc.setFontSize(10);
-        doc.text("No hay servicios en este periodo.", 15, 100);
+        doc.text("No hay consumo en este periodo.", 15, 100);
         return;
       }
       const maximum = Math.max(...rows.map(([, value]) => value), 1);
@@ -1346,7 +1280,7 @@ function App() {
       header(1);
       doc.setFontSize(15);
       doc.text("Resumenen operativo", 15, 37);
-      card(79, "Registros de servicio", serviceTotal, [215, 25, 32]);
+      card(79, "Material consumido", totalMaterial, [215, 25, 32]);
       card(
         153,
         "Unidades de la supervisión",
@@ -1367,7 +1301,7 @@ function App() {
         72,
         { maxWidth: 190 },
       );
-      compactUnitCharts(serviceRows);
+      compactUnitCharts(unitMaterialRows);
       firstPage = false;
     };
     const chart = (title, rows, rgb) => {
@@ -1659,7 +1593,6 @@ function App() {
       });
     };
     summary();
-    chartPages("Servicios por día de la semana", weekdayRows, [11, 95, 115]);
     percentagePages(unitPercentRows);
     supervisorMaterialPages(supervisorMaterialRows);
     criticalPages(criticalMatrixRows);
@@ -1673,6 +1606,7 @@ function App() {
     setExportOpen(false);
   }
   const currentUnit = localStorage.getItem(KEY.unit),
+    currentGuard = guardState(currentUnit, localStorage.getItem(KEY.shift), new Date(guardTick)),
     pending = records.filter((r) => !r.synced).length,
     stockDemoReady =
       stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot";
@@ -1682,7 +1616,7 @@ function App() {
         <div className="header-copy">
           <h1>Control de material</h1>
           <small>
-            {mode === "admin" ? "Administración" : "Registro de incidencias"}
+            {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
           {mode === "worker" && currentUnit && (
             <>
@@ -1719,7 +1653,7 @@ function App() {
           <div className="sent-confirmation">
             <span className="sent-check">✓</span>
             <strong>ENVIADO</strong>
-            <small>Registro guardado correctamente</small>
+            <small>Consumo de guardia guardado correctamente</small>
           </div>
         )}
         {zoneOpen && (
@@ -2269,74 +2203,20 @@ function App() {
             <div className="card">
               <div className="section-title">
                 <div>
-                  <h2>Nueva incidencia</h2>
+                  <h2>Consumo de guardia</h2>
                 </div>
                 <div className="small muted">
                   Almacén: {unitWarehouse(currentUnit)}
                 </div>
               </div>
-              {!isSupervisorMaterial(currentUnit) && (
-                <>
-                  <label>ID INCIDENT</label>
-                  <input
-                    data-incident-input
-                    value={incident}
-                    inputMode="numeric"
-                    maxLength={9}
-                    pattern="[0-9]{9}"
-                    onChange={(e) => {
-                      const nextId = e.target.value
-                        .replace(/\D/g, "")
-                        .slice(0, 9);
-                      setIncident(nextId);
-                      setIncidentConfirmed(false);
-                      setEditingRecord(null);
-                      setStatus("draft");
-                    }}
-                    style={{
-                      borderColor:
-                        status === "sent"
-                          ? "#087a48"
-                          : status === "queued"
-                            ? "#d97706"
-                            : "#b42318",
-                      color:
-                        status === "sent"
-                          ? "#087a48"
-                          : status === "queued"
-                            ? "#d97706"
-                            : "#b42318",
-                      fontWeight: 800,
-                    }}
-                    placeholder="Introduce el ID DE INCIDENCIA"
-                  />
-                  <button
-                    className={`full ${editingRecord ? "secondary" : incidentConfirmed ? "success" : "secondary"}`}
-                    style={{ marginTop: 8 }}
-                    onClick={confirmIncident}
-                  >
-                    {incidentConfirmed
-                      ? "✓ Incidencia confirmada"
-                      : "OK - confirmar incidencia"}
-                  </button>
-                  <button
-                    className={`full ${editingRecord ? "success" : "secondary"}`}
-                    style={{ marginTop: 8 }}
-                    disabled={!/^\d{9}$/.test(incident)}
-                    onClick={startEdit}
-                  >
-                    {editingRecord
-                      ? "✓ Modificar incidencia enviada"
-                      : "Modificar incidencia enviada"}
-                  </button>
-                  {editingRecord && (
-                    <p className="muted small">
-                      Modificando incidencia {incident}. Puedes corregir el
-                      material y guardar los cambios.
-                    </p>
-                  )}
-                </>
-              )}
+              <div className={`guard-summary ${currentGuard.active ? "guard-active" : "guard-closed"}`}>
+                <strong>{currentGuard.active ? "Guardia activa" : "Guardia cerrada"}</strong>
+                <span>
+                  {currentGuard.active
+                    ? `Registro ${currentGuard.code} · ${currentGuard.label}`
+                    : currentGuard.reason}
+                </span>
+              </div>
               <div className="grid">
                 <div>
                   <label>Fecha</label>
@@ -2350,6 +2230,7 @@ function App() {
               <label>Buscar material</label>
               <input
                 value={search}
+                disabled={!currentGuard.active}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Escribe el nombre del material..."
               />
@@ -2380,9 +2261,9 @@ function App() {
                     )}
                   </span>
                   <div className="counter">
-                    <button onClick={() => dec(m)}>-</button>
+                    <button disabled={!currentGuard.active} onClick={() => dec(m)}>-</button>
                     <span className="qty">{quantities[m] || 0}</span>
-                    <button onClick={() => inc(m)}>+</button>
+                    <button disabled={!currentGuard.active} onClick={() => inc(m)}>+</button>
                   </div>
                 </div>
               ))}
@@ -2391,8 +2272,9 @@ function App() {
               <button
                 className="primary full send-button"
                 onClick={() => submit(false)}
+                disabled={!currentGuard.active}
               >
-                Enviar registro
+                Guardar consumo
               </button>
               <button
                 className="secondary full sync-button"
@@ -2456,7 +2338,7 @@ function App() {
                     <h2>Stock</h2>
                     <p className="muted">
                       Datos de prueba locales. No modifica Supabase ni las
-                      incidencias actuales.
+                      registros de guardia actuales.
                     </p>
                   </div>
                 </div>
@@ -2718,7 +2600,7 @@ function App() {
               {adminLoaded ? (
                 <>
                   <p>
-                    <b>Total de incidencias:</b> {adminRecords.length}
+                    <b>Total de registros de guardia:</b> {adminRecords.length}
                   </p>
                   <p>
                     <b>Con material crítico:</b>{" "}
@@ -2738,11 +2620,11 @@ function App() {
             </div>
             {adminLoaded && (
               <div className="card" style={{ overflowX: "auto" }}>
-                <h3>Incidencias registradas</h3>
+                <h3>Registros de guardia</h3>
                 <table>
                   <thead>
                     <tr>
-                      <th>ID</th>
+                      <th>Guardia</th>
                       <th>Fecha/hora</th>
                       <th>Unidad</th>
                       <th>Material crítico</th>
@@ -2784,7 +2666,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=62", {
+    navigator.serviceWorker.register("./sw.js?v=63", {
       updateViaCache: "none",
     }),
   );

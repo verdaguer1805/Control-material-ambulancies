@@ -1,0 +1,15 @@
+.guard-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid #b8c1cc;
+  border-radius: 12px;
+  text-align: center;
+}
+.guard-summary strong { font-size: 1.05rem; }
+.guard-summary span { font-size: .9rem; }
+.guard-active { background: #eaf7ef; border-color: #61a879; color: #126334; }
+.guard-closed { background: #fff1f0; border-color: #dc766d; color: #8f1d17; }
+button:disabled, input:disabled { cursor: not-allowed; opacity: .58; }
