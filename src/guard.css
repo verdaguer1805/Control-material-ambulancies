@@ -13,3 +13,12 @@
 .guard-active { background: #eaf7ef; border-color: #61a879; color: #126334; }
 .guard-closed { background: #fff1f0; border-color: #dc766d; color: #8f1d17; }
 button:disabled, input:disabled { cursor: not-allowed; opacity: .58; }
+.app-version {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 2px 7px;
+  border: 1px solid rgba(255, 255, 255, .75);
+  border-radius: 999px;
+  font-size: 11px;
+  vertical-align: 3px;
+}

@@ -1614,7 +1614,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material</h1>
+          <h1>Control de material <span className="app-version">v64</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2217,16 +2217,6 @@ function App() {
                     : currentGuard.reason}
                 </span>
               </div>
-              <div className="grid">
-                <div>
-                  <label>Fecha</label>
-                  <input type="date" value={clock.date} disabled />
-                </div>
-                <div>
-                  <label>Hora</label>
-                  <input type="time" value={clock.time} disabled />
-                </div>
-              </div>
               <label>Buscar material</label>
               <input
                 value={search}
@@ -2666,7 +2656,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=63", {
+    navigator.serviceWorker.register("./sw.js?v=64", {
       updateViaCache: "none",
     }),
   );
