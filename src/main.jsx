@@ -1800,7 +1800,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v68</span></h1>
+          <h1>Control de material <span className="app-version">v69</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2480,6 +2480,15 @@ function App() {
               >
                 Guardar consumo
               </button>
+              <button
+                className="secondary full sync-button"
+                onClick={syncPending}
+                disabled={syncing || pending === 0}
+              >
+                {syncing
+                  ? "Sincronizando..."
+                  : `Sincronizar pendientes (${pending})`}
+              </button>
               {!isSupervisorMaterial(currentUnit) &&
                 Object.values(quantities).every((quantity) => !quantity) && (
                   <button
@@ -2490,15 +2499,6 @@ function App() {
                     Finalizar guardia - cero consumos
                   </button>
                 )}
-              <button
-                className="secondary full sync-button"
-                onClick={syncPending}
-                disabled={syncing || pending === 0}
-              >
-                {syncing
-                  ? "Sincronizando..."
-                  : `Sincronizar pendientes (${pending})`}
-              </button>
             </div>
           </>
         )}
@@ -2868,7 +2868,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=68", {
+    navigator.serviceWorker.register("./sw.js?v=69", {
       updateViaCache: "none",
     }),
   );
