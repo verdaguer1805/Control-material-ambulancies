@@ -30,6 +30,7 @@ const KEY = {
   records: "cma_records",
 };
 const STOCK_DEMO_KEY = "cma_stock_demo_olot_v4";
+const SUPABASE_DATABASE_LIMIT_MB = 500;
 const STOCK_DEMO_CENTRAL = "Almacén central Olot";
 const STOCK_DEMO_LOCATIONS = [
   STOCK_DEMO_CENTRAL,
@@ -713,7 +714,7 @@ function App() {
     dayStart.setHours(0, 0, 0, 0);
     try {
       await ensureAnonymousSession();
-      const [todayRecords, todaySubmissions, lastSubmission, warehouses] =
+      const [todayRecords, todaySubmissions, lastSubmission, warehouses, databaseUsage] =
         await Promise.all([
           supabase
             .from("incidents")
@@ -731,18 +732,21 @@ function App() {
           supabase
             .from("warehouses")
             .select("id", { count: "exact", head: true }),
+          supabase.rpc("get_database_usage"),
         ]);
       const error =
         todayRecords.error ||
         todaySubmissions.error ||
         lastSubmission.error ||
-        warehouses.error;
+        warehouses.error ||
+        databaseUsage.error;
       if (error) throw error;
       const units = new Set(
         (todayRecords.data || [])
           .map((row) => row.unit)
           .filter((unitName) => !/^Material supervisor/i.test(unitName)),
       );
+      const databaseMb = Number(databaseUsage.data?.[0]?.database_mb || 0);
       setSystemStatus({
         connected: true,
         recordsToday: (todayRecords.data || []).length,
@@ -751,6 +755,12 @@ function App() {
         lastUnit: lastSubmission.data?.[0]?.unit || "Sin comunicaciones",
         lastCommunication: lastSubmission.data?.[0]?.submitted_at || null,
         warehouses: warehouses.count || 0,
+        databaseMb,
+        databaseLimitMb: SUPABASE_DATABASE_LIMIT_MB,
+        databasePercent: Math.min(
+          100,
+          (databaseMb / SUPABASE_DATABASE_LIMIT_MB) * 100,
+        ),
         checkedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -1857,7 +1867,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v70</span></h1>
+          <h1>Control de material <span className="app-version">v71</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2254,6 +2264,29 @@ function App() {
                       <div><strong>{systemStatus.activeUnitsToday}</strong><span>Unidades con registro hoy</span></div>
                       <div><strong>{systemStatus.submissionsToday}</strong><span>Guardados recibidos hoy</span></div>
                       <div><strong>{systemStatus.warehouses}</strong><span>Almacenes conectados</span></div>
+                    </div>
+                  )}
+                  {systemStatus?.connected && (
+                    <div className="database-usage">
+                      <div className="database-usage-heading">
+                        <span>Capacidad de Supabase</span>
+                        <strong>{systemStatus.databasePercent.toFixed(2).replace(".", ",")}%</strong>
+                      </div>
+                      <div className="database-usage-track">
+                        <span
+                          className={
+                            systemStatus.databasePercent >= 80
+                              ? "database-usage-danger"
+                              : systemStatus.databasePercent >= 60
+                                ? "database-usage-warning"
+                                : "database-usage-ok"
+                          }
+                          style={{ width: `${Math.max(systemStatus.databasePercent, 0.6)}%` }}
+                        />
+                      </div>
+                      <small>
+                        {systemStatus.databaseMb.toFixed(2).replace(".", ",")} MB utilizados de {systemStatus.databaseLimitMb} MB configurados (plan Free)
+                      </small>
                     </div>
                   )}
                   {systemStatus?.connected && (
@@ -2980,7 +3013,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=70", {
+    navigator.serviceWorker.register("./sw.js?v=71", {
       updateViaCache: "none",
     }),
   );
