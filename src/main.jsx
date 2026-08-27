@@ -209,6 +209,9 @@ function App() {
     [adminRecords, setAdminRecords] = useState([]),
     [adminLoaded, setAdminLoaded] = useState(false),
     [reportLoading, setReportLoading] = useState(false),
+    [systemStatusOpen, setSystemStatusOpen] = useState(false),
+    [systemStatusLoading, setSystemStatusLoading] = useState(false),
+    [systemStatus, setSystemStatus] = useState(null),
     [duplicateOpen, setDuplicateOpen] = useState(false),
     [conflictOpen, setConflictOpen] = useState(false),
     [conflictRecordId, setConflictRecordId] = useState(""),
@@ -701,6 +704,60 @@ function App() {
     setAdminLoaded(false);
     setAdminOk(true);
     setPinInput("");
+  }
+  async function loadSystemStatus() {
+    setSystemStatusOpen(true);
+    setSystemStatusLoading(true);
+    setSystemStatus(null);
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    try {
+      await ensureAnonymousSession();
+      const [todayRecords, todaySubmissions, lastSubmission, warehouses] =
+        await Promise.all([
+          supabase
+            .from("incidents")
+            .select("unit,updated_at")
+            .gte("updated_at", dayStart.toISOString()),
+          supabase
+            .from("guard_submissions")
+            .select("id", { count: "exact", head: true })
+            .gte("submitted_at", dayStart.toISOString()),
+          supabase
+            .from("guard_submissions")
+            .select("unit,submitted_at")
+            .order("submitted_at", { ascending: false })
+            .limit(1),
+          supabase
+            .from("warehouses")
+            .select("id", { count: "exact", head: true }),
+        ]);
+      const error =
+        todayRecords.error ||
+        todaySubmissions.error ||
+        lastSubmission.error ||
+        warehouses.error;
+      if (error) throw error;
+      const units = new Set(
+        (todayRecords.data || [])
+          .map((row) => row.unit)
+          .filter((unitName) => !/^Material supervisor/i.test(unitName)),
+      );
+      setSystemStatus({
+        connected: true,
+        recordsToday: (todayRecords.data || []).length,
+        activeUnitsToday: units.size,
+        submissionsToday: todaySubmissions.count || 0,
+        lastUnit: lastSubmission.data?.[0]?.unit || "Sin comunicaciones",
+        lastCommunication: lastSubmission.data?.[0]?.submitted_at || null,
+        warehouses: warehouses.count || 0,
+        checkedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setSystemStatus({ connected: false, checkedAt: new Date().toISOString() });
+    } finally {
+      setSystemStatusLoading(false);
+    }
   }
   const mapAdminRecords = (data) =>
     data.map((r) => {
@@ -1800,7 +1857,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v69</span></h1>
+          <h1>Control de material <span className="app-version">v70</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2166,6 +2223,58 @@ function App() {
                   disabled={reportLoading}
                 >
                   {reportLoading ? "Cargando datos..." : "Descargar PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {systemStatusOpen && (
+          <div className="modal-backdrop">
+            <div className="card export-modal system-status-modal">
+              <h2>Estado del sistema</h2>
+              <p className="muted">
+                Comprobación de solo lectura. No modifica registros ni stock.
+              </p>
+              {systemStatusLoading ? (
+                <p className="system-status-loading">Comprobando Supabase...</p>
+              ) : (
+                <>
+                  <div
+                    className={`system-health ${systemStatus?.connected ? "system-health-ok" : "system-health-error"}`}
+                  >
+                    <strong>
+                      {systemStatus?.connected
+                        ? "Supabase conectado"
+                        : "No se puede conectar con Supabase"}
+                    </strong>
+                  </div>
+                  {systemStatus?.connected && (
+                    <div className="system-status-grid">
+                      <div><strong>{systemStatus.recordsToday}</strong><span>Registros activos hoy</span></div>
+                      <div><strong>{systemStatus.activeUnitsToday}</strong><span>Unidades con registro hoy</span></div>
+                      <div><strong>{systemStatus.submissionsToday}</strong><span>Guardados recibidos hoy</span></div>
+                      <div><strong>{systemStatus.warehouses}</strong><span>Almacenes conectados</span></div>
+                    </div>
+                  )}
+                  {systemStatus?.connected && (
+                    <div className="system-last-contact">
+                      <span>Última comunicación</span>
+                      <strong>{systemStatus.lastUnit}</strong>
+                      <small>
+                        {systemStatus.lastCommunication
+                          ? new Date(systemStatus.lastCommunication).toLocaleString("es-ES")
+                          : "Todavía no hay comunicaciones registradas"}
+                      </small>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="toolbar">
+                <button className="secondary" onClick={loadSystemStatus} disabled={systemStatusLoading}>
+                  Actualizar
+                </button>
+                <button className="primary" onClick={() => setSystemStatusOpen(false)}>
+                  Cerrar
                 </button>
               </div>
             </div>
@@ -2537,6 +2646,9 @@ function App() {
                 <button className="secondary" onClick={changePin}>
                   Cambiar PIN
                 </button>
+                <button className="secondary" onClick={loadSystemStatus}>
+                  Estado del sistema
+                </button>
                 <button
                   className="secondary"
                   onClick={() => {
@@ -2868,7 +2980,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=69", {
+    navigator.serviceWorker.register("./sw.js?v=70", {
       updateViaCache: "none",
     }),
   );

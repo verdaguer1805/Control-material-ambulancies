@@ -15,3 +15,75 @@
   color: #fff;
   border-color: #737b87;
 }
+
+.system-status-modal {
+  width: min(100%, 560px);
+}
+
+.system-status-loading,
+.system-health {
+  margin: 14px 0;
+  padding: 14px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.system-status-loading {
+  background: #eef3f5;
+}
+
+.system-health-ok {
+  background: #e9f7ef;
+  border: 1px solid #20a35a;
+  color: #087a48;
+}
+
+.system-health-error {
+  background: #fdecec;
+  border: 1px solid #d71920;
+  color: #a61b1b;
+}
+
+.system-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.system-status-grid div,
+.system-last-contact {
+  padding: 13px;
+  border: 1px solid #dce5e8;
+  border-radius: 12px;
+  background: #f7f9fa;
+}
+
+.system-status-grid strong,
+.system-status-grid span,
+.system-last-contact span,
+.system-last-contact strong,
+.system-last-contact small {
+  display: block;
+  text-align: center;
+}
+
+.system-status-grid strong {
+  color: #d71920;
+  font-size: 26px;
+}
+
+.system-status-grid span,
+.system-last-contact span,
+.system-last-contact small {
+  color: #6b7d83;
+  font-size: 12px;
+}
+
+.system-last-contact {
+  margin-top: 10px;
+}
+
+.system-last-contact strong {
+  margin: 4px 0;
+  font-size: 18px;
+}
