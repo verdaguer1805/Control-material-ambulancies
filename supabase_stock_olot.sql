@@ -35,6 +35,20 @@ create table if not exists public.stock_movements (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.guard_submissions (
+  id bigint generated always as identity primary key,
+  incident_id uuid references public.incidents(id) on delete cascade,
+  guard_code text not null,
+  unit text not null,
+  warehouse text,
+  submitted_at timestamptz not null default now(),
+  materials jsonb not null default '{}'::jsonb,
+  material_delta jsonb not null default '{}'::jsonb
+);
+
+create index if not exists guard_submissions_unit_date_idx
+  on public.guard_submissions (unit, submitted_at desc);
+
 insert into public.warehouses (id, lot, zone, name, kind) values
   ('lot5_olot_central', 'Lot 5 · Girona - Alt Maresme', 'Olot', 'Olot', 'central'),
   ('lot5_olot_banyoles', 'Lot 5 · Girona - Alt Maresme', 'Olot', 'Banyoles', 'subwarehouse'),
@@ -64,6 +78,7 @@ alter table public.warehouses enable row level security;
 alter table public.unit_warehouse_assignments enable row level security;
 alter table public.warehouse_inventory enable row level security;
 alter table public.stock_movements enable row level security;
+alter table public.guard_submissions enable row level security;
 
 drop policy if exists "Authenticated users can read warehouses" on public.warehouses;
 create policy "Authenticated users can read warehouses"
@@ -80,6 +95,10 @@ create policy "Authenticated users can read inventory"
 drop policy if exists "Authenticated users can read movements" on public.stock_movements;
 create policy "Authenticated users can read movements"
   on public.stock_movements for select to authenticated using (true);
+
+drop policy if exists "Authenticated users can read guard submissions" on public.guard_submissions;
+create policy "Authenticated users can read guard submissions"
+  on public.guard_submissions for select to authenticated using (true);
 
 create or replace function public.initialize_olot_inventory(p_materials jsonb)
 returns integer
@@ -147,6 +166,7 @@ declare
   v_old_quantity integer;
   v_new_quantity integer;
   v_difference integer;
+  v_delta jsonb := '{}'::jsonb;
 begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
   if p_incident_code !~ '^\d{6}$' then raise exception 'Invalid guard code'; end if;
@@ -154,29 +174,6 @@ begin
   select warehouse_id into v_warehouse_id
   from public.unit_warehouse_assignments
   where unit = p_unit;
-
-  -- Altres zones continuen funcionant sense estoc fins que s'hi incorporin.
-  if v_warehouse_id is null then
-    select id into v_incident_id
-    from public.incidents
-    where incident_code = p_incident_code and unit = p_unit
-    order by created_at desc limit 1;
-    if v_incident_id is null then
-      insert into public.incidents
-        (incident_code, unit, warehouse, occurred_at, materials)
-      values
-        (p_incident_code, p_unit, p_warehouse, p_occurred_at, coalesce(p_materials, '{}'::jsonb))
-      returning id into v_incident_id;
-    else
-      update public.incidents set
-        warehouse = p_warehouse,
-        occurred_at = p_occurred_at,
-        materials = coalesce(p_materials, '{}'::jsonb),
-        updated_at = now()
-      where id = v_incident_id;
-    end if;
-    return v_incident_id;
-  end if;
 
   perform pg_advisory_xact_lock(hashtextextended(p_unit || ':' || p_incident_code, 0));
 
@@ -211,6 +208,14 @@ begin
     v_new_quantity := coalesce((p_materials ->> v_material)::integer, 0);
     v_difference := v_new_quantity - v_old_quantity;
     if v_difference <> 0 then
+      v_delta := jsonb_set(
+        v_delta,
+        array[v_material],
+        to_jsonb(v_difference),
+        true
+      );
+    end if;
+    if v_difference <> 0 and v_warehouse_id is not null then
       perform pg_advisory_xact_lock(
         hashtextextended(v_warehouse_id || ':' || v_material, 1)
       );
@@ -227,6 +232,12 @@ begin
         (v_warehouse_id, p_unit, p_incident_code, v_material, -v_difference, 'guard_consumption');
     end if;
   end loop;
+
+  insert into public.guard_submissions
+    (incident_id, guard_code, unit, warehouse, materials, material_delta)
+  values
+    (v_incident_id, p_incident_code, p_unit, p_warehouse,
+     coalesce(p_materials, '{}'::jsonb), v_delta);
 
   return v_incident_id;
 end;

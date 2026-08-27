@@ -217,6 +217,7 @@ function App() {
     [pinDeniedOpen, setPinDeniedOpen] = useState(false),
     [coverageEditOpen, setCoverageEditOpen] = useState(false),
     [coverageCheckingOpen, setCoverageCheckingOpen] = useState(false),
+    [zeroGuardOpen, setZeroGuardOpen] = useState(false),
     [message, setMessage] = useState(""),
     [status, setStatus] = useState("draft"),
     sentScrollRef = React.useRef(null),
@@ -589,6 +590,8 @@ function App() {
     const used = noMaterial
       ? {}
       : Object.fromEntries(Object.entries(quantities).filter(([, n]) => n > 0));
+    if (!Object.keys(used).length && !noMaterial)
+      return flash("No hay material seleccionado; no es necesario enviar");
     let list = getRecords(),
       rec = list.find((r) => r.id === id && r.unit === currentUnit);
     const savedAt = new Date().toISOString(),
@@ -708,7 +711,7 @@ function App() {
         date: d.toISOString().slice(0, 10),
         time: d.toTimeString().slice(0, 5),
         createdAt: r.created_at,
-        updatedAt: r.created_at,
+        updatedAt: r.updated_at || r.created_at,
         entries: [{ createdAt: r.created_at, materials: r.materials || {} }],
         synced: true,
       };
@@ -718,30 +721,55 @@ function App() {
       ambulances = units
         .filter((u) => !isSupervisorMaterial(u))
         .map(displayUnit),
+      reportUnits = [
+        ...ambulances,
+        `Material Supervisor · ${exportZone}`,
+      ],
       fields =
-        "id,incident_code,unit,warehouse,occurred_at,created_at,materials",
+        "id,incident_code,unit,warehouse,occurred_at,created_at,updated_at,materials",
       range = (query) =>
         query
           .gte("occurred_at", exportFrom + "T00:00:00")
           .lte("occurred_at", exportTo + "T23:59:59.999")
           .order("occurred_at", { ascending: false }),
-      [ambulanceResult, supervisorResult] = await Promise.all([
-        range(supabase.from("incidents").select(fields).in("unit", ambulances)),
-        range(
+      fetchPages = async (makeQuery) => {
+        const rows = [];
+        for (let from = 0; ; from += 1000) {
+          const result = await makeQuery().range(from, from + 999);
+          if (result.error) throw result.error;
+          rows.push(...(result.data || []));
+          if ((result.data || []).length < 1000) break;
+        }
+        return rows;
+      },
+      [ambulanceData, supervisorData, submissionData] = await Promise.all([
+        fetchPages(() =>
+          range(supabase.from("incidents").select(fields).in("unit", ambulances)),
+        ),
+        fetchPages(() =>
+          range(
+            supabase
+              .from("incidents")
+              .select(fields)
+              .ilike("unit", `Material supervisor · ${exportZone}`),
+          ),
+        ),
+        fetchPages(() =>
           supabase
-            .from("incidents")
-            .select(fields)
-            .ilike("unit", `Material supervisor · ${exportZone}`),
+            .from("guard_submissions")
+            .select("id,guard_code,unit,warehouse,submitted_at,materials,material_delta")
+            .in("unit", reportUnits)
+            .gte("submitted_at", exportFrom + "T00:00:00")
+            .lte("submitted_at", exportTo + "T23:59:59.999")
+            .order("submitted_at", { ascending: true }),
         ),
       ]);
-    if (ambulanceResult.error) throw ambulanceResult.error;
-    if (supervisorResult.error) throw supervisorResult.error;
     const merged = [
-        ...(ambulanceResult.data || []),
-        ...(supervisorResult.data || []),
+        ...ambulanceData,
+        ...supervisorData,
       ],
       unique = [...new Map(merged.map((row) => [row.id, row])).values()];
-    return mapAdminRecords(unique);
+    return { records: mapAdminRecords(unique), submissions: submissionData };
   }
   async function generateReport(type) {
     if (!exportZone) return flash("Selecciona una supervisión");
@@ -755,8 +783,8 @@ function App() {
       const selected = await loadSelectedAdminRecords();
       setAdminRecords([]);
       setAdminLoaded(false);
-      if (type === "excel") exportExcel(selected);
-      else exportPdf(selected);
+      if (type === "excel") exportExcel(selected.records, selected.submissions);
+      else exportPdf(selected.records, selected.submissions);
     } catch (error) {
       flash("No se pueden cargar los datos seleccionados de Supabase");
     } finally {
@@ -984,13 +1012,23 @@ function App() {
     saveStockDemo(next);
     flash("Demostración restablecida");
   }
-  function exportExcel(source = adminRecords) {
+  function exportExcel(source = adminRecords, submissions = []) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
     if (exportFrom > exportTo)
       return flash("La fecha inicial no puede ser posterior a la final");
-    const selected = source.filter(
+    const timeText = (value) =>
+        new Date(value).toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      submissionsFor = (r) =>
+        submissions.filter(
+          (submission) =>
+            submission.unit === r.unit && submission.guard_code === r.id,
+        ),
+      selected = source.filter(
         (r) =>
           recordZone(r) === exportZone &&
           r.date >= exportFrom &&
@@ -999,10 +1037,16 @@ function App() {
       origin = (r) =>
         /^Material supervisor · /i.test(r.unit) ? "Supervisor" : "Unidad",
       rows = selected.map((r) => {
-        const a = aggregate(r);
+        const a = aggregate(r),
+          sends = submissionsFor(r),
+          firstSend = sends[0]?.submitted_at || r.createdAt,
+          lastSend = sends.at(-1)?.submitted_at || r.updatedAt;
         return {
           "Fecha de guardia": r.date,
           "Inicio de guardia": r.time,
+          "Primer envío": firstSend ? timeText(firstSend) : "",
+          "Último envío": lastSend ? timeText(lastSend) : "",
+          "Número de envíos": sends.length || 1,
           "Tipo de registro": origin(r),
           Unidad: r.unit,
           Almacén: reportWarehouse(r.warehouse),
@@ -1056,20 +1100,61 @@ function App() {
       currentDay = new Date(`${exportFrom}T12:00:00`),
       lastDay = new Date(`${exportTo}T12:00:00`);
     while (currentDay <= lastDay) {
-      const date = currentDay.toISOString().slice(0, 10);
-      dailyRows.push({
-        Fecha: date,
-        "Servicios de unidades": servicesByDay[date] || 0,
-      });
+      const date = currentDay.toISOString().slice(0, 10),
+        [year, month, day] = date.split("-"),
+        guardCode = `${day}${month}${year.slice(-2)}`;
+      Object.keys(SUPERVISIONS[exportZone] || {})
+        .filter((unit) => !isSupervisorMaterial(unit))
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((unit) => {
+          const record = selected.find(
+              (r) => r.unit === unit && r.id === guardCode,
+            ),
+            sends = record ? submissionsFor(record) : [];
+          dailyRows.push({
+            "Fecha de guardia": date,
+            Unidad: unit,
+            Población: unitWarehouse(unit),
+            Estado: record
+              ? Object.keys(aggregate(record)).length
+                ? "Enviado con consumo"
+                : "Guardia finalizada - cero consumos"
+              : "Sin registro",
+            "Primer envío": sends[0]
+              ? timeText(sends[0].submitted_at)
+              : record
+                ? timeText(record.createdAt)
+                : "",
+            "Último envío": sends.at(-1)
+              ? timeText(sends.at(-1).submitted_at)
+              : record
+                ? timeText(record.updatedAt)
+                : "",
+            "Número de envíos": record ? sends.length || 1 : 0,
+          });
+        });
       currentDay.setDate(currentDay.getDate() + 1);
     }
-    dailyRows.push({
-      Fecha: "TOTAL DEL PERIODO",
-      "Servicios de unidades": dailyRows.reduce(
-        (total, row) => total + row["Servicios de unidades"],
-        0,
-      ),
-    });
+    const supervisorDeliveries = [];
+    submissions
+      .filter((submission) => /^Material supervisor · /i.test(submission.unit))
+      .forEach((submission, index) => {
+        Object.entries(submission.material_delta || {}).forEach(
+          ([material, quantity]) =>
+            supervisorDeliveries.push({
+              Fecha: new Date(submission.submitted_at)
+                .toISOString()
+                .slice(0, 10),
+              Hora: timeText(submission.submitted_at),
+              "Entrega número": index + 1,
+              Supervisor: submission.unit,
+              Almacén: reportWarehouse(submission.warehouse),
+              Material: material,
+              "Cantidad entregada": Number(quantity),
+              Tipo: Number(quantity) >= 0 ? "Entrega" : "Corrección",
+            }),
+        );
+      });
     const repRows = Object.entries(rep)
         .sort(([a], [b]) => a.localeCompare(b))
         .flatMap(([warehouse, items]) =>
@@ -1087,6 +1172,7 @@ function App() {
       ws2 = XLSX.utils.json_to_sheet(detail),
       ws3 = XLSX.utils.json_to_sheet(repRows),
       ws5 = XLSX.utils.json_to_sheet(dailyRows),
+      ws6 = XLSX.utils.json_to_sheet(supervisorDeliveries),
       criticalHeaders = [
         "Fecha de guardia",
         "Inicio de guardia",
@@ -1110,8 +1196,11 @@ function App() {
     configure(ws2, [14, 12, 9, 18, 24, 22, 16, 42, 12]);
     configure(ws3, [24, 16, 42, 20]);
     configure(ws4, [14, 12, 9, 18, 24, 22, 42, 12]);
-    configure(ws5, [20, 24]);
+    configure(ws5, [16, 12, 28, 16, 14, 14, 16]);
+    configure(ws6, [14, 10, 16, 28, 22, 42, 20, 14]);
     XLSX.utils.book_append_sheet(wb, ws1, "Resumen guardias");
+    XLSX.utils.book_append_sheet(wb, ws5, "Control diario unidades");
+    XLSX.utils.book_append_sheet(wb, ws6, "Entregas supervisor");
     XLSX.utils.book_append_sheet(wb, ws2, "Detalle consumo");
     XLSX.utils.book_append_sheet(wb, ws3, "Reposición almacenes");
     XLSX.utils.book_append_sheet(wb, ws4, "Material crítico");
@@ -1122,7 +1211,7 @@ function App() {
     );
     setExportOpen(false);
   }
-  function exportPdf(source = adminRecords) {
+  function exportPdf(source = adminRecords, submissions = []) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
@@ -1159,6 +1248,46 @@ function App() {
       warehouses = {},
       criticalUnits = {},
       weekdayTotals = [0, 0, 0, 0, 0, 0, 0];
+    const submissionTime = (value) =>
+        new Date(value).toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      reportUnitList = Object.keys(SUPERVISIONS[exportZone] || {})
+        .filter((unit) => !isSupervisorMaterial(unit))
+        .sort((a, b) => a.localeCompare(b)),
+      complianceRows = [],
+      complianceDay = new Date(`${exportFrom}T12:00:00`),
+      complianceLastDay = new Date(`${exportTo}T12:00:00`);
+    while (complianceDay <= complianceLastDay) {
+      const date = complianceDay.toISOString().slice(0, 10),
+        [year, month, day] = date.split("-"),
+        guardCode = `${day}${month}${year.slice(-2)}`;
+      reportUnitList.forEach((reportUnit) => {
+        const record = selected.find(
+            (item) => item.unit === reportUnit && item.id === guardCode,
+          ),
+          sends = submissions.filter(
+            (submission) =>
+              submission.unit === reportUnit &&
+              submission.guard_code === guardCode,
+          );
+        complianceRows.push([
+          date,
+          reportUnit,
+          unitWarehouse(reportUnit),
+          record
+            ? Object.keys(aggregate(record)).length
+              ? "CONSUMO"
+              : "CERO CONSUMOS"
+            : "SIN REGISTRO",
+          sends[0] ? submissionTime(sends[0].submitted_at) : record ? submissionTime(record.createdAt) : "",
+          sends.at(-1) ? submissionTime(sends.at(-1).submitted_at) : record ? submissionTime(record.updatedAt) : "",
+          record ? sends.length || 1 : 0,
+        ]);
+      });
+      complianceDay.setDate(complianceDay.getDate() + 1);
+    }
     selected.forEach((r) => {
       const isSupervisor = /^Material supervisor · /i.test(r.unit),
         used = aggregate(r);
@@ -1225,7 +1354,7 @@ function App() {
         totalMaterial ? (100 * value) / totalMaterial : 0,
       ]),
       topMaterialUnit = unitPercentRows[0],
-      inactiveUnits = unitMaterialRows
+      inactiveUnits = serviceRows
         .filter(([, value]) => value === 0)
         .map(([unit]) => unit),
       criticalMatrixRows = Object.entries(criticalUnits)
@@ -1670,7 +1799,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v66</span></h1>
+          <h1>Control de material <span className="app-version">v67</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2057,6 +2186,34 @@ function App() {
             </div>
           </div>
         )}
+        {zeroGuardOpen && (
+          <div className="modal-backdrop">
+            <div className="card export-modal">
+              <h2 style={{ textAlign: "center" }}>Finalizar guardia</h2>
+              <p style={{ textAlign: "center" }}>
+                ¿Confirmas que esta guardia finaliza sin consumo de material?
+              </p>
+              <div className="toolbar">
+                <button
+                  className="secondary"
+                  onClick={() => setZeroGuardOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="primary"
+                  onClick={() => {
+                    setZeroGuardOpen(false);
+                    setQuantities({});
+                    submit(true);
+                  }}
+                >
+                  Confirmar cero consumos
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {coverageEditOpen && (
           <div className="modal-backdrop">
             <div className="card export-modal">
@@ -2322,6 +2479,16 @@ function App() {
               >
                 Guardar consumo
               </button>
+              {!isSupervisorMaterial(currentUnit) &&
+                Object.values(quantities).every((quantity) => !quantity) && (
+                  <button
+                    className="secondary full zero-guard-button"
+                    onClick={() => setZeroGuardOpen(true)}
+                    disabled={!currentGuard.active}
+                  >
+                    Finalizar guardia - cero consumos
+                  </button>
+                )}
               <button
                 className="secondary full sync-button"
                 onClick={syncPending}
@@ -2700,7 +2867,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=66", {
+    navigator.serviceWorker.register("./sw.js?v=67", {
       updateViaCache: "none",
     }),
   );
