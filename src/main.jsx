@@ -19,6 +19,7 @@ import {
   supabase,
 } from "./supabase";
 import "./styles.css";
+import "./overrides.css";
 import "./material-selection.css";
 import "./stock-demo.css";
 import "./guard.css";
@@ -1799,7 +1800,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v67</span></h1>
+          <h1>Control de material <span className="app-version">v68</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2867,7 +2868,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=67", {
+    navigator.serviceWorker.register("./sw.js?v=68", {
       updateViaCache: "none",
     }),
   );
