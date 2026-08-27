@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
 const FALCK_PDF_LOGO =
@@ -851,7 +850,7 @@ function App() {
       const selected = await loadSelectedAdminRecords();
       setAdminRecords([]);
       setAdminLoaded(false);
-      if (type === "excel") exportExcel(selected.records, selected.submissions);
+      if (type === "excel") await exportExcel(selected.records, selected.submissions);
       else exportPdf(selected.records, selected.submissions);
     } catch (error) {
       flash("No se pueden cargar los datos seleccionados de Supabase");
@@ -1080,13 +1079,14 @@ function App() {
     saveStockDemo(next);
     flash("Demostración restablecida");
   }
-  function exportExcel(source = adminRecords, submissions = []) {
+  async function exportExcel(source = adminRecords, submissions = []) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
     if (exportFrom > exportTo)
       return flash("La fecha inicial no puede ser posterior a la final");
-    const timeText = (value) =>
+    const XLSX = await import("xlsx-js-style"),
+      timeText = (value) =>
         new Date(value).toLocaleTimeString("es-ES", {
           hour: "2-digit",
           minute: "2-digit",
@@ -1106,14 +1106,10 @@ function App() {
         /^Material supervisor · /i.test(r.unit) ? "Supervisor" : "Unidad",
       rows = selected.map((r) => {
         const a = aggregate(r),
-          sends = submissionsFor(r),
-          firstSend = sends[0]?.submitted_at || r.createdAt,
-          lastSend = sends.at(-1)?.submitted_at || r.updatedAt;
+          sends = submissionsFor(r);
         return {
           "Fecha de guardia": r.date,
           "Inicio de guardia": r.time,
-          "Primer envío": firstSend ? timeText(firstSend) : "",
-          "Último envío": lastSend ? timeText(lastSend) : "",
           "Número de envíos": sends.length || 1,
           "Tipo de registro": origin(r),
           Unidad: r.unit,
@@ -1188,17 +1184,7 @@ function App() {
                 ? "Enviado con consumo"
                 : "Guardia finalizada - cero consumos"
               : "Sin registro",
-            "Primer envío": sends[0]
-              ? timeText(sends[0].submitted_at)
-              : record
-                ? timeText(record.createdAt)
-                : "",
-            "Último envío": sends.at(-1)
-              ? timeText(sends.at(-1).submitted_at)
-              : record
-                ? timeText(record.updatedAt)
-                : "",
-            "Número de envíos": record ? sends.length || 1 : 0,
+            "Número de guardados": record ? sends.length || 1 : 0,
           });
         });
       currentDay.setDate(currentDay.getDate() + 1);
@@ -1260,12 +1246,38 @@ function App() {
       if (ws["!ref"]) ws["!autofilter"] = { ref: ws["!ref"] };
       ws["!cols"] = widths.map((w) => ({ wch: w }));
     };
-    configure(ws1, [14, 12, 9, 18, 24, 22, 16, 55]);
+    configure(ws1, [14, 12, 16, 18, 16, 24, 22, 55]);
     configure(ws2, [14, 12, 9, 18, 24, 22, 16, 42, 12]);
     configure(ws3, [24, 16, 42, 20]);
     configure(ws4, [14, 12, 9, 18, 24, 22, 42, 12]);
-    configure(ws5, [16, 12, 28, 16, 14, 14, 16]);
+    configure(ws5, [16, 12, 28, 38, 18]);
     configure(ws6, [14, 10, 16, 28, 22, 42, 20, 14]);
+    const dailyHeaderStyle = {
+        fill: { fgColor: { rgb: "D71920" } },
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        alignment: { vertical: "center", horizontal: "center" },
+      },
+      dailyGoodStyle = {
+        fill: { fgColor: { rgb: "E2F0D9" } },
+        font: { color: { rgb: "006100" } },
+        border: { bottom: { style: "thin", color: { rgb: "A9D18E" } } },
+      },
+      dailyMissingStyle = {
+        fill: { fgColor: { rgb: "FCE8E6" } },
+        font: { color: { rgb: "9C0006" } },
+        border: { bottom: { style: "thin", color: { rgb: "F4B7B2" } } },
+      };
+    for (let column = 0; column < 5; column += 1) {
+      const headerCell = ws5[XLSX.utils.encode_cell({ r: 0, c: column })];
+      if (headerCell) headerCell.s = dailyHeaderStyle;
+    }
+    dailyRows.forEach((row, rowIndex) => {
+      const style = row.Estado === "Sin registro" ? dailyMissingStyle : dailyGoodStyle;
+      for (let column = 0; column < 5; column += 1) {
+        const cell = ws5[XLSX.utils.encode_cell({ r: rowIndex + 1, c: column })];
+        if (cell) cell.s = style;
+      }
+    });
     XLSX.utils.book_append_sheet(wb, ws1, "Resumen guardias");
     XLSX.utils.book_append_sheet(wb, ws5, "Control diario unidades");
     XLSX.utils.book_append_sheet(wb, ws6, "Entregas supervisor");
@@ -1867,7 +1879,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v71</span></h1>
+          <h1>Control de material <span className="app-version">v72</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3013,7 +3025,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=71", {
+    navigator.serviceWorker.register("./sw.js?v=72", {
       updateViaCache: "none",
     }),
   );
