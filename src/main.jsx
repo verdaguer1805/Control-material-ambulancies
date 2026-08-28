@@ -112,10 +112,11 @@ const guardState = (u, shift, now = new Date()) => {
     makeDate = (d) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   if (isSupervisorMaterial(u)) {
     const start = new Date(now), end = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
+    start.setHours(7, 0, 0, 0);
+    if (now < start) start.setDate(start.getDate() - 1);
+    end.setTime(start.getTime());
     end.setDate(end.getDate() + 1);
-    return { active: true, start, end, code: makeCode(start), date: makeDate(start), label: "Día completo" };
+    return { active: true, start, end, code: makeCode(start), date: makeDate(start), label: "07:00–07:00" };
   }
   if (!/^(07|08|09):00$/.test(shift || ""))
     return { active: false, reason: "Falta configurar la hora de inicio de guardia" };
@@ -330,8 +331,9 @@ function App() {
       setQuantities({});
       return;
     }
-    const record = getRecords().find((r) => r.id === guard.code && r.unit === currentUnit);
-    setQuantities(record ? aggregate(record) : {});
+    // Cada envio representa una retirada nueva del almacen. El formulario
+    // siempre empieza a cero, aunque ya existan retiradas en esta guardia.
+    setQuantities({});
     setIncident(guard.code);
     setIncidentConfirmed(true);
     setEditingRecord(null);
@@ -601,7 +603,7 @@ function App() {
     const savedAt = new Date().toISOString(),
       entry = { createdAt: savedAt, materials: used };
     if (rec) {
-      rec.entries = [entry];
+      rec.entries = [...(rec.entries || []), entry];
       rec.updatedAt = savedAt;
       rec.synced = false;
       rec.pendingUpdate = true;
@@ -611,7 +613,7 @@ function App() {
         unit: currentUnit,
         warehouse: unitWarehouse(currentUnit),
         date: guard.date,
-        time: isSupervisorMaterial(currentUnit) ? "12:00" : localStorage.getItem(KEY.shift),
+        time: isSupervisorMaterial(currentUnit) ? "07:00" : localStorage.getItem(KEY.shift),
         createdAt: savedAt,
         updatedAt: savedAt,
         entries: [entry],
@@ -622,6 +624,10 @@ function App() {
     }
     saveRecords(list);
     setRecords([...list]);
+    // La retirada ya queda guardada localmente (tambien sin cobertura), por lo
+    // que el formulario queda preparado inmediatamente para la siguiente.
+    setQuantities({});
+    setSearch("");
     if (!navigator.onLine) {
       setStatus("queued");
       flash("Sin cobertura: consumo guardado en el móvil");
@@ -633,10 +639,10 @@ function App() {
         p_incident_code: id,
         p_unit: displayUnit(currentUnit),
         p_warehouse: unitWarehouse(currentUnit),
-        p_occurred_at: isSupervisorMaterial(currentUnit)
-          ? new Date(`${guard.date}T12:00:00`).toISOString()
-          : guard.start.toISOString(),
-        p_materials: used,
+        p_occurred_at: guard.start.toISOString(),
+        // Supabase conserva un unico registro agregado por unidad y guardia.
+        // La funcion calcula la diferencia y descuenta solo esta retirada.
+        p_materials: aggregate(rec),
       });
       if (error) throw error;
       rec.synced = true;
@@ -1105,12 +1111,10 @@ function App() {
       origin = (r) =>
         /^Material supervisor · /i.test(r.unit) ? "Supervisor" : "Unidad",
       rows = selected.map((r) => {
-        const a = aggregate(r),
-          sends = submissionsFor(r);
+        const a = aggregate(r);
         return {
           "Fecha de guardia": r.date,
           "Inicio de guardia": r.time,
-          "Número de envíos": sends.length || 1,
           "Tipo de registro": origin(r),
           Unidad: r.unit,
           Almacén: reportWarehouse(r.warehouse),
@@ -1173,8 +1177,7 @@ function App() {
         .forEach((unit) => {
           const record = selected.find(
               (r) => r.unit === unit && r.id === guardCode,
-            ),
-            sends = record ? submissionsFor(record) : [];
+            );
           dailyRows.push({
             "Fecha de guardia": date,
             Unidad: unit,
@@ -1184,30 +1187,28 @@ function App() {
                 ? "Enviado con consumo"
                 : "Guardia finalizada - cero consumos"
               : "Sin registro",
-            "Número de guardados": record ? sends.length || 1 : 0,
           });
         });
       currentDay.setDate(currentDay.getDate() + 1);
     }
+    // Un unico resumen diario por Material Supervisor. Las distintas retiradas
+    // del mismo dia se conservan en Supabase, pero no aparecen separadas en el
+    // informe: se muestra el total agregado de la jornada.
     const supervisorDeliveries = [];
-    submissions
-      .filter((submission) => /^Material supervisor · /i.test(submission.unit))
-      .forEach((submission, index) => {
-        Object.entries(submission.material_delta || {}).forEach(
-          ([material, quantity]) =>
+    selected
+      .filter((record) => /^Material supervisor · /i.test(record.unit))
+      .forEach((record) => {
+        Object.entries(aggregate(record))
+          .sort(([a], [b]) => a.localeCompare(b, "es", { sensitivity: "base" }))
+          .forEach(([material, quantity]) =>
             supervisorDeliveries.push({
-              Fecha: new Date(submission.submitted_at)
-                .toISOString()
-                .slice(0, 10),
-              Hora: timeText(submission.submitted_at),
-              "Entrega número": index + 1,
-              Supervisor: submission.unit,
-              Almacén: reportWarehouse(submission.warehouse),
+              "Fecha de guardia": record.date,
+              Supervisor: record.unit,
+              Almacén: reportWarehouse(record.warehouse),
               Material: material,
-              "Cantidad entregada": Number(quantity),
-              Tipo: Number(quantity) >= 0 ? "Entrega" : "Corrección",
+              "Cantidad total del día": Number(quantity),
             }),
-        );
+          );
       });
     const repRows = Object.entries(rep)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -1879,7 +1880,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v72</span></h1>
+          <h1>Control de material <span className="app-version">v73</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
