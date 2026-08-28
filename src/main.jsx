@@ -1873,6 +1873,9 @@ function App() {
   }
   const currentUnit = localStorage.getItem(KEY.unit),
     currentGuard = guardState(currentUnit, localStorage.getItem(KEY.shift), new Date(guardTick)),
+    currentGuardAlreadySubmitted = records.some(
+      (record) => record.unit === currentUnit && record.id === currentGuard.code,
+    ),
     pending = records.filter((r) => !r.synced).length,
     stockDemoReady =
       stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot";
@@ -1880,7 +1883,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v73</span></h1>
+          <h1>Control de material <span className="app-version">v74</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2645,6 +2648,7 @@ function App() {
                   : `Sincronizar pendientes (${pending})`}
               </button>
               {!isSupervisorMaterial(currentUnit) &&
+                !currentGuardAlreadySubmitted &&
                 Object.values(quantities).every((quantity) => !quantity) && (
                   <button
                     className="secondary full zero-guard-button"
