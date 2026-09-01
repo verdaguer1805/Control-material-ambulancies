@@ -219,6 +219,10 @@ function App() {
     [deviceActivationOpen, setDeviceActivationOpen] = useState(false),
     [deviceActivationCode, setDeviceActivationCode] = useState(""),
     [deviceAuthLoading, setDeviceAuthLoading] = useState(false),
+    [deviceManagerOpen, setDeviceManagerOpen] = useState(false),
+    [deviceManagerLoading, setDeviceManagerLoading] = useState(false),
+    [deviceManagerOwnerCode, setDeviceManagerOwnerCode] = useState(""),
+    [authorizedDevices, setAuthorizedDevices] = useState([]),
     [adminRecords, setAdminRecords] = useState([]),
     [adminLoaded, setAdminLoaded] = useState(false),
     [reportLoading, setReportLoading] = useState(false),
@@ -1038,6 +1042,64 @@ function App() {
     } catch {
       flash("No se ha podido renovar el código de dispositivos");
     }
+  }
+  async function openDeviceManager() {
+    const ownerCode = prompt("Clave exclusiva del propietario");
+    if (ownerCode === null) return;
+    setDeviceManagerLoading(true);
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase.rpc("list_authorized_devices", {
+        input_owner_code: ownerCode,
+      });
+      if (error) throw error;
+      setDeviceManagerOwnerCode(ownerCode);
+      setAuthorizedDevices(Array.isArray(data) ? data : []);
+      setDeviceManagerOpen(true);
+    } catch {
+      setDeviceManagerOwnerCode("");
+      flash("No tienes autorización para gestionar dispositivos");
+    } finally {
+      setDeviceManagerLoading(false);
+    }
+  }
+  async function refreshAuthorizedDevices() {
+    if (!deviceManagerOwnerCode) return;
+    setDeviceManagerLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("list_authorized_devices", {
+        input_owner_code: deviceManagerOwnerCode,
+      });
+      if (error) throw error;
+      setAuthorizedDevices(Array.isArray(data) ? data : []);
+    } catch {
+      flash("No se ha podido actualizar la lista de dispositivos");
+    } finally {
+      setDeviceManagerLoading(false);
+    }
+  }
+  async function revokeAuthorizedDevice(device) {
+    if (!confirm(`¿Revocar el dispositivo de ${displayUnit(device.unit)}?`)) return;
+    setDeviceManagerLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("revoke_authorized_device", {
+        input_owner_code: deviceManagerOwnerCode,
+        p_user_id: device.user_id,
+      });
+      if (error) throw error;
+      if (!data) return flash("El dispositivo ya estaba revocado");
+      await refreshAuthorizedDevices();
+      flash("Dispositivo revocado correctamente");
+    } catch {
+      flash("No se ha podido revocar el dispositivo");
+    } finally {
+      setDeviceManagerLoading(false);
+    }
+  }
+  function closeDeviceManager() {
+    setDeviceManagerOpen(false);
+    setDeviceManagerOwnerCode("");
+    setAuthorizedDevices([]);
   }
   async function changeAssignedUnit() {
     const enteredPin = changeUnitPin;
@@ -2033,7 +2095,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v75</span></h1>
+          <h1>Control de material <span className="app-version">v76</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2519,6 +2581,54 @@ function App() {
             </div>
           </div>
         )}
+        {deviceManagerOpen && (
+          <div className="modal-backdrop">
+            <div className="card export-modal device-manager-modal">
+              <div className="device-manager-heading">
+                <div>
+                  <h2>Dispositivos oficiales</h2>
+                  <p className="muted">Solo estos dispositivos pueden enviar datos reales.</p>
+                </div>
+                <span className="device-count">
+                  {authorizedDevices.filter((device) => device.active).length} activos
+                </span>
+              </div>
+              <div className="device-list">
+                {deviceManagerLoading && !authorizedDevices.length ? (
+                  <p className="muted">Cargando dispositivos...</p>
+                ) : !authorizedDevices.length ? (
+                  <p className="muted">Todavía no hay dispositivos autorizados.</p>
+                ) : authorizedDevices.map((device) => (
+                  <article className={`device-row ${device.active ? "" : "device-row-revoked"}`} key={device.user_id}>
+                    <div className="device-row-main">
+                      <strong>{displayUnit(device.unit)}</strong>
+                      <span>{device.lot}</span>
+                      <small>ID dispositivo: {device.device_id}</small>
+                    </div>
+                    <div className="device-row-meta">
+                      <span className={`badge ${device.active ? "green" : "red"}`}>
+                        {device.active ? "Activo" : "Revocado"}
+                      </span>
+                      <small>Activado: {new Date(device.activated_at).toLocaleString("es-ES")}</small>
+                      <small>Última conexión: {new Date(device.last_seen_at).toLocaleString("es-ES")}</small>
+                    </div>
+                    {device.active && (
+                      <button className="danger" onClick={() => revokeAuthorizedDevice(device)} disabled={deviceManagerLoading}>
+                        Revocar
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+              <div className="toolbar">
+                <button className="secondary" onClick={refreshAuthorizedDevices} disabled={deviceManagerLoading}>
+                  {deviceManagerLoading ? "Actualizando..." : "Actualizar"}
+                </button>
+                <button className="primary" onClick={closeDeviceManager}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        )}
         {pinDeniedOpen && (
           <div className="modal-backdrop">
             <div className="card export-modal">
@@ -2910,6 +3020,9 @@ function App() {
                 </button>
                 <button className="secondary" onClick={rotateDeviceActivationCode}>
                   Renovar código dispositivos
+                </button>
+                <button className="secondary" onClick={openDeviceManager} disabled={deviceManagerLoading}>
+                  Gestionar dispositivos
                 </button>
                 <button
                   className="secondary"

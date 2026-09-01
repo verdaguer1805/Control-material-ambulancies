@@ -46,3 +46,90 @@
     width: 100%;
   }
 }
+
+.device-manager-modal {
+  width: min(100%, 760px);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+}
+
+.device-manager-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.device-manager-heading h2,
+.device-manager-heading p {
+  margin: 0 0 5px;
+}
+
+.device-count {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #e9f7ef;
+  color: #087a48;
+  font-weight: 800;
+}
+
+.device-list {
+  min-height: 90px;
+  overflow-y: auto;
+  margin: 10px -4px 0;
+  padding: 4px;
+}
+
+.device-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(190px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 13px;
+  border: 1px solid #dce5e8;
+  border-radius: 12px;
+  margin-bottom: 9px;
+}
+
+.device-row-revoked {
+  background: #f5f7f8;
+  opacity: .72;
+}
+
+.device-row-main,
+.device-row-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.device-row-main strong {
+  color: #d71920;
+  font-size: 18px;
+}
+
+.device-row small {
+  color: #6b7d83;
+}
+
+.device-row-meta .badge {
+  align-self: flex-start;
+}
+
+@media (max-width: 640px) {
+  .device-manager-heading {
+    flex-direction: column;
+  }
+
+  .device-row {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .device-row button {
+    width: 100%;
+  }
+}
