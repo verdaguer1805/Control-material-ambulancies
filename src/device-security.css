@@ -1,0 +1,48 @@
+.device-auth-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-width: 2px;
+}
+
+.device-auth-card p {
+  margin: 5px 0 0;
+}
+
+.device-authorized {
+  border-color: #20a35a;
+  background: #eefaf3;
+  color: #087a48;
+}
+
+.device-demo {
+  border-color: #e87500;
+  background: #fff5e8;
+  color: #7a4300;
+}
+
+.device-auth-card button {
+  flex: 0 0 auto;
+}
+
+.demo-confirmation {
+  border-color: #e87500;
+  background: #fff5e8;
+  color: #7a4300;
+}
+
+.demo-confirmation strong {
+  font-size: 25px;
+}
+
+@media (max-width: 640px) {
+  .device-auth-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .device-auth-card button {
+    width: 100%;
+  }
+}

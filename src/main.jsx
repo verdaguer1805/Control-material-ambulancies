@@ -22,12 +22,14 @@ import "./overrides.css";
 import "./material-selection.css";
 import "./stock-demo.css";
 import "./guard.css";
+import "./device-security.css";
 const KEY = {
   unit: "cma_unit",
   lot: "cma_lot",
   shift: "cma_shift_start",
   records: "cma_records",
 };
+const DEVICE_AUTH_CACHE = "cma_device_authorization_v1";
 const STOCK_DEMO_KEY = "cma_stock_demo_olot_v4";
 const SUPABASE_DATABASE_LIMIT_MB = 500;
 const STOCK_DEMO_CENTRAL = "Almacén central Olot";
@@ -207,6 +209,16 @@ function App() {
     [quantities, setQuantities] = useState({}),
     [clock, setClock] = useState(nowParts()),
     [records, setRecords] = useState(getRecords()),
+    [deviceAuth, setDeviceAuth] = useState({
+      checked: false,
+      enforcement: false,
+      authorized: false,
+      unit: "",
+      version: 0,
+    }),
+    [deviceActivationOpen, setDeviceActivationOpen] = useState(false),
+    [deviceActivationCode, setDeviceActivationCode] = useState(""),
+    [deviceAuthLoading, setDeviceAuthLoading] = useState(false),
     [adminRecords, setAdminRecords] = useState([]),
     [adminLoaded, setAdminLoaded] = useState(false),
     [reportLoading, setReportLoading] = useState(false),
@@ -312,6 +324,15 @@ function App() {
     return () => clearInterval(timer);
   }, []);
   React.useEffect(() => {
+    if (mode !== "worker") return;
+    const currentUnit = localStorage.getItem(KEY.unit);
+    if (!currentUnit) {
+      setDeviceAuth((current) => ({ ...current, checked: true }));
+      return;
+    }
+    refreshDeviceAuthorization(currentUnit);
+  }, [unit, lot, mode]);
+  React.useEffect(() => {
     const currentUnit = localStorage.getItem(KEY.unit);
     if (!currentUnit || unitZone(currentUnit) !== "Olot" || !navigator.onLine) return;
     ensureAnonymousSession()
@@ -354,6 +375,86 @@ function App() {
       setIncidentConfirmed(false);
       setInvalidIncidentOpen(true);
     };
+  async function refreshDeviceAuthorization(targetUnit = localStorage.getItem(KEY.unit)) {
+    if (!targetUnit) return false;
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase.rpc("get_device_authorization");
+      if (error) throw error;
+      const authorized = Boolean(data?.authorized) &&
+        data?.unit === displayUnit(targetUnit) &&
+        data?.lot === (localStorage.getItem(KEY.lot) || lot);
+      const next = {
+        checked: true,
+        enforcement: Boolean(data?.enforcement_enabled),
+        authorized: !data?.enforcement_enabled || authorized,
+        unit: data?.unit || "",
+        version: Number(data?.current_version || 0),
+      };
+      setDeviceAuth(next);
+      if (authorized) localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
+      else localStorage.removeItem(DEVICE_AUTH_CACHE);
+      return next.authorized;
+    } catch {
+      try {
+        const cached = JSON.parse(localStorage.getItem(DEVICE_AUTH_CACHE) || "null");
+        const cachedMatches = cached?.authorized &&
+          cached?.unit === displayUnit(targetUnit);
+        setDeviceAuth({
+          checked: true,
+          enforcement: true,
+          authorized: Boolean(cachedMatches),
+          unit: cached?.unit || "",
+          version: Number(cached?.version || 0),
+        });
+        return Boolean(cachedMatches);
+      } catch {
+        setDeviceAuth({ checked: true, enforcement: true, authorized: false, unit: "", version: 0 });
+        return false;
+      }
+    }
+  }
+  async function activateThisDevice() {
+    const currentUnit = localStorage.getItem(KEY.unit);
+    if (!currentUnit) return flash("Primero asigna una unidad a este móvil");
+    if (!/^\d{8,12}$/.test(deviceActivationCode))
+      return flash("El código de activación debe tener entre 8 y 12 cifras");
+    setDeviceAuthLoading(true);
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase.rpc("activate_device", {
+        p_activation_code: deviceActivationCode,
+        p_unit: displayUnit(currentUnit),
+        p_lot: localStorage.getItem(KEY.lot) || lot,
+      });
+      if (error) throw error;
+      const next = {
+        checked: true,
+        enforcement: Boolean(data?.enforcement_enabled),
+        authorized: Boolean(data?.authorized),
+        unit: data?.unit || displayUnit(currentUnit),
+        version: Number(data?.current_version || 0),
+      };
+      setDeviceAuth(next);
+      localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
+      // No arrosseguem enviaments de prova o pendents d'una autorització antiga.
+      const cleanRecords = getRecords().filter((record) => record.synced);
+      saveRecords(cleanRecords);
+      setRecords(cleanRecords);
+      setDeviceActivationCode("");
+      setDeviceActivationOpen(false);
+      flash("Dispositivo autorizado correctamente");
+    } catch (error) {
+      const reason = String(error?.message || "");
+      flash(
+        reason.includes("LOCKED")
+          ? "Demasiados intentos. Espera 15 minutos"
+          : "Código de activación incorrecto",
+      );
+    } finally {
+      setDeviceAuthLoading(false);
+    }
+  }
   const editDeadline = (record) => {
     const start = localStorage.getItem(KEY.shift);
     if (!/^(07|08|09):00$/.test(start || "")) return null;
@@ -488,6 +589,8 @@ function App() {
       KEY.shift,
       isSupervisorMaterial(unit) ? "" : selectedShiftStart,
     );
+    localStorage.removeItem(DEVICE_AUTH_CACHE);
+    setDeviceAuth({ checked: false, enforcement: true, authorized: false, unit: "", version: 0 });
     setLot(selectedLot);
     setPinInput("");
     flash("Móvil asignado correctamente");
@@ -598,6 +701,16 @@ function App() {
       : Object.fromEntries(Object.entries(quantities).filter(([, n]) => n > 0));
     if (!Object.keys(used).length && !noMaterial)
       return flash("No hay material seleccionado; no es necesario enviar");
+    const canSendRealData = deviceAuth.checked
+      ? deviceAuth.authorized
+      : await refreshDeviceAuthorization(currentUnit);
+    if (!canSendRealData) {
+      setQuantities({});
+      setSearch("");
+      setStatus("demo");
+      setTimeout(() => setStatus("draft"), 2000);
+      return;
+    }
     let list = getRecords(),
       rec = list.find((r) => r.id === id && r.unit === currentUnit);
     const savedAt = new Date().toISOString(),
@@ -652,6 +765,18 @@ function App() {
       sentScrollRef.current = window.scrollY;
       setStatus("sent");
     } catch (error) {
+      if (String(error?.message || "").includes("DEVICE_NOT_AUTHORIZED")) {
+        rec.entries = (rec.entries || []).filter((item) => item.createdAt !== savedAt);
+        if (!rec.entries.length) list = list.filter((item) => item !== rec);
+        else rec.synced = true;
+        saveRecords(list);
+        setRecords([...list]);
+        localStorage.removeItem(DEVICE_AUTH_CACHE);
+        setDeviceAuth({ checked: true, enforcement: true, authorized: false, unit: "", version: 0 });
+        setStatus("demo");
+        setTimeout(() => setStatus("draft"), 2000);
+        return;
+      }
       rec.synced = false;
       saveRecords(list);
       setRecords([...list]);
@@ -893,6 +1018,27 @@ function App() {
       flash("No se puede cambiar el PIN ahora");
     }
   }
+  async function rotateDeviceActivationCode() {
+    const ownerCode = prompt("Clave exclusiva del propietario");
+    if (ownerCode === null) return;
+    const newCode = prompt("Nuevo código de activación (8 a 12 cifras)");
+    if (newCode === null) return;
+    if (!/^\d{8,12}$/.test(newCode))
+      return flash("El código debe contener entre 8 y 12 cifras");
+    const repeated = prompt("Repite el nuevo código de activación");
+    if (newCode !== repeated) return flash("Los códigos no coinciden");
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase.rpc("rotate_device_activation_code", {
+        input_owner_code: ownerCode,
+        p_new_code: newCode,
+      });
+      if (error) throw error;
+      flash(`Nueva autorización activada (generación ${data}). Los dispositivos anteriores quedan bloqueados.`, 4000);
+    } catch {
+      flash("No se ha podido renovar el código de dispositivos");
+    }
+  }
   async function changeAssignedUnit() {
     const enteredPin = changeUnitPin;
     setChangeUnitPin("");
@@ -914,6 +1060,8 @@ function App() {
       KEY.shift,
       isSupervisorMaterial(nextUnit) ? "" : changeShiftStart,
     );
+    localStorage.removeItem(DEVICE_AUTH_CACHE);
+    setDeviceAuth({ checked: false, enforcement: true, authorized: false, unit: "", version: 0 });
     setUnit(nextUnit);
     setLot(changeLot);
     setChangeZone("");
@@ -938,6 +1086,8 @@ function App() {
     localStorage.removeItem(KEY.unit);
     localStorage.removeItem(KEY.lot);
     localStorage.removeItem(KEY.shift);
+    localStorage.removeItem(DEVICE_AUTH_CACHE);
+    setDeviceAuth({ checked: true, enforcement: true, authorized: false, unit: "", version: 0 });
     setUnit("");
     setLot("");
     setSelectedLot("");
@@ -1883,7 +2033,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v74</span></h1>
+          <h1>Control de material <span className="app-version">v75</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -1923,6 +2073,46 @@ function App() {
             <span className="sent-check">✓</span>
             <strong>ENVIADO</strong>
             <small>Consumo de guardia guardado correctamente</small>
+          </div>
+        )}
+        {status === "demo" && (
+          <div className="sent-confirmation demo-confirmation">
+            <strong>SIMULACIÓN</strong>
+            <small>Demostración completada. No se han enviado datos.</small>
+          </div>
+        )}
+        {deviceActivationOpen && (
+          <div className="modal-backdrop">
+            <div className="card export-modal">
+              <h2 style={{ textAlign: "center" }}>Autorizar dispositivo</h2>
+              <p style={{ textAlign: "center" }}>
+                Introduce el código vigente. Solo la administración debe realizar esta acción.
+              </p>
+              <label>Código de activación</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                value={deviceActivationCode}
+                onChange={(event) =>
+                  setDeviceActivationCode(event.target.value.replace(/\D/g, "").slice(0, 12))
+                }
+              />
+              <div className="toolbar">
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    setDeviceActivationCode("");
+                    setDeviceActivationOpen(false);
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button className="primary" onClick={activateThisDevice} disabled={deviceAuthLoading}>
+                  {deviceAuthLoading ? "Comprobando..." : "Autorizar"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
         {zoneOpen && (
@@ -2572,6 +2762,25 @@ function App() {
         )}
         {mode === "worker" && currentUnit && (
           <>
+            {deviceAuth.checked && deviceAuth.enforcement && (
+              <div className={`card device-auth-card ${deviceAuth.authorized ? "device-authorized" : "device-demo"}`}>
+                <div>
+                  <strong>
+                    {deviceAuth.authorized ? "Dispositivo autorizado" : "Modo demostración"}
+                  </strong>
+                  <p className="small">
+                    {deviceAuth.authorized
+                      ? "Los consumos se enviarán a Supabase y actualizarán el stock."
+                      : "Puedes probar la aplicación, pero no se enviará ningún dato ni se modificará el stock."}
+                  </p>
+                </div>
+                {!deviceAuth.authorized && (
+                  <button className="primary" onClick={() => setDeviceActivationOpen(true)}>
+                    Autorizar dispositivo
+                  </button>
+                )}
+              </div>
+            )}
             <div className="card">
               <div className="section-title">
                 <div>
@@ -2698,6 +2907,9 @@ function App() {
                 </button>
                 <button className="secondary" onClick={loadSystemStatus}>
                   Estado del sistema
+                </button>
+                <button className="secondary" onClick={rotateDeviceActivationCode}>
+                  Renovar código dispositivos
                 </button>
                 <button
                   className="secondary"
