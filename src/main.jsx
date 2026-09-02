@@ -204,6 +204,14 @@ function App() {
     [pinInput, setPinInput] = useState(""),
     [adminOk, setAdminOk] = useState(false),
     [adminAccess, setAdminAccess] = useState(null),
+    [accessCodesOpen, setAccessCodesOpen] = useState(false),
+    [accessCodesOwnerKey, setAccessCodesOwnerKey] = useState(""),
+    [accessCodesVisible, setAccessCodesVisible] = useState(false),
+    [accessCodesLoading, setAccessCodesLoading] = useState(false),
+    [accessCodesError, setAccessCodesError] = useState(""),
+    [accessCodesDraft, setAccessCodesDraft] = useState({
+      owner: "", logistics: "", olot: "", figueres: "", blanes: "", girona: "",
+    }),
     [incident, setIncident] = useState(""),
     [incidentConfirmed, setIncidentConfirmed] = useState(false),
     [search, setSearch] = useState(""),
@@ -1057,38 +1065,32 @@ function App() {
     }
   }
   async function configureAdminAccessCodes() {
-    const ownerCode = prompt("Clave exclusiva del propietario");
-    if (ownerCode === null) return;
-    const labels = [
-      ["owner", "Código nuevo del propietario"],
-      ["logistics", "Código nuevo de logística"],
-      ["olot", "Código de Supervisión Olot"],
-      ["figueres", "Código de Supervisión Figueres"],
-      ["blanes", "Código de Supervisión Blanes"],
-      ["girona", "Código de Supervisión Girona"],
-    ];
-    const codes = {};
-    for (const [key, label] of labels) {
-      const value = prompt(`${label} (6 a 12 letras y números)`);
-      if (value === null) return;
-      if (!/^[A-Za-z0-9]{6,12}$/.test(value)) return flash("Usa entre 6 y 12 letras y números, sin espacios");
-      codes[key] = value;
-    }
-    if (new Set(Object.values(codes)).size !== labels.length)
-      return flash("Cada perfil debe tener un código diferente");
-    if (!confirm("Se cerrarán las sesiones de administración abiertas. ¿Guardar los seis códigos?")) return;
+    setAccessCodesError("");
+    const values = Object.values(accessCodesDraft);
+    if (!/^\d{4,12}$/.test(accessCodesOwnerKey))
+      return setAccessCodesError("La clave exclusiva del propietario no es válida.");
+    if (values.some((value) => !/^[A-Za-z0-9]{6,13}$/.test(value)))
+      return setAccessCodesError("Todos los códigos deben tener entre 6 y 13 letras o números.");
+    if (new Set(values).size !== values.length)
+      return setAccessCodesError("Cada perfil debe tener un código diferente.");
+    setAccessCodesLoading(true);
     try {
       const { data, error } = await supabase.rpc("configure_admin_access_codes", {
-        input_owner_code: ownerCode,
-        p_codes: codes,
+        input_owner_code: accessCodesOwnerKey,
+        p_codes: accessCodesDraft,
       });
       if (error || !data) throw error || new Error("No guardado");
+      setAccessCodesOpen(false);
+      setAccessCodesOwnerKey("");
+      setAccessCodesDraft({ owner: "", logistics: "", olot: "", figueres: "", blanes: "", girona: "" });
       setAdminOk(false);
       setAdminAccess(null);
       setStockDemoOpen(false);
       flash("Códigos configurados. Entra de nuevo con tu código de propietario", 4000);
     } catch {
-      flash("No se han podido configurar los códigos");
+      setAccessCodesError("No se han podido guardar. Comprueba la clave exclusiva.");
+    } finally {
+      setAccessCodesLoading(false);
     }
   }
   async function openDeviceManager() {
@@ -2138,7 +2140,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v77</span></h1>
+          <h1>Control de material <span className="app-version">v78</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2543,6 +2545,55 @@ function App() {
                   disabled={reportLoading}
                 >
                   {reportLoading ? "Cargando datos..." : "Descargar PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {accessCodesOpen && (
+          <div className="modal-backdrop">
+            <div className="card export-modal access-codes-modal">
+              <h2>Configurar códigos de acceso</h2>
+              <p className="muted">Revisa todos los campos antes de guardar. Si corriges uno, los demás se conservan.</p>
+              <label>Clave exclusiva del propietario</label>
+              <input
+                type="password"
+                value={accessCodesOwnerKey}
+                onChange={(e) => setAccessCodesOwnerKey(e.target.value.replace(/\D/g, "").slice(0, 12))}
+              />
+              {[
+                ["owner", "Propietario"], ["logistics", "Logística"],
+                ["olot", "Supervisión Olot"], ["blanes", "Supervisión Blanes"],
+                ["figueres", "Supervisión Figueres"], ["girona", "Supervisión Girona"],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <label>{label}</label>
+                  <input
+                    type={accessCodesVisible ? "text" : "password"}
+                    value={accessCodesDraft[key]}
+                    maxLength={13}
+                    autoComplete="new-password"
+                    onChange={(e) => setAccessCodesDraft((current) => ({
+                      ...current,
+                      [key]: e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 13),
+                    }))}
+                  />
+                </div>
+              ))}
+              <button className="secondary full" onClick={() => setAccessCodesVisible((visible) => !visible)}>
+                {accessCodesVisible ? "Ocultar códigos" : "Mostrar códigos para revisar"}
+              </button>
+              {accessCodesError && <p className="access-codes-error">{accessCodesError}</p>}
+              <div className="toolbar">
+                <button
+                  className="secondary"
+                  onClick={() => { setAccessCodesOpen(false); setAccessCodesError(""); }}
+                  disabled={accessCodesLoading}
+                >
+                  Cancelar
+                </button>
+                <button className="primary" onClick={configureAdminAccessCodes} disabled={accessCodesLoading}>
+                  {accessCodesLoading ? "Guardando..." : "Guardar los seis códigos"}
                 </button>
               </div>
             </div>
@@ -3077,7 +3128,9 @@ function App() {
                   <button className="secondary" onClick={rotateDeviceActivationCode}>Renovar código dispositivos</button>
                 )}
                 {adminCanManageCodes && (
-                  <button className="secondary" onClick={configureAdminAccessCodes}>Configurar códigos de acceso</button>
+                  <button className="secondary" onClick={() => { setAccessCodesError(""); setAccessCodesOpen(true); }}>
+                    Configurar códigos de acceso
+                  </button>
                 )}
                 {adminCanManageDevices && (
                   <button className="secondary" onClick={openDeviceManager} disabled={deviceManagerLoading}>
@@ -3416,7 +3469,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=77", {
+    navigator.serviceWorker.register("./sw.js?v=78", {
       updateViaCache: "none",
     }),
   );

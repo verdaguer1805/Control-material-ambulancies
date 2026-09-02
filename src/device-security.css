@@ -141,6 +141,26 @@
   font-weight: 700;
 }
 
+.access-codes-modal {
+  width: min(100%, 620px);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+
+.access-codes-modal label {
+  margin-top: 10px;
+}
+
+.access-codes-error {
+  margin: 10px 0 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fdecec;
+  color: #a61b1b;
+  font-weight: 800;
+  text-align: center;
+}
+
 @media (max-width: 640px) {
   .device-manager-heading {
     flex-direction: column;

@@ -135,7 +135,7 @@ begin
   if not public.verify_owner_code(input_owner_code) then raise exception 'OWNER_AUTHORIZATION_REQUIRED'; end if;
   foreach v_key in array array['owner','logistics','olot','figueres','blanes','girona'] loop
     v_code := p_codes ->> v_key;
-    if v_code !~ '^[A-Za-z0-9]{6,12}$' then raise exception 'INVALID_ACCESS_CODE'; end if;
+    if v_code !~ '^[A-Za-z0-9]{6,13}$' then raise exception 'INVALID_ACCESS_CODE'; end if;
     if v_code = any(v_codes) then raise exception 'DUPLICATED_ACCESS_CODE'; end if;
     v_codes := array_append(v_codes, v_code);
   end loop;
