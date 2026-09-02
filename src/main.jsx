@@ -1075,6 +1075,7 @@ function App() {
       return setAccessCodesError("Cada perfil debe tener un código diferente.");
     setAccessCodesLoading(true);
     try {
+      await ensureAnonymousSession();
       const { data, error } = await supabase.rpc("configure_admin_access_codes", {
         input_owner_code: accessCodesOwnerKey,
         p_codes: accessCodesDraft,
@@ -1087,8 +1088,19 @@ function App() {
       setAdminAccess(null);
       setStockDemoOpen(false);
       flash("Códigos configurados. Entra de nuevo con tu código de propietario", 4000);
-    } catch {
-      setAccessCodesError("No se han podido guardar. Comprueba la clave exclusiva.");
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (message.includes("OWNER_AUTHORIZATION_REQUIRED")) {
+        setAccessCodesError("La clave exclusiva del propietario no es correcta.");
+      } else if (message.includes("INVALID_ACCESS_CODE")) {
+        setAccessCodesError("Algún código no cumple el formato de 6 a 13 letras o números.");
+      } else if (message.includes("DUPLICATED_ACCESS_CODE")) {
+        setAccessCodesError("Cada perfil debe tener un código diferente.");
+      } else if (message.includes("Authentication required")) {
+        setAccessCodesError("No se ha podido iniciar la sesión segura. Inténtalo de nuevo.");
+      } else {
+        setAccessCodesError("No se han podido guardar los códigos. Revisa la conexión e inténtalo de nuevo.");
+      }
     } finally {
       setAccessCodesLoading(false);
     }
@@ -2140,7 +2152,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v78</span></h1>
+          <h1>Control de material <span className="app-version">v79</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3469,7 +3481,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=78", {
+    navigator.serviceWorker.register("./sw.js?v=79", {
       updateViaCache: "none",
     }),
   );
