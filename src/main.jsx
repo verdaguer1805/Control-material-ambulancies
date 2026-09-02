@@ -203,6 +203,7 @@ function App() {
     ),
     [pinInput, setPinInput] = useState(""),
     [adminOk, setAdminOk] = useState(false),
+    [adminAccess, setAdminAccess] = useState(null),
     [incident, setIncident] = useState(""),
     [incidentConfirmed, setIncidentConfirmed] = useState(false),
     [search, setSearch] = useState(""),
@@ -221,7 +222,6 @@ function App() {
     [deviceAuthLoading, setDeviceAuthLoading] = useState(false),
     [deviceManagerOpen, setDeviceManagerOpen] = useState(false),
     [deviceManagerLoading, setDeviceManagerLoading] = useState(false),
-    [deviceManagerOwnerCode, setDeviceManagerOwnerCode] = useState(""),
     [authorizedDevices, setAuthorizedDevices] = useState([]),
     [adminRecords, setAdminRecords] = useState([]),
     [adminLoaded, setAdminLoaded] = useState(false),
@@ -830,15 +830,28 @@ function App() {
     }
   }
   async function adminLogin() {
-    const valid = await verifyAdminPin(pinInput);
-    if (valid !== true) {
-      if (valid === false) flash("PIN incorrecto");
-      return;
-    }
-    setAdminRecords([]);
-    setAdminLoaded(false);
-    setAdminOk(true);
+    const enteredCode = pinInput;
     setPinInput("");
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase.rpc("open_admin_access_session", {
+        input_code: enteredCode,
+      });
+      if (error) throw error;
+      if (!data?.authorized) return flash("Código de acceso incorrecto");
+      setAdminRecords([]);
+      setAdminLoaded(false);
+      setAdminAccess(data);
+      setAdminOk(true);
+      if (data.role === "supervisor" && data.zone) {
+        setExportZone(data.zone);
+        setStockDemoZone(data.zone);
+      }
+    } catch (error) {
+      flash(String(error?.message || "").includes("LOCKED")
+        ? "Demasiados intentos. Espera 15 minutos"
+        : "Código de acceso incorrecto");
+    }
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -1043,33 +1056,59 @@ function App() {
       flash("No se ha podido renovar el código de dispositivos");
     }
   }
-  async function openDeviceManager() {
+  async function configureAdminAccessCodes() {
     const ownerCode = prompt("Clave exclusiva del propietario");
     if (ownerCode === null) return;
+    const labels = [
+      ["owner", "Código nuevo del propietario"],
+      ["logistics", "Código nuevo de logística"],
+      ["olot", "Código de Supervisión Olot"],
+      ["figueres", "Código de Supervisión Figueres"],
+      ["blanes", "Código de Supervisión Blanes"],
+      ["girona", "Código de Supervisión Girona"],
+    ];
+    const codes = {};
+    for (const [key, label] of labels) {
+      const value = prompt(`${label} (6 a 12 letras y números)`);
+      if (value === null) return;
+      if (!/^[A-Za-z0-9]{6,12}$/.test(value)) return flash("Usa entre 6 y 12 letras y números, sin espacios");
+      codes[key] = value;
+    }
+    if (new Set(Object.values(codes)).size !== labels.length)
+      return flash("Cada perfil debe tener un código diferente");
+    if (!confirm("Se cerrarán las sesiones de administración abiertas. ¿Guardar los seis códigos?")) return;
+    try {
+      const { data, error } = await supabase.rpc("configure_admin_access_codes", {
+        input_owner_code: ownerCode,
+        p_codes: codes,
+      });
+      if (error || !data) throw error || new Error("No guardado");
+      setAdminOk(false);
+      setAdminAccess(null);
+      setStockDemoOpen(false);
+      flash("Códigos configurados. Entra de nuevo con tu código de propietario", 4000);
+    } catch {
+      flash("No se han podido configurar los códigos");
+    }
+  }
+  async function openDeviceManager() {
     setDeviceManagerLoading(true);
     try {
       await ensureAnonymousSession();
-      const { data, error } = await supabase.rpc("list_authorized_devices", {
-        input_owner_code: ownerCode,
-      });
+      const { data, error } = await supabase.rpc("list_authorized_devices_for_admin");
       if (error) throw error;
-      setDeviceManagerOwnerCode(ownerCode);
       setAuthorizedDevices(Array.isArray(data) ? data : []);
       setDeviceManagerOpen(true);
     } catch {
-      setDeviceManagerOwnerCode("");
       flash("No tienes autorización para gestionar dispositivos");
     } finally {
       setDeviceManagerLoading(false);
     }
   }
   async function refreshAuthorizedDevices() {
-    if (!deviceManagerOwnerCode) return;
     setDeviceManagerLoading(true);
     try {
-      const { data, error } = await supabase.rpc("list_authorized_devices", {
-        input_owner_code: deviceManagerOwnerCode,
-      });
+      const { data, error } = await supabase.rpc("list_authorized_devices_for_admin");
       if (error) throw error;
       setAuthorizedDevices(Array.isArray(data) ? data : []);
     } catch {
@@ -1082,8 +1121,7 @@ function App() {
     if (!confirm(`¿Revocar el dispositivo de ${displayUnit(device.unit)}?`)) return;
     setDeviceManagerLoading(true);
     try {
-      const { data, error } = await supabase.rpc("revoke_authorized_device", {
-        input_owner_code: deviceManagerOwnerCode,
+      const { data, error } = await supabase.rpc("revoke_authorized_device_for_admin", {
         p_user_id: device.user_id,
       });
       if (error) throw error;
@@ -1098,7 +1136,6 @@ function App() {
   }
   function closeDeviceManager() {
     setDeviceManagerOpen(false);
-    setDeviceManagerOwnerCode("");
     setAuthorizedDevices([]);
   }
   async function changeAssignedUnit() {
@@ -2089,13 +2126,19 @@ function App() {
       (record) => record.unit === currentUnit && record.id === currentGuard.code,
     ),
     pending = records.filter((r) => !r.synced).length,
+    adminCanAccessAllZones = ["owner", "logistics"].includes(adminAccess?.role),
+    adminCanManageCodes = adminAccess?.role === "owner",
+    adminCanManageDevices = ["owner", "logistics"].includes(adminAccess?.role),
+    adminZones = Object.keys(SUPERVISIONS)
+      .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
+      .sort((a, b) => a.localeCompare(b)),
     stockDemoReady =
       stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot";
   return (
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v76</span></h1>
+          <h1>Control de material <span className="app-version">v77</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -2433,8 +2476,7 @@ function App() {
                 Este informe solo incluirá las unidades de esta zona.
               </p>
               <div className="zone-options">
-                {Object.keys(SUPERVISIONS)
-                  .sort((a, b) => a.localeCompare(b))
+                {adminZones
                   .map((zone) => (
                     <button
                       key={zone}
@@ -2983,12 +3025,13 @@ function App() {
         {mode === "admin" && !adminOk && (
           <div className="card">
             <h2>Administración</h2>
-            <label>PIN</label>
+            <label>Código de acceso</label>
             <input
               type="password"
-              inputMode="numeric"
+              inputMode="text"
               autoComplete="new-password"
               name="admin-access-code"
+              maxLength={12}
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
             />
@@ -3005,6 +3048,18 @@ function App() {
           <>
             <div className="card">
               <h2>Panel de administración</h2>
+              <div className="admin-access-summary">
+                <strong>
+                  {adminAccess?.role === "owner"
+                    ? "Propietario"
+                    : adminAccess?.role === "logistics"
+                      ? "Logística"
+                      : `Supervisión ${adminAccess?.zone || ""}`}
+                </strong>
+                <span>
+                  {adminCanAccessAllZones ? "Acceso a todas las zonas" : "Acceso limitado a su zona"}
+                </span>
+              </div>
               <div className="toolbar">
                 <button
                   className="secondary"
@@ -3012,18 +3067,23 @@ function App() {
                 >
                   Descargar informe
                 </button>
-                <button className="secondary" onClick={changePin}>
-                  Cambiar PIN
-                </button>
-                <button className="secondary" onClick={loadSystemStatus}>
-                  Estado del sistema
-                </button>
-                <button className="secondary" onClick={rotateDeviceActivationCode}>
-                  Renovar código dispositivos
-                </button>
-                <button className="secondary" onClick={openDeviceManager} disabled={deviceManagerLoading}>
-                  Gestionar dispositivos
-                </button>
+                {adminCanManageCodes && (
+                  <button className="secondary" onClick={changePin}>Cambiar PIN de unidades</button>
+                )}
+                {adminCanAccessAllZones && (
+                  <button className="secondary" onClick={loadSystemStatus}>Estado del sistema</button>
+                )}
+                {adminCanManageCodes && (
+                  <button className="secondary" onClick={rotateDeviceActivationCode}>Renovar código dispositivos</button>
+                )}
+                {adminCanManageCodes && (
+                  <button className="secondary" onClick={configureAdminAccessCodes}>Configurar códigos de acceso</button>
+                )}
+                {adminCanManageDevices && (
+                  <button className="secondary" onClick={openDeviceManager} disabled={deviceManagerLoading}>
+                    Gestionar dispositivos
+                  </button>
+                )}
                 <button
                   className="secondary"
                   onClick={() => {
@@ -3073,6 +3133,7 @@ function App() {
                     >
                       <option value="">Selecciona...</option>
                       {Object.keys(LOTS[stockDemoLot] || {})
+                        .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
                         .sort((a, b) => a.localeCompare(b))
                         .map((zone) => (
                           <option key={zone}>{zone}</option>
@@ -3355,7 +3416,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=72", {
+    navigator.serviceWorker.register("./sw.js?v=77", {
       updateViaCache: "none",
     }),
   );
