@@ -1076,9 +1076,24 @@ function App() {
     setAccessCodesLoading(true);
     try {
       await ensureAnonymousSession();
-      const { data, error } = await supabase.rpc("configure_admin_access_codes", {
+      const labels = {
+        owner: "Propietario", logistics: "Logística", olot: "Supervisión Olot",
+        blanes: "Supervisión Blanes", figueres: "Supervisión Figueres", girona: "Supervisión Girona",
+      };
+      for (const [accessKey, code] of Object.entries(accessCodesDraft)) {
+        const { data, error } = await supabase.rpc("stage_admin_access_code", {
+          input_owner_code: accessCodesOwnerKey,
+          p_access_key: accessKey,
+          p_code: code,
+        });
+        if (error || !data) {
+          const stagedError = error || new Error("No guardado");
+          stagedError.accessLabel = labels[accessKey];
+          throw stagedError;
+        }
+      }
+      const { data, error } = await supabase.rpc("finalize_admin_access_codes", {
         input_owner_code: accessCodesOwnerKey,
-        p_codes: accessCodesDraft,
       });
       if (error || !data) throw error || new Error("No guardado");
       setAccessCodesOpen(false);
@@ -1098,6 +1113,8 @@ function App() {
         setAccessCodesError("Cada perfil debe tener un código diferente.");
       } else if (message.includes("Authentication required")) {
         setAccessCodesError("No se ha podido iniciar la sesión segura. Inténtalo de nuevo.");
+      } else if (error?.accessLabel) {
+        setAccessCodesError(`No se ha podido guardar el código de ${error.accessLabel}. Inténtalo de nuevo.`);
       } else {
         setAccessCodesError("No se han podido guardar los códigos. Revisa la conexión e inténtalo de nuevo.");
       }
@@ -2152,7 +2169,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v79</span></h1>
+          <h1>Control de material <span className="app-version">v80</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3481,7 +3498,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=79", {
+    navigator.serviceWorker.register("./sw.js?v=80", {
       updateViaCache: "none",
     }),
   );
