@@ -2159,7 +2159,7 @@ function App() {
     pending = records.filter((r) => !r.synced).length,
     adminCanAccessAllZones = ["owner", "logistics"].includes(adminAccess?.role),
     adminCanManageCodes = adminAccess?.role === "owner",
-    adminCanManageDevices = ["owner", "logistics"].includes(adminAccess?.role),
+    adminCanManageDevices = adminAccess?.role === "owner",
     adminZones = Object.keys(SUPERVISIONS)
       .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
       .sort((a, b) => a.localeCompare(b)),
@@ -2169,7 +2169,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v81</span></h1>
+          <h1>Control de material <span className="app-version">v82</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
