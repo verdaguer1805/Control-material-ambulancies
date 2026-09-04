@@ -284,8 +284,10 @@ function App() {
     [stockPickerOpen, setStockPickerOpen] = useState(""),
     [stockPickerSearch, setStockPickerSearch] = useState(""),
     [stockPickerQuantities, setStockPickerQuantities] = useState({}),
-    [stockEditMaterial, setStockEditMaterial] = useState(""),
-    [stockEditQuantity, setStockEditQuantity] = useState(""),
+    [stockInventoryEditOpen, setStockInventoryEditOpen] = useState(false),
+    [stockInventoryEditSearch, setStockInventoryEditSearch] = useState(""),
+    [stockInventoryDrafts, setStockInventoryDrafts] = useState({}),
+    [stockInventoryOriginals, setStockInventoryOriginals] = useState({}),
     [stockMinimums, setStockMinimums] = useState({}),
     [stockMinimumOpen, setStockMinimumOpen] = useState(false),
     [stockMinimumSearch, setStockMinimumSearch] = useState(""),
@@ -1339,20 +1341,38 @@ function App() {
       );
     }
   }
-  function openStockEdit(material) {
-    setStockEditMaterial(material);
-    setStockEditQuantity(String(stockDemo.levels[stockDemoLocation][material] || 0));
+  function openStockInventoryEditor() {
+    const values = Object.fromEntries(
+      STOCK_DEMO_MATERIALS.map((material) => [
+        material,
+        String(stockDemo.levels[stockDemoLocation]?.[material] || 0),
+      ]),
+    );
+    setStockInventoryEditSearch("");
+    setStockInventoryDrafts(values);
+    setStockInventoryOriginals(values);
+    setStockInventoryEditOpen(true);
   }
-  async function saveStockEdit() {
-    const quantity = Math.floor(Number(stockEditQuantity));
-    if (!Number.isFinite(quantity) || quantity < 0)
-      return flash("Introduce una cantidad válida igual o superior a cero");
+  async function saveStockInventory() {
+    const invalid = Object.values(stockInventoryDrafts).some((value) => {
+      const quantity = Number(value);
+      return value === "" || !Number.isInteger(quantity) || quantity < 0;
+    });
+    if (invalid) return flash("Todo el inventario debe contener números enteros iguales o superiores a cero");
+    const changes = Object.fromEntries(
+      Object.entries(stockInventoryDrafts)
+        .filter(([material, value]) => String(value) !== String(stockInventoryOriginals[material]))
+        .map(([material, value]) => [material, Number(value)]),
+    );
+    if (!Object.keys(changes).length) {
+      setStockInventoryEditOpen(false);
+      return flash("No hay cambios en el inventario");
+    }
     try {
       await ensureAnonymousSession();
-      const { error } = await supabase.rpc("set_inventory_quantity", {
+      const { error } = await supabase.rpc("set_inventory_quantities", {
         p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
-        p_material: stockEditMaterial,
-        p_quantity: quantity,
+        p_items: changes,
       });
       if (error) throw error;
       setStockDemo((current) => ({
@@ -1361,12 +1381,12 @@ function App() {
           ...current.levels,
           [stockDemoLocation]: {
             ...current.levels[stockDemoLocation],
-            [stockEditMaterial]: quantity,
+            ...changes,
           },
         },
       }));
-      setStockEditMaterial("");
-      flash("Inventario actualizado en Supabase");
+      setStockInventoryEditOpen(false);
+      flash(`${Object.keys(changes).length} existencias actualizadas en Supabase`);
     } catch (error) {
       flash("No se ha podido guardar el inventario");
     }
@@ -2316,7 +2336,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v86</span></h1>
+          <h1>Control de material <span className="app-version">v87</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3440,6 +3460,11 @@ function App() {
                           <option key={location}>{location}</option>
                         ))}
                       </select>
+                      {stockDemoLocation && (
+                        <button className="stock-edit-button" onClick={openStockInventoryEditor}>
+                          Editar inventario
+                        </button>
+                      )}
                       {adminCanManageMinimums && stockDemoLocation && (
                         <button className="stock-minimum-button" onClick={openStockMinimumEditor}>
                           Editar mínimos
@@ -3463,7 +3488,6 @@ function App() {
                               <th>Material</th>
                               <th>Cantidad</th>
                               <th>Mínimo</th>
-                              <th>Acciones</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3484,14 +3508,6 @@ function App() {
                                 <td>{material}</td>
                                 <td>{quantity}</td>
                                 <td>{minimum}</td>
-                                <td className="stock-row-actions">
-                                  <button
-                                    className="stock-edit-button"
-                                    onClick={() => openStockEdit(material)}
-                                  >
-                                    Editar
-                                  </button>
-                                </td>
                               </tr>
                               );
                             })}
@@ -3552,29 +3568,45 @@ function App() {
                     </div>
                   </div>
                 )}
-                {stockEditMaterial && (
+                {stockInventoryEditOpen && (
                   <div className="modal-backdrop">
-                    <div className="card export-modal stock-edit-modal">
-                      <h2>Actualizar inventario</h2>
-                      <p className="muted">
-                        {stockDemoLocation}
-                      </p>
-                      <p className="stock-edit-material">{stockEditMaterial}</p>
-                      <label>Cantidad real en stock</label>
+                    <div className="card export-modal stock-minimum-modal">
+                      <h2>Editar inventario</h2>
+                      <p className="muted">{stockDemoLocation}</p>
+                      <label>Buscar material</label>
                       <input
-                        type="number"
-                        inputMode="numeric"
-                        min="0"
                         autoFocus
-                        value={stockEditQuantity}
-                        onChange={(e) => setStockEditQuantity(e.target.value)}
+                        value={stockInventoryEditSearch}
+                        onChange={(e) => setStockInventoryEditSearch(e.target.value)}
+                        placeholder="Escribe el nombre del material..."
                       />
-                      <p className="muted small">
-                        Esta corrección sustituye la cantidad actual y queda guardada en Supabase.
-                      </p>
-                      <div className="toolbar">
-                        <button className="secondary" onClick={() => setStockEditMaterial("")}>Cancelar</button>
-                        <button className="primary" onClick={saveStockEdit}>Guardar stock</button>
+                      <div className="stock-minimum-list">
+                        {STOCK_DEMO_MATERIALS.filter((material) =>
+                          material.toLowerCase().includes(stockInventoryEditSearch.toLowerCase()),
+                        ).map((material) => (
+                          <div className="stock-minimum-row" key={material}>
+                            <div>
+                              <strong>{material}</strong>
+                              <small>Mínimo: {stockMinimums[stockDemoLocation]?.[material] || 0}</small>
+                            </div>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min="0"
+                              aria-label={`Existencias de ${material}`}
+                              value={stockInventoryDrafts[material] ?? "0"}
+                              onChange={(e) => setStockInventoryDrafts((current) => ({
+                                ...current,
+                                [material]: e.target.value,
+                              }))}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="muted small">Las cantidades sustituyen el inventario actual. Solo se enviarán a Supabase los valores modificados.</p>
+                      <div className="toolbar stock-minimum-toolbar">
+                        <button className="secondary" onClick={() => setStockInventoryEditOpen(false)}>Cancelar</button>
+                        <button className="primary" onClick={saveStockInventory}>Guardar inventario</button>
                       </div>
                     </div>
                   </div>
