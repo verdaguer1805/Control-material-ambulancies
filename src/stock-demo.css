@@ -17,6 +17,17 @@
   margin-top: 0;
 }
 
+.stock-demo-title-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stock-demo-title-actions button {
+  white-space: normal;
+}
+
 .stock-demo-badge {
   padding: 6px 9px;
   border-radius: 999px;
@@ -424,6 +435,23 @@
 }
 
 @media (max-width: 720px) {
+  .stock-demo-title {
+    display: block;
+  }
+
+  .stock-demo-title-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .stock-demo-title-actions button {
+    width: 100%;
+    min-height: 48px;
+    line-height: 1.25;
+  }
+
   .stock-demo-cards,
   .stock-demo-actions,
   .stock-demo-bottom,

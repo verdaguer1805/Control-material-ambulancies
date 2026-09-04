@@ -2561,7 +2561,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v91</span></h1>
+          <h1>Control de material <span className="app-version">v92</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3582,25 +3582,19 @@ function App() {
                       Inventario real compartido y guardado en Supabase.
                     </p>
                   </div>
-                  <button
-                    className="secondary"
-                    onClick={exportStockInventory}
-                    disabled={stockRemoteLoading || !stockDemoReady}
-                  >
-                    Exportar inventario
-                  </button>
-                  {adminCanAccessAllZones && (
-                    <button
-                      className="primary"
-                      onClick={() => setStockReplenishmentOpen(true)}
-                      disabled={stockRemoteLoading || !stockDemoReady}
-                    >
-                      Qué llevar a cada almacén
+                  <div className="stock-demo-title-actions">
+                    <button className="secondary" onClick={exportStockInventory} disabled={stockRemoteLoading || !stockDemoReady}>
+                      Exportar inventario
                     </button>
-                  )}
-                  <button className="secondary" onClick={openStockHistory} disabled={stockRemoteLoading || !stockDemoReady}>
-                    Historial de movimientos
-                  </button>
+                    {adminCanAccessAllZones && (
+                      <button className="primary" onClick={() => setStockReplenishmentOpen(true)} disabled={stockRemoteLoading || !stockDemoReady}>
+                        Qué llevar a cada almacén
+                      </button>
+                    )}
+                    <button className="secondary" onClick={openStockHistory} disabled={stockRemoteLoading || !stockDemoReady}>
+                      Historial de movimientos
+                    </button>
+                  </div>
                 </div>
                 <div className="stock-demo-scope">
                   <div>
