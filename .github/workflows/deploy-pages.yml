@@ -22,7 +22,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Instal·la dependències
-        run: npm install
+        run: npm ci --no-audit --no-fund
       - name: Compila l'aplicació
         run: npm run build
       - name: Prepara GitHub Pages
