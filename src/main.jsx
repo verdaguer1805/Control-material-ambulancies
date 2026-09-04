@@ -1398,6 +1398,79 @@ function App() {
       flash("No se ha podido guardar el stock mínimo");
     }
   }
+  async function exportStockInventory() {
+    try {
+      setStockRemoteLoading(true);
+      await ensureAnonymousSession();
+      const results = await Promise.all(
+        Object.entries(STOCK_REMOTE_IDS).map(async ([location, warehouseId]) => {
+          const result = await supabase
+            .from("warehouse_inventory")
+            .select("material,quantity,minimum_quantity")
+            .eq("warehouse_id", warehouseId)
+            .order("material", { ascending: true });
+          if (result.error) throw result.error;
+          return [location, result.data || []];
+        }),
+      );
+      const XLSX = await import("xlsx-js-style");
+      const workbook = XLSX.utils.book_new();
+      const usedNames = new Set();
+      const sheetNameFor = (location) => {
+        const base = location
+          .replace(/^Almacén central /, "Central ")
+          .replace(/^Subalmacén /, "Sub ")
+          .replace(/[\\/?*:[\]]/g, " ")
+          .slice(0, 31);
+        let name = base || "Almacén";
+        let suffix = 2;
+        while (usedNames.has(name)) {
+          const extra = ` ${suffix++}`;
+          name = `${base.slice(0, 31 - extra.length)}${extra}`;
+        }
+        usedNames.add(name);
+        return name;
+      };
+      results.forEach(([location, items]) => {
+        const rows = items
+          .map((item) => {
+            const stock = Number(item.quantity || 0);
+            const minimum = Number(item.minimum_quantity || 0);
+            return {
+              Material: item.material,
+              "Stock actual": stock,
+              "Mínimo programado": minimum,
+              "Margen sobre mínimo": stock - minimum,
+              Estado: minimum > 0 && stock <= minimum ? "REPOSICIÓN NECESARIA" : "Correcto",
+            };
+          })
+          .sort((a, b) => a.Material.localeCompare(b.Material, "es", { sensitivity: "base", numeric: true }));
+        const sheet = XLSX.utils.json_to_sheet(rows);
+        sheet["!cols"] = [{ wch: 46 }, { wch: 14 }, { wch: 20 }, { wch: 21 }, { wch: 24 }];
+        const range = XLSX.utils.decode_range(sheet["!ref"] || "A1:E1");
+        for (let column = range.s.c; column <= range.e.c; column += 1) {
+          const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
+          if (cell) cell.s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "C8102E" } }, alignment: { horizontal: "center" } };
+        }
+        rows.forEach((row, index) => {
+          if (row.Estado !== "REPOSICIÓN NECESARIA") return;
+          for (let column = range.s.c; column <= range.e.c; column += 1) {
+            const cell = sheet[XLSX.utils.encode_cell({ r: index + 1, c: column })];
+            if (cell) cell.s = { fill: { fgColor: { rgb: "F4CCCC" } }, font: { color: { rgb: "9C0006" }, bold: true } };
+          }
+        });
+        XLSX.utils.book_append_sheet(workbook, sheet, sheetNameFor(location));
+      });
+      const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const date = new Date().toISOString().slice(0, 10);
+      saveAs(new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `inventario_almacenes_${date}.xlsx`);
+      flash("Inventario de almacenes exportado");
+    } catch (error) {
+      flash("No se ha podido exportar el inventario de almacenes");
+    } finally {
+      setStockRemoteLoading(false);
+    }
+  }
   function resetStockDemo() {
     if (!confirm("¿Restablecer los datos ficticios del piloto de Olot?")) return;
     const next = createStockDemo();
@@ -2209,7 +2282,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v83</span></h1>
+          <h1>Control de material <span className="app-version">v84</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3230,6 +3303,13 @@ function App() {
                       Inventario real compartido y guardado en Supabase.
                     </p>
                   </div>
+                  <button
+                    className="secondary"
+                    onClick={exportStockInventory}
+                    disabled={stockRemoteLoading || !stockDemoReady}
+                  >
+                    Exportar inventario
+                  </button>
                 </div>
                 <div className="stock-demo-scope">
                   <div>
