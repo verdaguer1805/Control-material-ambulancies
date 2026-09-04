@@ -293,6 +293,7 @@ function App() {
     [stockMinimumSearch, setStockMinimumSearch] = useState(""),
     [stockMinimumDrafts, setStockMinimumDrafts] = useState({}),
     [stockMinimumOriginals, setStockMinimumOriginals] = useState({}),
+    [stockReplenishmentOpen, setStockReplenishmentOpen] = useState(false),
     [guardTick, setGuardTick] = useState(Date.now());
   React.useEffect(() => {
     const h = () => {
@@ -1320,6 +1321,14 @@ function App() {
         if (error) throw error;
         flash("Entrada registrada en el almacén central de Olot");
       } else if (stockPickerOpen === "transfer") {
+        const leavesCentralBelowMinimum = Object.entries(items).some(([material, quantity]) => {
+          const current = Number(stockDemo.levels[STOCK_DEMO_CENTRAL]?.[material] || 0);
+          const minimum = Number(stockMinimums[STOCK_DEMO_CENTRAL]?.[material] || 0);
+          return current - Number(quantity) < minimum;
+        });
+        if (leavesCentralBelowMinimum && !confirm(
+          "Este traslado dejará uno o más materiales del almacén central por debajo del mínimo. ¿Quieres continuar por una necesidad excepcional?",
+        )) return;
         const { error } = await supabase.rpc("transfer_stock", {
           p_origin_id: STOCK_REMOTE_IDS[STOCK_DEMO_CENTRAL],
           p_destination_id: STOCK_REMOTE_IDS[stockDemoTarget],
@@ -2331,12 +2340,53 @@ function App() {
       .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
       .sort((a, b) => a.localeCompare(b)),
     stockDemoReady =
-      stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot";
+      stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot",
+    stockReplenishmentGroups = (() => {
+      const subwarehouseGroups = STOCK_DEMO_LOCATIONS.slice(1).map((location) => ({
+        location,
+        items: STOCK_DEMO_MATERIALS.map((material) => {
+          const quantity = Number(stockDemo.levels[location]?.[material] || 0);
+          const minimum = Number(stockMinimums[location]?.[material] || 0);
+          const urgent = minimum > 0 && quantity <= minimum;
+          const preventive = minimum > 0 && quantity > minimum && quantity < minimum * 1.3;
+          return {
+            material,
+            quantity,
+            minimum,
+            urgent,
+            preventive,
+            replenish: Math.max(0, Math.ceil(minimum * 1.3) - quantity),
+          };
+        }).filter((item) => item.urgent || item.preventive),
+      }));
+      const centralItems = STOCK_DEMO_MATERIALS.map((material) => {
+        const quantity = Number(stockDemo.levels[STOCK_DEMO_CENTRAL]?.[material] || 0);
+        const minimum = Number(stockMinimums[STOCK_DEMO_CENTRAL]?.[material] || 0);
+        const outgoing = subwarehouseGroups.reduce(
+          (total, group) => total + (group.items.find((item) => item.material === material)?.replenish || 0),
+          0,
+        );
+        const target = Math.ceil(minimum * 1.3);
+        const replenish = Math.max(0, target + outgoing - quantity);
+        const urgent = minimum > 0 && quantity - outgoing <= minimum;
+        const preventive = minimum > 0 && !urgent && quantity - outgoing < target;
+        return { material, quantity, minimum, outgoing, urgent, preventive, replenish };
+      }).filter((item) => item.replenish > 0);
+      return [{ location: STOCK_DEMO_CENTRAL, items: centralItems }, ...subwarehouseGroups];
+    })(),
+    stockUrgentCount = stockReplenishmentGroups.reduce(
+      (total, group) => total + group.items.filter((item) => item.urgent).length,
+      0,
+    ),
+    stockPreventiveCount = stockReplenishmentGroups.reduce(
+      (total, group) => total + group.items.filter((item) => item.preventive).length,
+      0,
+    );
   return (
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v87</span></h1>
+          <h1>Control de material <span className="app-version">v88</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3364,6 +3414,15 @@ function App() {
                   >
                     Exportar inventario
                   </button>
+                  {adminCanAccessAllZones && (
+                    <button
+                      className="primary"
+                      onClick={() => setStockReplenishmentOpen(true)}
+                      disabled={stockRemoteLoading || !stockDemoReady}
+                    >
+                      Qué llevar a cada almacén
+                    </button>
+                  )}
                 </div>
                 <div className="stock-demo-scope">
                   <div>
@@ -3650,6 +3709,42 @@ function App() {
                       <div className="toolbar stock-minimum-toolbar">
                         <button className="secondary" onClick={() => setStockMinimumOpen(false)}>Cancelar</button>
                         <button className="primary" onClick={saveStockMinimums}>Guardar mínimos</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {stockReplenishmentOpen && (
+                  <div className="modal-backdrop">
+                    <div className="card export-modal stock-replenishment-modal">
+                      <h2>Qué llevar a cada almacén</h2>
+                      <p className="muted">Solo se muestran materiales urgentes o dentro del margen preventivo del 30%.</p>
+                      <div className="stock-replenishment-summary">
+                        <div className="urgent"><strong>{stockUrgentCount}</strong><span>Urgentes</span></div>
+                        <div className="preventive"><strong>{stockPreventiveCount}</strong><span>Preventivos</span></div>
+                      </div>
+                      <div className="stock-replenishment-list">
+                        {stockReplenishmentGroups.map((group) => (
+                          <section className="stock-replenishment-group" key={group.location}>
+                            <h3>{group.location}</h3>
+                            {!group.items.length ? (
+                              <p className="stock-replenishment-empty">Sin materiales para preparar.</p>
+                            ) : group.items.map((item) => (
+                              <div className={`stock-replenishment-item ${item.urgent ? "urgent" : "preventive"}`} key={item.material}>
+                                <div className="stock-replenishment-name">
+                                  <strong>{item.material}</strong>
+                                  <small>Stock: {item.quantity} · Mínimo: {item.minimum}</small>
+                                </div>
+                                <div className="stock-replenishment-quantity">
+                                  <small>{group.location === STOCK_DEMO_CENTRAL ? "PEDIR / RECIBIR" : "LLEVAR DESDE CENTRAL"}</small>
+                                  <strong>{item.replenish}</strong>
+                                </div>
+                              </div>
+                            ))}
+                          </section>
+                        ))}
+                      </div>
+                      <div className="toolbar stock-minimum-toolbar">
+                        <button className="primary" onClick={() => setStockReplenishmentOpen(false)}>Cerrar</button>
                       </div>
                     </div>
                   </div>
