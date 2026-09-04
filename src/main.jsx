@@ -1757,7 +1757,6 @@ function App() {
       }),
       detail = [],
       critical = [],
-      rep = {},
       servicesByDay = {};
     selected.forEach((r) => {
       const a = aggregate(r),
@@ -1785,11 +1784,6 @@ function App() {
           Material: "Sin material",
           Cantidad: 0,
         });
-      const warehouse = reportWarehouse(r.warehouse);
-      rep[warehouse] = rep[warehouse] || {};
-      Object.entries(a).forEach(
-        ([m, n]) => (rep[warehouse][m] = (rep[warehouse][m] || 0) + n),
-      );
       if (origin(r) === "Unidad") {
         servicesByDay[r.date] = (servicesByDay[r.date] || 0) + 1;
       }
@@ -1840,22 +1834,9 @@ function App() {
             }),
           );
       });
-    const repRows = Object.entries(rep)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .flatMap(([warehouse, items]) =>
-          Object.entries(items)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([m, n]) => ({
-              Almacén: warehouse,
-              "Material crítico": isCritical(m) ? "Sí" : "No",
-              Material: m,
-              "Cantidad a reponer": n,
-            })),
-        ),
-      wb = XLSX.utils.book_new(),
+    const wb = XLSX.utils.book_new(),
       ws1 = XLSX.utils.json_to_sheet(rows),
       ws2 = XLSX.utils.json_to_sheet(detail),
-      ws3 = XLSX.utils.json_to_sheet(repRows),
       ws5 = XLSX.utils.json_to_sheet(dailyRows),
       ws6 = XLSX.utils.json_to_sheet(supervisorDeliveries),
       criticalHeaders = [
@@ -1879,7 +1860,6 @@ function App() {
     };
     configure(ws1, [14, 12, 16, 18, 16, 24, 22, 55]);
     configure(ws2, [14, 12, 9, 18, 24, 22, 16, 42, 12]);
-    configure(ws3, [24, 16, 42, 20]);
     configure(ws4, [14, 12, 9, 18, 24, 22, 42, 12]);
     configure(ws5, [16, 12, 28, 38, 18]);
     configure(ws6, [14, 10, 16, 28, 22, 42, 20, 14]);
@@ -1913,7 +1893,6 @@ function App() {
     XLSX.utils.book_append_sheet(wb, ws5, "Control diario unidades");
     XLSX.utils.book_append_sheet(wb, ws6, "Entregas supervisor");
     XLSX.utils.book_append_sheet(wb, ws2, "Detalle consumo");
-    XLSX.utils.book_append_sheet(wb, ws3, "Reposición almacenes");
     XLSX.utils.book_append_sheet(wb, ws4, "Material crítico");
     const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     saveAs(
@@ -2490,14 +2469,12 @@ function App() {
     };
     summary();
     percentagePages(unitPercentRows);
-    supervisorMaterialPages(supervisorMaterialRows);
     criticalPages(criticalMatrixRows);
     chartPages(
       "Material m\u00e1s utilizado (incluye supervisión)",
       topMaterialRows,
       [232, 117, 0],
     );
-    replenishmentPages(warehouseRows);
     doc.save("informe_supervisio_" + exportZone.toLowerCase() + ".pdf");
     setExportOpen(false);
   }
@@ -2561,7 +2538,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v92</span></h1>
+          <h1>Control de material <span className="app-version">v93</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
