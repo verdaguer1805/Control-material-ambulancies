@@ -286,6 +286,9 @@ function App() {
     [stockPickerQuantities, setStockPickerQuantities] = useState({}),
     [stockEditMaterial, setStockEditMaterial] = useState(""),
     [stockEditQuantity, setStockEditQuantity] = useState(""),
+    [stockMinimums, setStockMinimums] = useState({}),
+    [stockMinimumMaterial, setStockMinimumMaterial] = useState(""),
+    [stockMinimumQuantity, setStockMinimumQuantity] = useState(""),
     [guardTick, setGuardTick] = useState(Date.now());
   React.useEffect(() => {
     const h = () => {
@@ -1246,7 +1249,7 @@ function App() {
         Object.values(STOCK_REMOTE_IDS).map((warehouseId) =>
           supabase
             .from("warehouse_inventory")
-            .select("warehouse_id,material,quantity")
+            .select("warehouse_id,material,quantity,minimum_quantity")
             .eq("warehouse_id", warehouseId),
         ),
       );
@@ -1256,13 +1259,20 @@ function App() {
       const levels = Object.fromEntries(
         STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 300)]),
       );
+      const minimums = Object.fromEntries(
+        STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 0)]),
+      );
       (data || []).forEach((row) => {
         const location = Object.keys(STOCK_REMOTE_IDS).find(
           (name) => STOCK_REMOTE_IDS[name] === row.warehouse_id,
         );
-        if (location) levels[location][row.material] = Number(row.quantity);
+        if (location) {
+          levels[location][row.material] = Number(row.quantity);
+          minimums[location][row.material] = Number(row.minimum_quantity || 0);
+        }
       });
       setStockDemo({ levels, movements: [] });
+      setStockMinimums(minimums);
     } catch (error) {
       flash("No se ha podido cargar el inventario de Supabase");
     } finally {
@@ -1357,6 +1367,35 @@ function App() {
       flash("Inventario actualizado en Supabase");
     } catch (error) {
       flash("No se ha podido guardar el inventario");
+    }
+  }
+  function openStockMinimum(material) {
+    setStockMinimumMaterial(material);
+    setStockMinimumQuantity(String(stockMinimums[stockDemoLocation]?.[material] || 0));
+  }
+  async function saveStockMinimum() {
+    const quantity = Math.floor(Number(stockMinimumQuantity));
+    if (!Number.isFinite(quantity) || quantity < 0)
+      return flash("Introduce un mínimo válido igual o superior a cero");
+    try {
+      await ensureAnonymousSession();
+      const { error } = await supabase.rpc("set_inventory_minimum", {
+        p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
+        p_material: stockMinimumMaterial,
+        p_minimum: quantity,
+      });
+      if (error) throw error;
+      setStockMinimums((current) => ({
+        ...current,
+        [stockDemoLocation]: {
+          ...(current[stockDemoLocation] || {}),
+          [stockMinimumMaterial]: quantity,
+        },
+      }));
+      setStockMinimumMaterial("");
+      flash("Stock mínimo actualizado en Supabase");
+    } catch (error) {
+      flash("No se ha podido guardar el stock mínimo");
     }
   }
   function resetStockDemo() {
@@ -2160,6 +2199,7 @@ function App() {
     adminCanAccessAllZones = ["owner", "logistics"].includes(adminAccess?.role),
     adminCanManageCodes = adminAccess?.role === "owner",
     adminCanManageDevices = adminAccess?.role === "owner",
+    adminCanManageMinimums = ["owner", "logistics"].includes(adminAccess?.role),
     adminZones = Object.keys(SUPERVISIONS)
       .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
       .sort((a, b) => a.localeCompare(b)),
@@ -2169,7 +2209,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v82</span></h1>
+          <h1>Control de material <span className="app-version">v83</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3303,26 +3343,41 @@ function App() {
                             <tr>
                               <th>Material</th>
                               <th>Cantidad</th>
-                              <th></th>
+                              <th>Mínimo</th>
+                              <th>Acciones</th>
                             </tr>
                           </thead>
                           <tbody>
                             {STOCK_DEMO_MATERIALS.filter((material) =>
                               material.toLowerCase().includes(stockInventorySearch.toLowerCase()),
-                            ).map((material) => (
-                              <tr key={material}>
+                            ).map((material) => {
+                              const quantity = Number(stockDemo.levels[stockDemoLocation][material] || 0);
+                              const minimum = Number(stockMinimums[stockDemoLocation]?.[material] || 0);
+                              const belowMinimum = minimum > 0 && quantity <= minimum;
+                              return (
+                              <tr key={material} className={belowMinimum ? "stock-below-minimum" : ""}>
                                 <td>{material}</td>
-                                <td>{stockDemo.levels[stockDemoLocation][material]}</td>
-                                <td>
+                                <td>{quantity}</td>
+                                <td>{minimum}</td>
+                                <td className="stock-row-actions">
                                   <button
                                     className="stock-edit-button"
                                     onClick={() => openStockEdit(material)}
                                   >
                                     Editar
                                   </button>
+                                  {adminCanManageMinimums && (
+                                    <button
+                                      className="stock-minimum-button"
+                                      onClick={() => openStockMinimum(material)}
+                                    >
+                                      Mínimo
+                                    </button>
+                                  )}
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </>
@@ -3403,6 +3458,31 @@ function App() {
                       <div className="toolbar">
                         <button className="secondary" onClick={() => setStockEditMaterial("")}>Cancelar</button>
                         <button className="primary" onClick={saveStockEdit}>Guardar stock</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {stockMinimumMaterial && (
+                  <div className="modal-backdrop">
+                    <div className="card export-modal stock-edit-modal">
+                      <h2>Configurar stock mínimo</h2>
+                      <p className="muted">{stockDemoLocation}</p>
+                      <p className="stock-edit-material">{stockMinimumMaterial}</p>
+                      <label>Cantidad mínima</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        autoFocus
+                        value={stockMinimumQuantity}
+                        onChange={(e) => setStockMinimumQuantity(e.target.value)}
+                      />
+                      <p className="muted small">
+                        La fila se mostrará en rojo cuando las existencias sean iguales o inferiores a este mínimo. Usa 0 para desactivar la alerta.
+                      </p>
+                      <div className="toolbar">
+                        <button className="secondary" onClick={() => setStockMinimumMaterial("")}>Cancelar</button>
+                        <button className="primary" onClick={saveStockMinimum}>Guardar mínimo</button>
                       </div>
                     </div>
                   </div>

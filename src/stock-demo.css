@@ -152,6 +152,32 @@
   font-size: 13px;
 }
 
+.stock-minimum-button {
+  padding: 7px 10px;
+  border: 1px solid #d97706;
+  background: #fff;
+  color: #9a4f00;
+  font-size: 13px;
+}
+
+.stock-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stock-below-minimum td {
+  background: #fde2e2;
+  color: #8f1117;
+  font-weight: 800;
+  border-bottom-color: #e9a8aa;
+}
+
+.stock-below-minimum .stock-edit-button,
+.stock-below-minimum .stock-minimum-button {
+  background: #fff;
+}
+
 .stock-edit-material {
   padding: 11px;
   border-radius: 10px;
@@ -257,7 +283,8 @@
     height: 46px;
   }
 
-  .stock-edit-button {
+  .stock-edit-button,
+  .stock-minimum-button {
     min-height: 42px;
     padding: 8px 12px;
   }
