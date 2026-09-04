@@ -1375,6 +1375,55 @@ function App() {
       setStockHistoryLoading(false);
     }
   }
+  async function exportStockHistoryExcel() {
+    const locationName = (id) => Object.keys(STOCK_REMOTE_IDS).find((name) => STOCK_REMOTE_IDS[name] === id) || id;
+    const filtered = stockHistoryRows.filter((row) => {
+      const date = String(row.created_at || "").slice(0, 10);
+      return (!stockHistoryFrom || date >= stockHistoryFrom) &&
+        (!stockHistoryTo || date <= stockHistoryTo) &&
+        (!stockHistoryDestination || row.warehouse_id === stockHistoryDestination);
+    });
+    if (!filtered.length) return flash("No hay movimientos para exportar con estos filtros");
+    const operationNumbers = new Map();
+    let nextOperation = 1;
+    const rows = filtered.map((row) => {
+      const key = row.operation_id || `legacy-${row.id}`;
+      if (!operationNumbers.has(key)) operationNumbers.set(key, nextOperation++);
+      const date = new Date(row.created_at);
+      return {
+        "N.º operación": operationNumbers.get(key),
+        Fecha: date.toLocaleDateString("es-ES"),
+        Hora: date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+        Origen: STOCK_DEMO_CENTRAL,
+        Destino: locationName(row.warehouse_id),
+        "Realizado por": row.performed_role === "owner"
+          ? "Propietario"
+          : row.performed_role === "logistics"
+            ? "Logística"
+            : row.performed_role === "supervisor"
+              ? `Supervisión ${row.performed_zone || ""}`
+              : "Registro anterior",
+        Material: row.material,
+        Cantidad: Math.abs(Number(row.delta || 0)),
+      };
+    });
+    const XLSX = await import("xlsx-js-style");
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 14 }, { wch: 13 }, { wch: 9 }, { wch: 24 }, { wch: 35 }, { wch: 22 }, { wch: 46 }, { wch: 12 }];
+    const range = XLSX.utils.decode_range(sheet["!ref"]);
+    for (let column = range.s.c; column <= range.e.c; column += 1) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
+      if (cell) cell.s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "C8102E" } }, alignment: { horizontal: "center" } };
+    }
+    XLSX.utils.book_append_sheet(workbook, sheet, "Movimientos reales");
+    const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    saveAs(
+      new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      `historial_movimientos_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
+    flash("Historial exportado en Excel");
+  }
   function openStockInventoryEditor() {
     const values = Object.fromEntries(
       STOCK_DEMO_MATERIALS.map((material) => [
@@ -2512,7 +2561,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v90</span></h1>
+          <h1>Control de material <span className="app-version">v91</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3912,7 +3961,10 @@ function App() {
                             </section>
                           ))}
                         </div>
-                        <div className="toolbar stock-minimum-toolbar"><button className="primary" onClick={() => setStockHistoryOpen(false)}>Cerrar</button></div>
+                        <div className="toolbar stock-minimum-toolbar">
+                          <button className="secondary" onClick={() => setStockHistoryOpen(false)}>Cerrar</button>
+                          <button className="primary" onClick={exportStockHistoryExcel} disabled={stockHistoryLoading}>Exportar Excel</button>
+                        </div>
                       </div>
                     </div>
                   );
