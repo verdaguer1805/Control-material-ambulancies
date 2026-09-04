@@ -178,6 +178,26 @@
   background: #fff;
 }
 
+.stock-near-minimum td {
+  background: #fff0dc;
+  color: #7a4200;
+  font-weight: 700;
+  border-bottom-color: #e8c694;
+}
+
+.stock-above-minimum td {
+  background: #e8f4e5;
+  color: #234c25;
+  border-bottom-color: #bfd9bc;
+}
+
+.stock-near-minimum .stock-edit-button,
+.stock-near-minimum .stock-minimum-button,
+.stock-above-minimum .stock-edit-button,
+.stock-above-minimum .stock-minimum-button {
+  background: #fff;
+}
+
 .stock-edit-material {
   padding: 11px;
   border-radius: 10px;

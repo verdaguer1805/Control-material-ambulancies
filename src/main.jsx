@@ -1436,12 +1436,19 @@ function App() {
           .map((item) => {
             const stock = Number(item.quantity || 0);
             const minimum = Number(item.minimum_quantity || 0);
+            const status = minimum <= 0
+              ? "Sin mínimo"
+              : stock <= minimum
+                ? "REPOSICIÓN NECESARIA"
+                : stock < minimum * 1.3
+                  ? "MARGEN BAJO"
+                  : "Stock correcto";
             return {
               Material: item.material,
               "Stock actual": stock,
               "Mínimo programado": minimum,
               "Margen sobre mínimo": stock - minimum,
-              Estado: minimum > 0 && stock <= minimum ? "REPOSICIÓN NECESARIA" : "Correcto",
+              Estado: status,
             };
           })
           .sort((a, b) => a.Material.localeCompare(b.Material, "es", { sensitivity: "base", numeric: true }));
@@ -1453,10 +1460,17 @@ function App() {
           if (cell) cell.s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "C8102E" } }, alignment: { horizontal: "center" } };
         }
         rows.forEach((row, index) => {
-          if (row.Estado !== "REPOSICIÓN NECESARIA") return;
+          const style = row.Estado === "REPOSICIÓN NECESARIA"
+            ? { fill: { fgColor: { rgb: "F4CCCC" } }, font: { color: { rgb: "9C0006" }, bold: true } }
+            : row.Estado === "MARGEN BAJO"
+              ? { fill: { fgColor: { rgb: "FCE5CD" } }, font: { color: { rgb: "9C5700" }, bold: true } }
+              : row.Estado === "Stock correcto"
+                ? { fill: { fgColor: { rgb: "D9EAD3" } }, font: { color: { rgb: "274E13" } } }
+                : null;
+          if (!style) return;
           for (let column = range.s.c; column <= range.e.c; column += 1) {
             const cell = sheet[XLSX.utils.encode_cell({ r: index + 1, c: column })];
-            if (cell) cell.s = { fill: { fgColor: { rgb: "F4CCCC" } }, font: { color: { rgb: "9C0006" }, bold: true } };
+            if (cell) cell.s = style;
           }
         });
         XLSX.utils.book_append_sheet(workbook, sheet, sheetNameFor(location));
@@ -2282,7 +2296,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v84</span></h1>
+          <h1>Control de material <span className="app-version">v85</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3433,9 +3447,15 @@ function App() {
                             ).map((material) => {
                               const quantity = Number(stockDemo.levels[stockDemoLocation][material] || 0);
                               const minimum = Number(stockMinimums[stockDemoLocation]?.[material] || 0);
-                              const belowMinimum = minimum > 0 && quantity <= minimum;
+                              const stockStatusClass = minimum <= 0
+                                ? ""
+                                : quantity <= minimum
+                                  ? "stock-below-minimum"
+                                  : quantity < minimum * 1.3
+                                    ? "stock-near-minimum"
+                                    : "stock-above-minimum";
                               return (
-                              <tr key={material} className={belowMinimum ? "stock-below-minimum" : ""}>
+                              <tr key={material} className={stockStatusClass}>
                                 <td>{material}</td>
                                 <td>{quantity}</td>
                                 <td>{minimum}</td>

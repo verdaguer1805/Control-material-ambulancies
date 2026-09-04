@@ -1,4 +1,4 @@
-const CACHE = "cma-v84";
+const CACHE = "cma-v85";
 const APP_SHELL = ["./", "./index.html", "./admin.html", "./icon.svg", "./falck-eagle-admin.png"];
 
 self.addEventListener("install", (event) => {
