@@ -294,6 +294,12 @@ function App() {
     [stockMinimumDrafts, setStockMinimumDrafts] = useState({}),
     [stockMinimumOriginals, setStockMinimumOriginals] = useState({}),
     [stockReplenishmentOpen, setStockReplenishmentOpen] = useState(false),
+    [stockHistoryOpen, setStockHistoryOpen] = useState(false),
+    [stockHistoryLoading, setStockHistoryLoading] = useState(false),
+    [stockHistoryRows, setStockHistoryRows] = useState([]),
+    [stockHistoryFrom, setStockHistoryFrom] = useState(""),
+    [stockHistoryTo, setStockHistoryTo] = useState(""),
+    [stockHistoryDestination, setStockHistoryDestination] = useState(""),
     [guardTick, setGuardTick] = useState(Date.now());
   React.useEffect(() => {
     const h = () => {
@@ -1329,7 +1335,7 @@ function App() {
         if (leavesCentralBelowMinimum && !confirm(
           "Este traslado dejará uno o más materiales del almacén central por debajo del mínimo. ¿Quieres continuar por una necesidad excepcional?",
         )) return;
-        const { error } = await supabase.rpc("transfer_stock", {
+        const { error } = await supabase.rpc("transfer_stock_recorded", {
           p_origin_id: STOCK_REMOTE_IDS[STOCK_DEMO_CENTRAL],
           p_destination_id: STOCK_REMOTE_IDS[stockDemoTarget],
           p_items: items,
@@ -1348,6 +1354,25 @@ function App() {
           ? "No hay suficiente material en el almacén central"
           : "No se ha podido guardar el movimiento de stock",
       );
+    }
+  }
+  async function openStockHistory() {
+    setStockHistoryOpen(true);
+    setStockHistoryLoading(true);
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase
+        .from("stock_movements")
+        .select("id,warehouse_id,material,delta,created_at,operation_id,performed_role,performed_zone")
+        .eq("movement_type", "transfer_in")
+        .order("created_at", { ascending: false })
+        .limit(2000);
+      if (error) throw error;
+      setStockHistoryRows(data || []);
+    } catch {
+      flash("No se ha podido cargar el historial de movimientos");
+    } finally {
+      setStockHistoryLoading(false);
     }
   }
   function openStockInventoryEditor() {
@@ -1533,6 +1558,107 @@ function App() {
     } finally {
       setStockRemoteLoading(false);
     }
+  }
+  async function exportStockReplenishmentExcel() {
+    const XLSX = await import("xlsx-js-style");
+    const workbook = XLSX.utils.book_new();
+    const usedNames = new Set();
+    stockReplenishmentGroups.forEach((group) => {
+      const rows = group.items.map((item) => ({
+        Material: item.material,
+        "Stock actual": item.quantity,
+        "Mínimo": item.minimum,
+        [group.location === STOCK_DEMO_CENTRAL ? "Pedir / recibir" : "Llevar desde central"]: item.replenish,
+        Prioridad: item.urgent ? "URGENTE" : "PREVENTIVO",
+      }));
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      sheet["!cols"] = [{ wch: 46 }, { wch: 14 }, { wch: 12 }, { wch: 23 }, { wch: 16 }];
+      const range = XLSX.utils.decode_range(sheet["!ref"] || "A1:E1");
+      for (let column = range.s.c; column <= range.e.c; column += 1) {
+        const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
+        if (cell) cell.s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "C8102E" } }, alignment: { horizontal: "center" } };
+      }
+      rows.forEach((row, index) => {
+        const style = row.Prioridad === "URGENTE"
+          ? { fill: { fgColor: { rgb: "F4CCCC" } }, font: { color: { rgb: "9C0006" }, bold: true } }
+          : { fill: { fgColor: { rgb: "FCE5CD" } }, font: { color: { rgb: "9C5700" }, bold: true } };
+        for (let column = range.s.c; column <= range.e.c; column += 1) {
+          const cell = sheet[XLSX.utils.encode_cell({ r: index + 1, c: column })];
+          if (cell) cell.s = style;
+        }
+      });
+      let base = group.location.replace(/^Almacén central /, "Central ").replace(/^Subalmacén /, "Sub ").replace(/[\\/?*:[\]]/g, " ").slice(0, 31) || "Almacén";
+      let name = base;
+      let suffix = 2;
+      while (usedNames.has(name)) {
+        const extra = ` ${suffix++}`;
+        name = `${base.slice(0, 31 - extra.length)}${extra}`;
+      }
+      usedNames.add(name);
+      XLSX.utils.book_append_sheet(workbook, sheet, name);
+    });
+    const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    saveAs(
+      new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      `lista_reposicion_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
+    flash("Lista de reposición exportada en Excel");
+  }
+  function exportStockReplenishmentPdf() {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    let page = 0;
+    const addHeader = (location) => {
+      if (page > 0) doc.addPage();
+      page += 1;
+      doc.setFillColor(200, 16, 46);
+      doc.rect(0, 0, 210, 27, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("LISTA DE REPOSICION", 14, 12);
+      doc.setFontSize(11);
+      doc.text(location, 14, 20);
+      doc.setTextColor(30, 45, 50);
+    };
+    stockReplenishmentGroups.forEach((group) => {
+      addHeader(group.location);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(
+        group.location === STOCK_DEMO_CENTRAL
+          ? "Material que se debe pedir o recibir en el almacén central."
+          : "Material que se debe llevar desde el almacén central.",
+        14,
+        34,
+      );
+      let y = 42;
+      if (!group.items.length) {
+        doc.setFontSize(11);
+        doc.text("No hay materiales urgentes ni preventivos.", 14, y);
+        return;
+      }
+      group.items.forEach((item) => {
+        if (y > 279) {
+          addHeader(`${group.location} (continuación)`);
+          y = 38;
+        }
+        if (item.urgent) doc.setFillColor(253, 226, 226);
+        else doc.setFillColor(255, 240, 220);
+        doc.roundedRect(12, y - 5, 186, 12, 2, 2, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text(item.material, 16, y + 1, { maxWidth: 112 });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text(`Stock ${item.quantity} | Minimo ${item.minimum}`, 130, y + 1);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text(`${group.location === STOCK_DEMO_CENTRAL ? "PEDIR" : "LLEVAR"}: ${item.replenish}`, 194, y + 1, { align: "right" });
+        y += 14;
+      });
+    });
+    doc.save(`lista_reposicion_${new Date().toISOString().slice(0, 10)}.pdf`);
+    flash("Lista de reposición exportada en PDF");
   }
   function resetStockDemo() {
     if (!confirm("¿Restablecer los datos ficticios del piloto de Olot?")) return;
@@ -2386,7 +2512,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v88</span></h1>
+          <h1>Control de material <span className="app-version">v90</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3423,6 +3549,9 @@ function App() {
                       Qué llevar a cada almacén
                     </button>
                   )}
+                  <button className="secondary" onClick={openStockHistory} disabled={stockRemoteLoading || !stockDemoReady}>
+                    Historial de movimientos
+                  </button>
                 </div>
                 <div className="stock-demo-scope">
                   <div>
@@ -3744,11 +3873,50 @@ function App() {
                         ))}
                       </div>
                       <div className="toolbar stock-minimum-toolbar">
-                        <button className="primary" onClick={() => setStockReplenishmentOpen(false)}>Cerrar</button>
+                        <button className="secondary" onClick={() => setStockReplenishmentOpen(false)}>Cerrar</button>
+                        <button className="secondary" onClick={exportStockReplenishmentExcel}>Exportar Excel</button>
+                        <button className="primary" onClick={exportStockReplenishmentPdf}>Exportar PDF</button>
                       </div>
                     </div>
                   </div>
                 )}
+                {stockHistoryOpen && (() => {
+                  const locationName = (id) => Object.keys(STOCK_REMOTE_IDS).find((name) => STOCK_REMOTE_IDS[name] === id) || id;
+                  const filtered = stockHistoryRows.filter((row) => {
+                    const date = String(row.created_at || "").slice(0, 10);
+                    return (!stockHistoryFrom || date >= stockHistoryFrom) &&
+                      (!stockHistoryTo || date <= stockHistoryTo) &&
+                      (!stockHistoryDestination || row.warehouse_id === stockHistoryDestination);
+                  });
+                  const groups = Object.values(filtered.reduce((all, row) => {
+                    const key = row.operation_id || `legacy-${row.id}`;
+                    if (!all[key]) all[key] = { key, at: row.created_at, warehouse: row.warehouse_id, role: row.performed_role, zone: row.performed_zone, items: [] };
+                    all[key].items.push(row);
+                    return all;
+                  }, {}));
+                  return (
+                    <div className="modal-backdrop">
+                      <div className="card export-modal stock-replenishment-modal">
+                        <h2>Historial de movimientos</h2>
+                        <div className="stock-history-filters">
+                          <label>Desde<input type="date" value={stockHistoryFrom} onChange={(e) => setStockHistoryFrom(e.target.value)} /></label>
+                          <label>Hasta<input type="date" value={stockHistoryTo} onChange={(e) => setStockHistoryTo(e.target.value)} /></label>
+                          <label>Destino<select value={stockHistoryDestination} onChange={(e) => setStockHistoryDestination(e.target.value)}><option value="">Todos</option>{STOCK_DEMO_LOCATIONS.slice(1).map((location) => <option key={location} value={STOCK_REMOTE_IDS[location]}>{location}</option>)}</select></label>
+                        </div>
+                        <div className="stock-replenishment-list">
+                          {stockHistoryLoading ? <p>Cargando movimientos...</p> : !groups.length ? <p className="stock-replenishment-empty">No hay movimientos para estos filtros.</p> : groups.map((group) => (
+                            <section className="stock-history-operation" key={group.key}>
+                              <h3>{locationName(group.warehouse)}</h3>
+                              <p><strong>{new Date(group.at).toLocaleString("es-ES")}</strong> · {group.role === "owner" ? "Propietario" : group.role === "logistics" ? "Logística" : group.role === "supervisor" ? `Supervisión ${group.zone || ""}` : "Registro anterior"}</p>
+                              {group.items.sort((a, b) => a.material.localeCompare(b.material, "es", { numeric: true })).map((item) => <div className="stock-history-item" key={item.id}><span>{item.material}</span><strong>+{Math.abs(Number(item.delta))}</strong></div>)}
+                            </section>
+                          ))}
+                        </div>
+                        <div className="toolbar stock-minimum-toolbar"><button className="primary" onClick={() => setStockHistoryOpen(false)}>Cerrar</button></div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <button className="danger" style={{ display: "none" }} onClick={resetStockDemo}>
                   Restablecer datos ficticios
                 </button>

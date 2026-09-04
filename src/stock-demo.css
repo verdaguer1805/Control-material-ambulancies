@@ -353,6 +353,52 @@
   color: #617078;
 }
 
+.stock-history-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.4fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.stock-history-filters label {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.stock-history-filters input,
+.stock-history-filters select {
+  margin-top: 4px;
+}
+
+.stock-history-operation {
+  margin-bottom: 14px;
+  border: 1px solid #d9dfe2;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.stock-history-operation h3 {
+  margin: 0;
+  padding: 10px 12px;
+  background: #243b44;
+  color: #fff;
+}
+
+.stock-history-operation p {
+  margin: 0;
+  padding: 8px 12px;
+  background: #f1f4f5;
+  font-size: 13px;
+}
+
+.stock-history-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid #e6eaec;
+}
+
 .stock-empty {
   padding: 18px 4px 6px;
   text-align: center;
@@ -468,5 +514,9 @@
     flex: 1;
     min-height: 0;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .stock-history-filters {
+    grid-template-columns: 1fr;
   }
 }
