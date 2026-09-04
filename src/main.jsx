@@ -287,8 +287,10 @@ function App() {
     [stockEditMaterial, setStockEditMaterial] = useState(""),
     [stockEditQuantity, setStockEditQuantity] = useState(""),
     [stockMinimums, setStockMinimums] = useState({}),
-    [stockMinimumMaterial, setStockMinimumMaterial] = useState(""),
-    [stockMinimumQuantity, setStockMinimumQuantity] = useState(""),
+    [stockMinimumOpen, setStockMinimumOpen] = useState(false),
+    [stockMinimumSearch, setStockMinimumSearch] = useState(""),
+    [stockMinimumDrafts, setStockMinimumDrafts] = useState({}),
+    [stockMinimumOriginals, setStockMinimumOriginals] = useState({}),
     [guardTick, setGuardTick] = useState(Date.now());
   React.useEffect(() => {
     const h = () => {
@@ -1369,33 +1371,51 @@ function App() {
       flash("No se ha podido guardar el inventario");
     }
   }
-  function openStockMinimum(material) {
-    setStockMinimumMaterial(material);
-    setStockMinimumQuantity(String(stockMinimums[stockDemoLocation]?.[material] || 0));
+  function openStockMinimumEditor() {
+    const values = Object.fromEntries(
+      STOCK_DEMO_MATERIALS.map((material) => [
+        material,
+        String(stockMinimums[stockDemoLocation]?.[material] || 0),
+      ]),
+    );
+    setStockMinimumSearch("");
+    setStockMinimumDrafts(values);
+    setStockMinimumOriginals(values);
+    setStockMinimumOpen(true);
   }
-  async function saveStockMinimum() {
-    const quantity = Math.floor(Number(stockMinimumQuantity));
-    if (!Number.isFinite(quantity) || quantity < 0)
-      return flash("Introduce un mínimo válido igual o superior a cero");
+  async function saveStockMinimums() {
+    const invalid = Object.values(stockMinimumDrafts).some((value) => {
+      const quantity = Number(value);
+      return value === "" || !Number.isInteger(quantity) || quantity < 0;
+    });
+    if (invalid) return flash("Todos los mínimos deben ser números enteros iguales o superiores a cero");
+    const changes = Object.fromEntries(
+      Object.entries(stockMinimumDrafts)
+        .filter(([material, value]) => String(value) !== String(stockMinimumOriginals[material]))
+        .map(([material, value]) => [material, Number(value)]),
+    );
+    if (!Object.keys(changes).length) {
+      setStockMinimumOpen(false);
+      return flash("No hay cambios en los mínimos");
+    }
     try {
       await ensureAnonymousSession();
-      const { error } = await supabase.rpc("set_inventory_minimum", {
+      const { error } = await supabase.rpc("set_inventory_minimums", {
         p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
-        p_material: stockMinimumMaterial,
-        p_minimum: quantity,
+        p_items: changes,
       });
       if (error) throw error;
       setStockMinimums((current) => ({
         ...current,
         [stockDemoLocation]: {
           ...(current[stockDemoLocation] || {}),
-          [stockMinimumMaterial]: quantity,
+          ...changes,
         },
       }));
-      setStockMinimumMaterial("");
-      flash("Stock mínimo actualizado en Supabase");
+      setStockMinimumOpen(false);
+      flash(`${Object.keys(changes).length} mínimos actualizados en Supabase`);
     } catch (error) {
-      flash("No se ha podido guardar el stock mínimo");
+      flash("No se han podido guardar los mínimos");
     }
   }
   async function exportStockInventory() {
@@ -2296,7 +2316,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v85</span></h1>
+          <h1>Control de material <span className="app-version">v86</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3420,6 +3440,11 @@ function App() {
                           <option key={location}>{location}</option>
                         ))}
                       </select>
+                      {adminCanManageMinimums && stockDemoLocation && (
+                        <button className="stock-minimum-button" onClick={openStockMinimumEditor}>
+                          Editar mínimos
+                        </button>
+                      )}
                     </div>
                     {stockDemoLocation && !stockRemoteLoading ? (
                       <>
@@ -3466,14 +3491,6 @@ function App() {
                                   >
                                     Editar
                                   </button>
-                                  {adminCanManageMinimums && (
-                                    <button
-                                      className="stock-minimum-button"
-                                      onClick={() => openStockMinimum(material)}
-                                    >
-                                      Mínimo
-                                    </button>
-                                  )}
                                 </td>
                               </tr>
                               );
@@ -3562,27 +3579,45 @@ function App() {
                     </div>
                   </div>
                 )}
-                {stockMinimumMaterial && (
+                {stockMinimumOpen && (
                   <div className="modal-backdrop">
-                    <div className="card export-modal stock-edit-modal">
-                      <h2>Configurar stock mínimo</h2>
+                    <div className="card export-modal stock-minimum-modal">
+                      <h2>Editar mínimos</h2>
                       <p className="muted">{stockDemoLocation}</p>
-                      <p className="stock-edit-material">{stockMinimumMaterial}</p>
-                      <label>Cantidad mínima</label>
+                      <label>Buscar material</label>
                       <input
-                        type="number"
-                        inputMode="numeric"
-                        min="0"
                         autoFocus
-                        value={stockMinimumQuantity}
-                        onChange={(e) => setStockMinimumQuantity(e.target.value)}
+                        value={stockMinimumSearch}
+                        onChange={(e) => setStockMinimumSearch(e.target.value)}
+                        placeholder="Escribe el nombre del material..."
                       />
-                      <p className="muted small">
-                        La fila se mostrará en rojo cuando las existencias sean iguales o inferiores a este mínimo. Usa 0 para desactivar la alerta.
-                      </p>
-                      <div className="toolbar">
-                        <button className="secondary" onClick={() => setStockMinimumMaterial("")}>Cancelar</button>
-                        <button className="primary" onClick={saveStockMinimum}>Guardar mínimo</button>
+                      <div className="stock-minimum-list">
+                        {STOCK_DEMO_MATERIALS.filter((material) =>
+                          material.toLowerCase().includes(stockMinimumSearch.toLowerCase()),
+                        ).map((material) => (
+                          <div className="stock-minimum-row" key={material}>
+                            <div>
+                              <strong>{material}</strong>
+                              <small>Stock actual: {stockDemo.levels[stockDemoLocation]?.[material] || 0}</small>
+                            </div>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min="0"
+                              aria-label={`Mínimo de ${material}`}
+                              value={stockMinimumDrafts[material] ?? "0"}
+                              onChange={(e) => setStockMinimumDrafts((current) => ({
+                                ...current,
+                                [material]: e.target.value,
+                              }))}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="muted small">El valor 0 desactiva la alerta. Solo se enviarán a Supabase los mínimos que hayas cambiado.</p>
+                      <div className="toolbar stock-minimum-toolbar">
+                        <button className="secondary" onClick={() => setStockMinimumOpen(false)}>Cancelar</button>
+                        <button className="primary" onClick={saveStockMinimums}>Guardar mínimos</button>
                       </div>
                     </div>
                   </div>
