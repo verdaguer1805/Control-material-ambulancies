@@ -30,6 +30,17 @@ const KEY = {
   records: "cma_records",
 };
 const DEVICE_AUTH_CACHE = "cma_device_authorization_v1";
+const MATERIAL_LABELS = {
+  "Parches monitorización schiller": "Electrodos de monitorización (bolsas)",
+  "Pañuelos de papel (caja)": "Pañuelos de papel (cajas)",
+  "Guantes S (caja)": "Guantes S (cajas)",
+  "Guantes M (caja)": "Guantes M (cajas)",
+  "Guantes L (caja)": "Guantes L (cajas)",
+  "Guantes XL (caja)": "Guantes XL (cajas)",
+  "Celulosa cortada": "Celulosa precortada (rollo)",
+  "Tiras reactivas": "Tiras reactivas (botes)",
+};
+const materialLabel = (material) => MATERIAL_LABELS[material] || material;
 const STOCK_DEMO_KEY = "cma_stock_demo_olot_v4";
 const SUPABASE_DATABASE_LIMIT_MB = 500;
 const STOCK_DEMO_CENTRAL = "Almacén central Olot";
@@ -50,7 +61,7 @@ const STOCK_REMOTE_IDS = {
 // El stock utiliza la lista completa que puede registrar Material supervisor.
 // Así la demostración reproduce el flujo real sin tocar Supabase.
 const STOCK_DEMO_MATERIALS = [...MATERIALS].sort((a, b) =>
-  a.localeCompare(b, "es", { sensitivity: "base", numeric: true }),
+  materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true }),
 );
 const STOCK_DEMO_UNITS = {
   G205: STOCK_DEMO_CENTRAL,
@@ -629,10 +640,10 @@ function App() {
             !SUPERVISOR_ONLY_MATERIALS.some(
               (x) => x.toLowerCase() === m.toLowerCase(),
             )) &&
-          m.toLowerCase().includes(search.toLowerCase()),
+          materialLabel(m).toLowerCase().includes(search.toLowerCase()),
       ).sort((a, b) => {
-        const ga = /^(Guantes(?: estériles)?) (S|M|L|XL)$/.exec(a),
-          gb = /^(Guantes(?: estériles)?) (S|M|L|XL)$/.exec(b),
+        const ga = /^(Guantes(?: estériles)?) (S|M|L|XL)(?: \(caja\))?$/.exec(a),
+          gb = /^(Guantes(?: estériles)?) (S|M|L|XL)(?: \(caja\))?$/.exec(b),
           sa = /^Sonda de aspiración (\d+)$/.exec(a),
           sb = /^Sonda de aspiración (\d+)$/.exec(b),
           sfa = /^Suerofisiológico(\d+)ml$/i.exec(a.replace(/\s+/g, "")),
@@ -670,7 +681,7 @@ function App() {
                     : ma && mb
                       ? maskSizes[ma[1].toLowerCase()] -
                         maskSizes[mb[1].toLowerCase()]
-                      : a.localeCompare(b, "es", {
+                      : materialLabel(a).localeCompare(materialLabel(b), "es", {
                           sensitivity: "base",
                           numeric: true,
                         });
@@ -1403,7 +1414,7 @@ function App() {
             : row.performed_role === "supervisor"
               ? `Supervisión ${row.performed_zone || ""}`
               : "Registro anterior",
-        Material: row.material,
+        Material: materialLabel(row.material),
         Cantidad: Math.abs(Number(row.delta || 0)),
       };
     });
@@ -1561,13 +1572,11 @@ function App() {
             const minimum = Number(item.minimum_quantity || 0);
             const status = minimum <= 0
               ? "Sin mínimo"
-              : stock <= minimum
+              : stock < minimum
                 ? "REPOSICIÓN NECESARIA"
-                : stock < minimum * 1.3
-                  ? "MARGEN BAJO"
-                  : "Stock correcto";
+                : "Stock correcto";
             return {
-              Material: item.material,
+              Material: materialLabel(item.material),
               "Stock actual": stock,
               "Mínimo programado": minimum,
               "Margen sobre mínimo": stock - minimum,
@@ -1585,9 +1594,7 @@ function App() {
         rows.forEach((row, index) => {
           const style = row.Estado === "REPOSICIÓN NECESARIA"
             ? { fill: { fgColor: { rgb: "F4CCCC" } }, font: { color: { rgb: "9C0006" }, bold: true } }
-            : row.Estado === "MARGEN BAJO"
-              ? { fill: { fgColor: { rgb: "FCE5CD" } }, font: { color: { rgb: "9C5700" }, bold: true } }
-              : row.Estado === "Stock correcto"
+            : row.Estado === "Stock correcto"
                 ? { fill: { fgColor: { rgb: "D9EAD3" } }, font: { color: { rgb: "274E13" } } }
                 : null;
           if (!style) return;
@@ -1614,11 +1621,11 @@ function App() {
     const usedNames = new Set();
     stockReplenishmentGroups.forEach((group) => {
       const rows = group.items.map((item) => ({
-        Material: item.material,
+        Material: materialLabel(item.material),
         "Stock actual": item.quantity,
         "Mínimo": item.minimum,
         [group.location === STOCK_DEMO_CENTRAL ? "Pedir / recibir" : "Llevar desde central"]: item.replenish,
-        Prioridad: item.urgent ? "URGENTE" : "PREVENTIVO",
+        Prioridad: "BAJO MÍNIMO",
       }));
       const sheet = XLSX.utils.json_to_sheet(rows);
       sheet["!cols"] = [{ wch: 46 }, { wch: 14 }, { wch: 12 }, { wch: 23 }, { wch: 16 }];
@@ -1683,7 +1690,7 @@ function App() {
       let y = 42;
       if (!group.items.length) {
         doc.setFontSize(11);
-        doc.text("No hay materiales urgentes ni preventivos.", 14, y);
+        doc.text("No hay materiales por debajo del mínimo.", 14, y);
         return;
       }
       group.items.forEach((item) => {
@@ -1696,7 +1703,7 @@ function App() {
         doc.roundedRect(12, y - 5, 186, 12, 2, 2, "F");
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
-        doc.text(item.material, 16, y + 1, { maxWidth: 112 });
+        doc.text(materialLabel(item.material), 16, y + 1, { maxWidth: 112 });
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.text(`Stock ${item.quantity} | Minimo ${item.minimum}`, 130, y + 1);
@@ -1751,7 +1758,7 @@ function App() {
           "Contiene material crítico": recordCritical(r) ? "Sí" : "No",
           "Resumen de material":
             Object.entries(a)
-              .map(([m, n]) => `${n} ${m}`)
+              .map(([m, n]) => `${n} ${materialLabel(m)}`)
               .join(" · ") || "Sin material",
         };
       }),
@@ -1771,11 +1778,11 @@ function App() {
         const row = {
           ...base,
           "Material crítico": isCritical(m) ? "Sí" : "No",
-          Material: m,
+          Material: materialLabel(m),
           Cantidad: n,
         };
         detail.push(row);
-        if (isCritical(m)) critical.push({ ...base, Material: m, Cantidad: n });
+        if (isCritical(m)) critical.push({ ...base, Material: materialLabel(m), Cantidad: n });
       });
       if (Object.keys(a).length === 0)
         detail.push({
@@ -1829,7 +1836,7 @@ function App() {
               "Fecha de guardia": record.date,
               Supervisor: record.unit,
               Almacén: reportWarehouse(record.warehouse),
-              Material: material,
+              Material: materialLabel(material),
               "Cantidad total del día": Number(quantity),
             }),
           );
@@ -2499,17 +2506,15 @@ function App() {
         items: STOCK_DEMO_MATERIALS.map((material) => {
           const quantity = Number(stockDemo.levels[location]?.[material] || 0);
           const minimum = Number(stockMinimums[location]?.[material] || 0);
-          const urgent = minimum > 0 && quantity <= minimum;
-          const preventive = minimum > 0 && quantity > minimum && quantity < minimum * 1.3;
+          const urgent = minimum > 0 && quantity < minimum;
           return {
             material,
             quantity,
             minimum,
             urgent,
-            preventive,
-            replenish: Math.max(0, Math.ceil(minimum * 1.3) - quantity),
+            replenish: Math.max(0, minimum - quantity),
           };
-        }).filter((item) => item.urgent || item.preventive),
+        }).filter((item) => item.urgent),
       }));
       const centralItems = STOCK_DEMO_MATERIALS.map((material) => {
         const quantity = Number(stockDemo.levels[STOCK_DEMO_CENTRAL]?.[material] || 0);
@@ -2518,27 +2523,22 @@ function App() {
           (total, group) => total + (group.items.find((item) => item.material === material)?.replenish || 0),
           0,
         );
-        const target = Math.ceil(minimum * 1.3);
+        const target = minimum;
         const replenish = Math.max(0, target + outgoing - quantity);
-        const urgent = minimum > 0 && quantity - outgoing <= minimum;
-        const preventive = minimum > 0 && !urgent && quantity - outgoing < target;
-        return { material, quantity, minimum, outgoing, urgent, preventive, replenish };
+        const urgent = minimum > 0 && quantity - outgoing < minimum;
+        return { material, quantity, minimum, outgoing, urgent, replenish };
       }).filter((item) => item.replenish > 0);
       return [{ location: STOCK_DEMO_CENTRAL, items: centralItems }, ...subwarehouseGroups];
     })(),
     stockUrgentCount = stockReplenishmentGroups.reduce(
       (total, group) => total + group.items.filter((item) => item.urgent).length,
       0,
-    ),
-    stockPreventiveCount = stockReplenishmentGroups.reduce(
-      (total, group) => total + group.items.filter((item) => item.preventive).length,
-      0,
     );
   return (
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v93</span></h1>
+          <h1>Control de material <span className="app-version">v94</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3419,7 +3419,7 @@ function App() {
                   key={m}
                 >
                   <span>
-                    {m}
+                    {materialLabel(m)}
                     {isCritical(m) ? (
                       <span
                         className="critical-icon"
@@ -3700,20 +3700,18 @@ function App() {
                           </thead>
                           <tbody>
                             {STOCK_DEMO_MATERIALS.filter((material) =>
-                              material.toLowerCase().includes(stockInventorySearch.toLowerCase()),
+                              materialLabel(material).toLowerCase().includes(stockInventorySearch.toLowerCase()),
                             ).map((material) => {
                               const quantity = Number(stockDemo.levels[stockDemoLocation][material] || 0);
                               const minimum = Number(stockMinimums[stockDemoLocation]?.[material] || 0);
                               const stockStatusClass = minimum <= 0
                                 ? ""
-                                : quantity <= minimum
+                                : quantity < minimum
                                   ? "stock-below-minimum"
-                                  : quantity < minimum * 1.3
-                                    ? "stock-near-minimum"
-                                    : "stock-above-minimum";
+                                  : "stock-above-minimum";
                               return (
                               <tr key={material} className={stockStatusClass}>
-                                <td>{material}</td>
+                                <td>{materialLabel(material)}</td>
                                 <td>{quantity}</td>
                                 <td>{minimum}</td>
                               </tr>
@@ -3752,13 +3750,13 @@ function App() {
                       />
                       <div className="stock-picker-list">
                         {STOCK_DEMO_MATERIALS.filter((material) =>
-                          material.toLowerCase().includes(stockPickerSearch.toLowerCase()),
+                          materialLabel(material).toLowerCase().includes(stockPickerSearch.toLowerCase()),
                         ).map((material) => (
                           <div
                             className={`material${(stockPickerQuantities[material] || 0) > 0 ? " material-selected" : ""}`}
                             key={material}
                           >
-                            <span>{material}</span>
+                            <span>{materialLabel(material)}</span>
                             <div className="counter">
                               <button onClick={() => changeStockPickerQuantity(material, -1)}>-</button>
                               <span className="qty">{stockPickerQuantities[material] || 0}</span>
@@ -3790,18 +3788,18 @@ function App() {
                       />
                       <div className="stock-minimum-list">
                         {STOCK_DEMO_MATERIALS.filter((material) =>
-                          material.toLowerCase().includes(stockInventoryEditSearch.toLowerCase()),
+                          materialLabel(material).toLowerCase().includes(stockInventoryEditSearch.toLowerCase()),
                         ).map((material) => (
                           <div className="stock-minimum-row" key={material}>
                             <div>
-                              <strong>{material}</strong>
+                              <strong>{materialLabel(material)}</strong>
                               <small>Mínimo: {stockMinimums[stockDemoLocation]?.[material] || 0}</small>
                             </div>
                             <input
                               type="number"
                               inputMode="numeric"
                               min="0"
-                              aria-label={`Existencias de ${material}`}
+                              aria-label={`Existencias de ${materialLabel(material)}`}
                               value={stockInventoryDrafts[material] ?? "0"}
                               onChange={(e) => setStockInventoryDrafts((current) => ({
                                 ...current,
@@ -3833,18 +3831,18 @@ function App() {
                       />
                       <div className="stock-minimum-list">
                         {STOCK_DEMO_MATERIALS.filter((material) =>
-                          material.toLowerCase().includes(stockMinimumSearch.toLowerCase()),
+                          materialLabel(material).toLowerCase().includes(stockMinimumSearch.toLowerCase()),
                         ).map((material) => (
                           <div className="stock-minimum-row" key={material}>
                             <div>
-                              <strong>{material}</strong>
+                              <strong>{materialLabel(material)}</strong>
                               <small>Stock actual: {stockDemo.levels[stockDemoLocation]?.[material] || 0}</small>
                             </div>
                             <input
                               type="number"
                               inputMode="numeric"
                               min="0"
-                              aria-label={`Mínimo de ${material}`}
+                              aria-label={`Mínimo de ${materialLabel(material)}`}
                               value={stockMinimumDrafts[material] ?? "0"}
                               onChange={(e) => setStockMinimumDrafts((current) => ({
                                 ...current,
@@ -3866,10 +3864,9 @@ function App() {
                   <div className="modal-backdrop">
                     <div className="card export-modal stock-replenishment-modal">
                       <h2>Qué llevar a cada almacén</h2>
-                      <p className="muted">Solo se muestran materiales urgentes o dentro del margen preventivo del 30%.</p>
+                      <p className="muted">Solo se muestran materiales con existencias por debajo del mínimo.</p>
                       <div className="stock-replenishment-summary">
                         <div className="urgent"><strong>{stockUrgentCount}</strong><span>Urgentes</span></div>
-                        <div className="preventive"><strong>{stockPreventiveCount}</strong><span>Preventivos</span></div>
                       </div>
                       <div className="stock-replenishment-list">
                         {stockReplenishmentGroups.map((group) => (
@@ -3878,9 +3875,9 @@ function App() {
                             {!group.items.length ? (
                               <p className="stock-replenishment-empty">Sin materiales para preparar.</p>
                             ) : group.items.map((item) => (
-                              <div className={`stock-replenishment-item ${item.urgent ? "urgent" : "preventive"}`} key={item.material}>
+                              <div className="stock-replenishment-item urgent" key={item.material}>
                                 <div className="stock-replenishment-name">
-                                  <strong>{item.material}</strong>
+                                  <strong>{materialLabel(item.material)}</strong>
                                   <small>Stock: {item.quantity} · Mínimo: {item.minimum}</small>
                                 </div>
                                 <div className="stock-replenishment-quantity">
@@ -3928,7 +3925,7 @@ function App() {
                             <section className="stock-history-operation" key={group.key}>
                               <h3>{locationName(group.warehouse)}</h3>
                               <p><strong>{new Date(group.at).toLocaleString("es-ES")}</strong> · {group.role === "owner" ? "Propietario" : group.role === "logistics" ? "Logística" : group.role === "supervisor" ? `Supervisión ${group.zone || ""}` : "Registro anterior"}</p>
-                              {group.items.sort((a, b) => a.material.localeCompare(b.material, "es", { numeric: true })).map((item) => <div className="stock-history-item" key={item.id}><span>{item.material}</span><strong>+{Math.abs(Number(item.delta))}</strong></div>)}
+                              {group.items.sort((a, b) => a.material.localeCompare(b.material, "es", { numeric: true })).map((item) => <div className="stock-history-item" key={item.id}><span>{materialLabel(item.material)}</span><strong>+{Math.abs(Number(item.delta))}</strong></div>)}
                             </section>
                           ))}
                         </div>
@@ -4001,7 +3998,7 @@ function App() {
                       const c = recordCritical(r),
                         s =
                           Object.entries(aggregate(r))
-                            .map(([m, n]) => `${n} ${m}`)
+                            .map(([m, n]) => `${n} ${materialLabel(m)}`)
                             .join(" · ") || "Sin material";
                       return (
                         <tr

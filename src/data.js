@@ -140,7 +140,6 @@ export const MATERIALS = [
   "Cánula Guedel Nº 00",
   "Cánula Guedel Nº 0",
   "Cánula Guedel Nº 1",
-  "Cánula Guedel Nº 1,5",
   "Cánula Guedel Nº 2",
   "Cánula Guedel Nº 3",
   "Cánula Guedel Nº 4",
