@@ -33,6 +33,10 @@ const DEVICE_AUTH_CACHE = "cma_device_authorization_v1";
 const MATERIAL_LABELS = {
   "Parches monitorización schiller": "Electrodos de monitorización (bolsas)",
   "Pañuelos de papel (caja)": "Pañuelos de papel (cajas)",
+  "Bolsas de basura negras": "Bolsas de basura (paquete)",
+  "Bolsas de objetos personales SEM grandes": "Bolsas de objetos personales SEM grandes (unidad)",
+  "Bolsas de objetos personales SEM pequeñas": "Bolsas de objetos personales SEM pequeñas (unidad)",
+  "Empapador": "Empapador (unidad)",
   "Guantes S (caja)": "Guantes S (cajas)",
   "Guantes M (caja)": "Guantes M (cajas)",
   "Guantes L (caja)": "Guantes L (cajas)",
@@ -2538,7 +2542,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v94</span></h1>
+          <h1>Control de material <span className="app-version">v95</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
