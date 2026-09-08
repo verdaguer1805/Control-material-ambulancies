@@ -1541,18 +1541,9 @@ function App() {
         p_items: changes,
       });
       if (error) throw error;
-      if (editingSafety) {
-        setStockSafetyPercentages((current) => ({
-          ...current,
-          [stockDemoLocation]: { ...(current[stockDemoLocation] || {}), ...changes },
-        }));
-        await loadRemoteStock();
-      } else {
-        setStockMinimums((current) => ({
-          ...current,
-          [stockDemoLocation]: { ...(current[stockDemoLocation] || {}), ...changes },
-        }));
-      }
+      // Supabase puede recalcular también el mínimo del almacén central.
+      // Recargamos todos los almacenes para mostrar el resultado inmediatamente.
+      await loadRemoteStock();
       setStockMinimumOpen(false);
       flash(editingSafety
         ? `${Object.keys(changes).length} márgenes de seguridad actualizados`
@@ -2567,7 +2558,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v96</span></h1>
+          <h1>Control de material <span className="app-version">v97</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
