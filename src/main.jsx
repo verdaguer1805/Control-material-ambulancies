@@ -304,6 +304,8 @@ function App() {
     [stockInventoryDrafts, setStockInventoryDrafts] = useState({}),
     [stockInventoryOriginals, setStockInventoryOriginals] = useState({}),
     [stockMinimums, setStockMinimums] = useState({}),
+    [stockMinimumBases, setStockMinimumBases] = useState({}),
+    [stockSafetyPercentages, setStockSafetyPercentages] = useState({}),
     [stockMinimumOpen, setStockMinimumOpen] = useState(false),
     [stockMinimumSearch, setStockMinimumSearch] = useState(""),
     [stockMinimumDrafts, setStockMinimumDrafts] = useState({}),
@@ -1275,7 +1277,7 @@ function App() {
         Object.values(STOCK_REMOTE_IDS).map((warehouseId) =>
           supabase
             .from("warehouse_inventory")
-            .select("warehouse_id,material,quantity,minimum_quantity")
+            .select("warehouse_id,material,quantity,minimum_quantity,minimum_base_quantity,safety_percentage")
             .eq("warehouse_id", warehouseId),
         ),
       );
@@ -1288,6 +1290,12 @@ function App() {
       const minimums = Object.fromEntries(
         STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 0)]),
       );
+      const minimumBases = Object.fromEntries(
+        STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 0)]),
+      );
+      const safetyPercentages = Object.fromEntries(
+        STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 30)]),
+      );
       (data || []).forEach((row) => {
         const location = Object.keys(STOCK_REMOTE_IDS).find(
           (name) => STOCK_REMOTE_IDS[name] === row.warehouse_id,
@@ -1295,10 +1303,14 @@ function App() {
         if (location) {
           levels[location][row.material] = Number(row.quantity);
           minimums[location][row.material] = Number(row.minimum_quantity || 0);
+          minimumBases[location][row.material] = Number(row.minimum_base_quantity || 0);
+          safetyPercentages[location][row.material] = Number(row.safety_percentage ?? 30);
         }
       });
       setStockDemo({ levels, movements: [] });
       setStockMinimums(minimums);
+      setStockMinimumBases(minimumBases);
+      setStockSafetyPercentages(safetyPercentages);
     } catch (error) {
       flash("No se ha podido cargar el inventario de Supabase");
     } finally {
@@ -1490,10 +1502,13 @@ function App() {
     }
   }
   function openStockMinimumEditor() {
+    const editingSafety = stockDemoLocation === STOCK_DEMO_CENTRAL;
     const values = Object.fromEntries(
       STOCK_DEMO_MATERIALS.map((material) => [
         material,
-        String(stockMinimums[stockDemoLocation]?.[material] || 0),
+        String(editingSafety
+          ? (stockSafetyPercentages[stockDemoLocation]?.[material] ?? 30)
+          : (stockMinimums[stockDemoLocation]?.[material] || 0)),
       ]),
     );
     setStockMinimumSearch("");
@@ -1502,11 +1517,14 @@ function App() {
     setStockMinimumOpen(true);
   }
   async function saveStockMinimums() {
+    const editingSafety = stockDemoLocation === STOCK_DEMO_CENTRAL;
     const invalid = Object.values(stockMinimumDrafts).some((value) => {
       const quantity = Number(value);
-      return value === "" || !Number.isInteger(quantity) || quantity < 0;
+      return value === "" || !Number.isInteger(quantity) || quantity < 0 || (editingSafety && quantity > 200);
     });
-    if (invalid) return flash("Todos los mínimos deben ser números enteros iguales o superiores a cero");
+    if (invalid) return flash(editingSafety
+      ? "Los porcentajes deben ser números enteros entre 0 y 200"
+      : "Todos los mínimos deben ser números enteros iguales o superiores a cero");
     const changes = Object.fromEntries(
       Object.entries(stockMinimumDrafts)
         .filter(([material, value]) => String(value) !== String(stockMinimumOriginals[material]))
@@ -1518,20 +1536,27 @@ function App() {
     }
     try {
       await ensureAnonymousSession();
-      const { error } = await supabase.rpc("set_inventory_minimums", {
+      const { error } = await supabase.rpc(editingSafety ? "set_inventory_safety_percentages" : "set_inventory_minimums", {
         p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
         p_items: changes,
       });
       if (error) throw error;
-      setStockMinimums((current) => ({
-        ...current,
-        [stockDemoLocation]: {
-          ...(current[stockDemoLocation] || {}),
-          ...changes,
-        },
-      }));
+      if (editingSafety) {
+        setStockSafetyPercentages((current) => ({
+          ...current,
+          [stockDemoLocation]: { ...(current[stockDemoLocation] || {}), ...changes },
+        }));
+        await loadRemoteStock();
+      } else {
+        setStockMinimums((current) => ({
+          ...current,
+          [stockDemoLocation]: { ...(current[stockDemoLocation] || {}), ...changes },
+        }));
+      }
       setStockMinimumOpen(false);
-      flash(`${Object.keys(changes).length} mínimos actualizados en Supabase`);
+      flash(editingSafety
+        ? `${Object.keys(changes).length} márgenes de seguridad actualizados`
+        : `${Object.keys(changes).length} mínimos actualizados en Supabase`);
     } catch (error) {
       flash("No se han podido guardar los mínimos");
     }
@@ -2542,7 +2567,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v95</span></h1>
+          <h1>Control de material <span className="app-version">v96</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3824,7 +3849,7 @@ function App() {
                 {stockMinimumOpen && (
                   <div className="modal-backdrop">
                     <div className="card export-modal stock-minimum-modal">
-                      <h2>Editar mínimos</h2>
+                      <h2>{stockDemoLocation === STOCK_DEMO_CENTRAL ? "Margen de seguridad" : "Editar mínimos"}</h2>
                       <p className="muted">{stockDemoLocation}</p>
                       <label>Buscar material</label>
                       <input
@@ -3840,23 +3865,34 @@ function App() {
                           <div className="stock-minimum-row" key={material}>
                             <div>
                               <strong>{materialLabel(material)}</strong>
-                              <small>Stock actual: {stockDemo.levels[stockDemoLocation]?.[material] || 0}</small>
+                              {stockDemoLocation === STOCK_DEMO_CENTRAL ? (
+                                <small>Base: {stockMinimumBases[stockDemoLocation]?.[material] || 0} · Mínimo final: {Math.ceil((stockMinimumBases[stockDemoLocation]?.[material] || 0) * (1 + Number(stockMinimumDrafts[material] || 0) / 100))}</small>
+                              ) : (
+                                <small>Stock actual: {stockDemo.levels[stockDemoLocation]?.[material] || 0}</small>
+                              )}
                             </div>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              min="0"
-                              aria-label={`Mínimo de ${materialLabel(material)}`}
-                              value={stockMinimumDrafts[material] ?? "0"}
-                              onChange={(e) => setStockMinimumDrafts((current) => ({
-                                ...current,
-                                [material]: e.target.value,
-                              }))}
-                            />
+                            {stockDemoLocation === STOCK_DEMO_CENTRAL ? (
+                              <div className="safety-counter">
+                                <button type="button" aria-label={`Reducir margen de ${materialLabel(material)}`} onClick={() => setStockMinimumDrafts((current) => ({ ...current, [material]: String(Math.max(0, Number(current[material] || 0) - 5)) }))}>−</button>
+                                <strong>{stockMinimumDrafts[material] ?? "30"}%</strong>
+                                <button type="button" aria-label={`Aumentar margen de ${materialLabel(material)}`} onClick={() => setStockMinimumDrafts((current) => ({ ...current, [material]: String(Math.min(200, Number(current[material] || 0) + 5)) }))}>+</button>
+                              </div>
+                            ) : (
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min="0"
+                                aria-label={`Mínimo de ${materialLabel(material)}`}
+                                value={stockMinimumDrafts[material] ?? "0"}
+                                onChange={(e) => setStockMinimumDrafts((current) => ({ ...current, [material]: e.target.value }))}
+                              />
+                            )}
                           </div>
                         ))}
                       </div>
-                      <p className="muted small">El valor 0 desactiva la alerta. Solo se enviarán a Supabase los mínimos que hayas cambiado.</p>
+                      <p className="muted small">{stockDemoLocation === STOCK_DEMO_CENTRAL
+                        ? "Todos empiezan con un 30%. Usa − y + para ajustar cada material en pasos de 5%."
+                        : "El valor 0 desactiva la alerta. Solo se enviarán a Supabase los mínimos que hayas cambiado."}</p>
                       <div className="toolbar stock-minimum-toolbar">
                         <button className="secondary" onClick={() => setStockMinimumOpen(false)}>Cancelar</button>
                         <button className="primary" onClick={saveStockMinimums}>Guardar mínimos</button>

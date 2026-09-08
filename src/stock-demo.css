@@ -264,6 +264,24 @@
   flex-shrink: 0;
 }
 
+.safety-counter {
+  display: grid !important;
+  grid-template-columns: 36px 52px 36px;
+  align-items: center;
+  justify-content: end;
+  gap: 5px;
+}
+
+.safety-counter button {
+  min-height: 36px;
+  padding: 0;
+  border-radius: 9px;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.safety-counter strong { text-align: center; }
+
 .stock-replenishment-modal {
   width: min(820px, calc(100vw - 24px));
   max-height: min(90vh, 860px);
