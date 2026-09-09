@@ -2600,7 +2600,9 @@ function App() {
             minimum,
             pending,
             urgent,
-            replenish: Math.max(pending, Math.max(0, minimum - quantity)),
+            replenish: minimum > 0
+              ? Math.max(0, minimum - quantity)
+              : pending,
           };
         }).filter((item) => item.replenish > 0),
       }));
@@ -2613,7 +2615,9 @@ function App() {
           0,
         );
         const target = minimum;
-        const replenish = Math.max(pending, Math.max(0, target + outgoing - quantity));
+        const replenish = minimum > 0
+          ? Math.max(0, target + outgoing - quantity)
+          : pending;
         const urgent = minimum > 0 && quantity - outgoing < minimum;
         return { material, quantity, minimum, pending, outgoing, urgent, replenish };
       }).filter((item) => item.replenish > 0);
@@ -2627,7 +2631,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v109</span></h1>
+          <h1>Control de material <span className="app-version">v110</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3980,7 +3984,7 @@ function App() {
                   <div className="modal-backdrop">
                     <div className="card export-modal stock-replenishment-modal">
                       <h2>Qué llevar a cada almacén</h2>
-                      <p className="muted">Se muestra todo el consumo pendiente de reponer y el material que está por debajo del mínimo.</p>
+                      <p className="muted">Los materiales estándar solo se muestran por debajo del mínimo. El material supervisor muestra el consumo pendiente.</p>
                       <div className="stock-replenishment-summary">
                         <div className="urgent"><strong>{stockUrgentCount}</strong><span>Urgentes</span></div>
                       </div>
