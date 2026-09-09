@@ -317,7 +317,6 @@ function App() {
     [stockReplenishmentOpen, setStockReplenishmentOpen] = useState(false),
     [stockHistoryOpen, setStockHistoryOpen] = useState(false),
     [stockHistoryLoading, setStockHistoryLoading] = useState(false),
-    [stockHistoryRows, setStockHistoryRows] = useState([]),
     [stockHistoryFrom, setStockHistoryFrom] = useState(""),
     [stockHistoryTo, setStockHistoryTo] = useState(""),
     [stockHistoryDestination, setStockHistoryDestination] = useState(""),
@@ -1389,32 +1388,45 @@ function App() {
   }
   async function openStockHistory() {
     setStockHistoryOpen(true);
-    setStockHistoryLoading(true);
-    try {
-      await ensureAnonymousSession();
-      const { data, error } = await supabase
-        .from("stock_movements")
-        .select("id,warehouse_id,material,delta,created_at,operation_id,performed_role,performed_zone")
-        .eq("movement_type", "transfer_in")
-        .order("created_at", { ascending: false })
-        .limit(2000);
-      if (error) throw error;
-      setStockHistoryRows(data || []);
-    } catch {
-      flash("No se ha podido cargar el historial de movimientos");
-    } finally {
-      setStockHistoryLoading(false);
-    }
   }
   async function exportStockHistoryExcel() {
+    if (!stockHistoryFrom || !stockHistoryTo) {
+      return flash("Selecciona la fecha inicial y la fecha final");
+    }
+    if (stockHistoryFrom > stockHistoryTo) {
+      return flash("El periodo seleccionado no es correcto");
+    }
+    setStockHistoryLoading(true);
     const locationName = (id) => Object.keys(STOCK_REMOTE_IDS).find((name) => STOCK_REMOTE_IDS[name] === id) || id;
-    const filtered = stockHistoryRows.filter((row) => {
-      const date = String(row.created_at || "").slice(0, 10);
-      return (!stockHistoryFrom || date >= stockHistoryFrom) &&
-        (!stockHistoryTo || date <= stockHistoryTo) &&
-        (!stockHistoryDestination || row.warehouse_id === stockHistoryDestination);
-    });
-    if (!filtered.length) return flash("No hay movimientos para exportar con estos filtros");
+    const filtered = [];
+    try {
+      await ensureAnonymousSession();
+      const pageSize = 1000;
+      let offset = 0;
+      while (true) {
+        let query = supabase
+          .from("stock_movements")
+          .select("id,warehouse_id,material,delta,created_at,operation_id,performed_role,performed_zone")
+          .eq("movement_type", "transfer_in")
+          .gte("created_at", `${stockHistoryFrom}T00:00:00.000Z`)
+          .lte("created_at", `${stockHistoryTo}T23:59:59.999Z`)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + pageSize - 1);
+        if (stockHistoryDestination) query = query.eq("warehouse_id", stockHistoryDestination);
+        const { data, error } = await query;
+        if (error) throw error;
+        filtered.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+        offset += pageSize;
+      }
+    } catch {
+      setStockHistoryLoading(false);
+      return flash("No se ha podido descargar el historial de movimientos");
+    }
+    if (!filtered.length) {
+      setStockHistoryLoading(false);
+      return flash("No hay movimientos para exportar con estos filtros");
+    }
     const operationNumbers = new Map();
     let nextOperation = 1;
     const rows = filtered.map((row) => {
@@ -1453,6 +1465,8 @@ function App() {
       new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
       `historial_movimientos_${new Date().toISOString().slice(0, 10)}.xlsx`,
     );
+    setStockHistoryLoading(false);
+    setStockHistoryOpen(false);
     flash("Historial exportado en Excel");
   }
   function openStockInventoryEditor() {
@@ -2603,7 +2617,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v104</span></h1>
+          <h1>Control de material <span className="app-version">v105</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3982,46 +3996,25 @@ function App() {
                     </div>
                   </div>
                 )}
-                {stockHistoryOpen && (() => {
-                  const locationName = (id) => Object.keys(STOCK_REMOTE_IDS).find((name) => STOCK_REMOTE_IDS[name] === id) || id;
-                  const filtered = stockHistoryRows.filter((row) => {
-                    const date = String(row.created_at || "").slice(0, 10);
-                    return (!stockHistoryFrom || date >= stockHistoryFrom) &&
-                      (!stockHistoryTo || date <= stockHistoryTo) &&
-                      (!stockHistoryDestination || row.warehouse_id === stockHistoryDestination);
-                  });
-                  const groups = Object.values(filtered.reduce((all, row) => {
-                    const key = row.operation_id || `legacy-${row.id}`;
-                    if (!all[key]) all[key] = { key, at: row.created_at, warehouse: row.warehouse_id, role: row.performed_role, zone: row.performed_zone, items: [] };
-                    all[key].items.push(row);
-                    return all;
-                  }, {}));
-                  return (
+                {stockHistoryOpen && (
                     <div className="modal-backdrop">
                       <div className="card export-modal stock-replenishment-modal">
-                        <h2>Historial de movimientos</h2>
+                        <h2>Descargar historial de movimientos</h2>
+                        <p className="muted">Selecciona el periodo y el destino. Los movimientos se consultarán únicamente al descargar el Excel.</p>
                         <div className="stock-history-filters">
                           <label>Desde<input type="date" value={stockHistoryFrom} onChange={(e) => setStockHistoryFrom(e.target.value)} /></label>
                           <label>Hasta<input type="date" value={stockHistoryTo} onChange={(e) => setStockHistoryTo(e.target.value)} /></label>
                           <label>Destino<select value={stockHistoryDestination} onChange={(e) => setStockHistoryDestination(e.target.value)}><option value="">Todos</option>{STOCK_DEMO_LOCATIONS.slice(1).map((location) => <option key={location} value={STOCK_REMOTE_IDS[location]}>{location}</option>)}</select></label>
                         </div>
-                        <div className="stock-replenishment-list">
-                          {stockHistoryLoading ? <p>Cargando movimientos...</p> : !groups.length ? <p className="stock-replenishment-empty">No hay movimientos para estos filtros.</p> : groups.map((group) => (
-                            <section className="stock-history-operation" key={group.key}>
-                              <h3>{locationName(group.warehouse)}</h3>
-                              <p><strong>{new Date(group.at).toLocaleString("es-ES")}</strong> · {group.role === "owner" ? "Propietario" : group.role === "logistics" ? "Logística" : group.role === "supervisor" ? `Supervisión ${group.zone || ""}` : "Registro anterior"}</p>
-                              {group.items.sort((a, b) => a.material.localeCompare(b.material, "es", { numeric: true })).map((item) => <div className="stock-history-item" key={item.id}><span>{materialLabel(item.material)}</span><strong>+{Math.abs(Number(item.delta))}</strong></div>)}
-                            </section>
-                          ))}
-                        </div>
                         <div className="toolbar stock-minimum-toolbar">
                           <button className="secondary" onClick={() => setStockHistoryOpen(false)}>Cerrar</button>
-                          <button className="primary" onClick={exportStockHistoryExcel} disabled={stockHistoryLoading}>Exportar Excel</button>
+                          <button className="primary" onClick={exportStockHistoryExcel} disabled={stockHistoryLoading}>
+                            {stockHistoryLoading ? "Descargando..." : "Descargar Excel"}
+                          </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })()}
+                )}
                 <button className="danger" style={{ display: "none" }} onClick={resetStockDemo}>
                   Restablecer datos ficticios
                 </button>
