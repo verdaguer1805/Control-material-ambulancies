@@ -308,6 +308,7 @@ function App() {
     [stockInventoryOriginals, setStockInventoryOriginals] = useState({}),
     [stockInventorySaving, setStockInventorySaving] = useState(false),
     [stockMinimums, setStockMinimums] = useState({}),
+    [stockPendingReplenishment, setStockPendingReplenishment] = useState({}),
     [stockMinimumBases, setStockMinimumBases] = useState({}),
     [stockSafetyPercentages, setStockSafetyPercentages] = useState({}),
     [stockMinimumOpen, setStockMinimumOpen] = useState(false),
@@ -1280,7 +1281,7 @@ function App() {
         Object.values(STOCK_REMOTE_IDS).map((warehouseId) =>
           supabase
             .from("warehouse_inventory")
-            .select("warehouse_id,material,quantity,minimum_quantity,minimum_base_quantity,safety_percentage")
+            .select("warehouse_id,material,quantity,minimum_quantity,minimum_base_quantity,safety_percentage,pending_replenishment")
             .eq("warehouse_id", warehouseId),
         ),
       );
@@ -1299,6 +1300,9 @@ function App() {
       const safetyPercentages = Object.fromEntries(
         STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 30)]),
       );
+      const pendingReplenishment = Object.fromEntries(
+        STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 0)]),
+      );
       (data || []).forEach((row) => {
         const location = Object.keys(STOCK_REMOTE_IDS).find(
           (name) => STOCK_REMOTE_IDS[name] === row.warehouse_id,
@@ -1308,12 +1312,14 @@ function App() {
           minimums[location][row.material] = Number(row.minimum_quantity || 0);
           minimumBases[location][row.material] = Number(row.minimum_base_quantity || 0);
           safetyPercentages[location][row.material] = Number(row.safety_percentage ?? 30);
+          pendingReplenishment[location][row.material] = Number(row.pending_replenishment || 0);
         }
       });
       setStockDemo({ levels, movements: [] });
       setStockMinimums(minimums);
       setStockMinimumBases(minimumBases);
       setStockSafetyPercentages(safetyPercentages);
+      setStockPendingReplenishment(pendingReplenishment);
     } catch (error) {
       flash("No se ha podido cargar el inventario de Supabase");
     } finally {
@@ -1704,10 +1710,11 @@ function App() {
         "Stock actual": item.quantity,
         "Mínimo": item.minimum,
         [group.location === STOCK_DEMO_CENTRAL ? "Pedir / recibir" : "Llevar desde central"]: item.replenish,
-        Prioridad: "BAJO MÍNIMO",
+        "Consumo pendiente": item.pending,
+        Prioridad: item.urgent ? "BAJO MÍNIMO" : "CONSUMO PENDIENTE",
       }));
       const sheet = XLSX.utils.json_to_sheet(rows);
-      sheet["!cols"] = [{ wch: 46 }, { wch: 14 }, { wch: 12 }, { wch: 23 }, { wch: 16 }];
+      sheet["!cols"] = [{ wch: 46 }, { wch: 14 }, { wch: 12 }, { wch: 23 }, { wch: 20 }, { wch: 22 }];
       const range = XLSX.utils.decode_range(sheet["!ref"] || "A1:E1");
       for (let column = range.s.c; column <= range.e.c; column += 1) {
         const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
@@ -2585,27 +2592,30 @@ function App() {
         items: STOCK_DEMO_MATERIALS.map((material) => {
           const quantity = Number(stockDemo.levels[location]?.[material] || 0);
           const minimum = Number(stockMinimums[location]?.[material] || 0);
+          const pending = Number(stockPendingReplenishment[location]?.[material] || 0);
           const urgent = minimum > 0 && quantity < minimum;
           return {
             material,
             quantity,
             minimum,
+            pending,
             urgent,
-            replenish: Math.max(0, minimum - quantity),
+            replenish: Math.max(pending, Math.max(0, minimum - quantity)),
           };
-        }).filter((item) => item.urgent),
+        }).filter((item) => item.replenish > 0),
       }));
       const centralItems = STOCK_DEMO_MATERIALS.map((material) => {
         const quantity = Number(stockDemo.levels[STOCK_DEMO_CENTRAL]?.[material] || 0);
         const minimum = Number(stockMinimums[STOCK_DEMO_CENTRAL]?.[material] || 0);
+        const pending = Number(stockPendingReplenishment[STOCK_DEMO_CENTRAL]?.[material] || 0);
         const outgoing = subwarehouseGroups.reduce(
           (total, group) => total + (group.items.find((item) => item.material === material)?.replenish || 0),
           0,
         );
         const target = minimum;
-        const replenish = Math.max(0, target + outgoing - quantity);
+        const replenish = Math.max(pending, Math.max(0, target + outgoing - quantity));
         const urgent = minimum > 0 && quantity - outgoing < minimum;
-        return { material, quantity, minimum, outgoing, urgent, replenish };
+        return { material, quantity, minimum, pending, outgoing, urgent, replenish };
       }).filter((item) => item.replenish > 0);
       return [{ location: STOCK_DEMO_CENTRAL, items: centralItems }, ...subwarehouseGroups];
     })(),
@@ -2617,7 +2627,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v105</span></h1>
+          <h1>Control de material <span className="app-version">v106</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3963,7 +3973,7 @@ function App() {
                   <div className="modal-backdrop">
                     <div className="card export-modal stock-replenishment-modal">
                       <h2>Qué llevar a cada almacén</h2>
-                      <p className="muted">Solo se muestran materiales con existencias por debajo del mínimo.</p>
+                      <p className="muted">Se muestra todo el consumo pendiente de reponer y el material que está por debajo del mínimo.</p>
                       <div className="stock-replenishment-summary">
                         <div className="urgent"><strong>{stockUrgentCount}</strong><span>Urgentes</span></div>
                       </div>
@@ -3977,7 +3987,7 @@ function App() {
                               <div className="stock-replenishment-item urgent" key={item.material}>
                                 <div className="stock-replenishment-name">
                                   <strong>{materialLabel(item.material)}</strong>
-                                  <small>Stock: {item.quantity} · Mínimo: {item.minimum}</small>
+                                  <small>Stock: {item.quantity} · Mínimo: {item.minimum} · Pendiente: {item.pending}</small>
                                 </div>
                                 <div className="stock-replenishment-quantity">
                                   <small>{group.location === STOCK_DEMO_CENTRAL ? "PEDIR / RECIBIR" : "LLEVAR DESDE CENTRAL"}</small>
