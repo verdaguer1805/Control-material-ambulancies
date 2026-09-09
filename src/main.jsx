@@ -309,6 +309,8 @@ function App() {
     [stockInventorySaving, setStockInventorySaving] = useState(false),
     [stockMinimums, setStockMinimums] = useState({}),
     [stockPendingReplenishment, setStockPendingReplenishment] = useState({}),
+    [stockMaterialTypes, setStockMaterialTypes] = useState({}),
+    [stockMaterialTypeSaving, setStockMaterialTypeSaving] = useState(""),
     [stockMinimumBases, setStockMinimumBases] = useState({}),
     [stockSafetyPercentages, setStockSafetyPercentages] = useState({}),
     [stockMinimumOpen, setStockMinimumOpen] = useState(false),
@@ -1288,6 +1290,10 @@ function App() {
       const failed = inventoryResults.find((result) => result.error);
       if (failed) throw failed.error;
       const data = inventoryResults.flatMap((result) => result.data || []);
+      const { data: materialSettings, error: materialSettingsError } = await supabase
+        .from("material_settings")
+        .select("material,supply_type");
+      if (materialSettingsError) throw materialSettingsError;
       const levels = Object.fromEntries(
         STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 300)]),
       );
@@ -1320,6 +1326,9 @@ function App() {
       setStockMinimumBases(minimumBases);
       setStockSafetyPercentages(safetyPercentages);
       setStockPendingReplenishment(pendingReplenishment);
+      setStockMaterialTypes(Object.fromEntries(
+        (materialSettings || []).map((item) => [item.material, item.supply_type]),
+      ));
     } catch (error) {
       flash("No se ha podido cargar el inventario de Supabase");
     } finally {
@@ -1394,6 +1403,24 @@ function App() {
   }
   async function openStockHistory() {
     setStockHistoryOpen(true);
+  }
+  async function changeMaterialSupplyType(material, supplyType) {
+    if (!adminCanAccessAllZones || !["standard", "supervisor"].includes(supplyType)) return;
+    setStockMaterialTypeSaving(material);
+    try {
+      await ensureAnonymousSession();
+      const { error } = await supabase.rpc("set_material_supply_type", {
+        p_material: material,
+        p_supply_type: supplyType,
+      });
+      if (error) throw error;
+      setStockMaterialTypes((current) => ({ ...current, [material]: supplyType }));
+      flash(supplyType === "supervisor" ? "Material clasificado como supervisor" : "Material clasificado como estándar");
+    } catch {
+      flash("No se ha podido cambiar el tipo de material");
+    } finally {
+      setStockMaterialTypeSaving("");
+    }
   }
   async function exportStockHistoryExcel() {
     if (!stockHistoryFrom || !stockHistoryTo) {
@@ -1655,8 +1682,10 @@ function App() {
           .map((item) => {
             const stock = Number(item.quantity || 0);
             const minimum = Number(item.minimum_quantity || 0);
-            const status = minimum <= 0
+            const status = stockMaterialTypes[item.material] === "supervisor"
               ? "Material supervisor"
+              : minimum <= 0
+                ? "Sin mínimo configurado"
               : stock < minimum
                 ? "REPOSICIÓN NECESARIA"
                 : "Stock correcto";
@@ -2631,7 +2660,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v110</span></h1>
+          <h1>Control de material <span className="app-version">v111</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3795,6 +3824,7 @@ function App() {
                               <th>Material</th>
                               <th>Cantidad</th>
                               <th>Mínimo</th>
+                              <th>Tipo</th>
                               <th>Estado</th>
                             </tr>
                           </thead>
@@ -3809,8 +3839,11 @@ function App() {
                                 : quantity < minimum
                                   ? "stock-below-minimum"
                                   : "stock-above-minimum";
-                              const stockStatus = minimum <= 0
+                              const supplyType = stockMaterialTypes[material] || "standard";
+                              const stockStatus = supplyType === "supervisor"
                                 ? "Material supervisor"
+                                : minimum <= 0
+                                  ? "Sin mínimo configurado"
                                 : quantity < minimum
                                   ? "Reposición necesaria"
                                   : "Stock correcto";
@@ -3819,6 +3852,19 @@ function App() {
                                 <td>{materialLabel(material)}</td>
                                 <td>{quantity}</td>
                                 <td>{minimum}</td>
+                                <td>
+                                  {adminCanAccessAllZones ? (
+                                    <select
+                                      className="stock-type-select"
+                                      value={supplyType}
+                                      disabled={stockMaterialTypeSaving === material}
+                                      onChange={(event) => changeMaterialSupplyType(material, event.target.value)}
+                                    >
+                                      <option value="standard">Estándar</option>
+                                      <option value="supervisor">Supervisor</option>
+                                    </select>
+                                  ) : supplyType === "supervisor" ? "Supervisor" : "Estándar"}
+                                </td>
                                 <td className="stock-status">{stockStatus}</td>
                               </tr>
                               );

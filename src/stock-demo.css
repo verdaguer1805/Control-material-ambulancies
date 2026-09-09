@@ -144,6 +144,12 @@
   white-space: nowrap;
 }
 
+.stock-demo-stock .stock-type-select {
+  min-width: 112px;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
 .stock-picker-modal {
   width: min(680px, calc(100vw - 28px));
   max-height: calc(100vh - 32px);
