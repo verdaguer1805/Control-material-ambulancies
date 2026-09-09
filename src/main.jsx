@@ -303,6 +303,7 @@ function App() {
     [stockInventoryEditSearch, setStockInventoryEditSearch] = useState(""),
     [stockInventoryDrafts, setStockInventoryDrafts] = useState({}),
     [stockInventoryOriginals, setStockInventoryOriginals] = useState({}),
+    [stockInventorySaving, setStockInventorySaving] = useState(false),
     [stockMinimums, setStockMinimums] = useState({}),
     [stockMinimumBases, setStockMinimumBases] = useState({}),
     [stockSafetyPercentages, setStockSafetyPercentages] = useState({}),
@@ -1464,6 +1465,7 @@ function App() {
     setStockInventoryEditOpen(true);
   }
   async function saveStockInventory() {
+    if (stockInventorySaving) return;
     const invalid = Object.values(stockInventoryDrafts).some((value) => {
       const quantity = Number(value);
       return value === "" || !Number.isInteger(quantity) || quantity < 0;
@@ -1478,12 +1480,19 @@ function App() {
       setStockInventoryEditOpen(false);
       return flash("No hay cambios en el inventario");
     }
+    setStockInventorySaving(true);
     try {
-      await ensureAnonymousSession();
+      await Promise.race([
+        ensureAnonymousSession(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("SESSION_TIMEOUT")), 8000)),
+      ]);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
       const { error } = await supabase.rpc("set_inventory_quantities", {
         p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
         p_items: changes,
-      });
+      }).abortSignal(controller.signal);
+      clearTimeout(timeout);
       if (error) throw error;
       setStockDemo((current) => ({
         ...current,
@@ -1498,7 +1507,9 @@ function App() {
       setStockInventoryEditOpen(false);
       flash(`${Object.keys(changes).length} existencias actualizadas en Supabase`);
     } catch (error) {
-      flash("No se ha podido guardar el inventario");
+      flash("No se ha podido guardar. Comprueba la conexión y vuelve a intentarlo");
+    } finally {
+      setStockInventorySaving(false);
     }
   }
   function openStockMinimumEditor() {
@@ -2558,7 +2569,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v98</span></h1>
+          <h1>Control de material <span className="app-version">v99</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3821,6 +3832,7 @@ function App() {
                               min="0"
                               aria-label={`Existencias de ${materialLabel(material)}`}
                               value={stockInventoryDrafts[material] ?? "0"}
+                              disabled={stockInventorySaving}
                               onChange={(e) => setStockInventoryDrafts((current) => ({
                                 ...current,
                                 [material]: e.target.value,
@@ -3831,8 +3843,10 @@ function App() {
                       </div>
                       <p className="muted small">Las cantidades sustituyen el inventario actual. Solo se enviarán a Supabase los valores modificados.</p>
                       <div className="toolbar stock-minimum-toolbar">
-                        <button className="secondary" onClick={() => setStockInventoryEditOpen(false)}>Cancelar</button>
-                        <button className="primary" onClick={saveStockInventory}>Guardar inventario</button>
+                        <button className="secondary" disabled={stockInventorySaving} onClick={() => setStockInventoryEditOpen(false)}>Cancelar</button>
+                        <button className="primary" disabled={stockInventorySaving} onClick={saveStockInventory}>
+                          {stockInventorySaving ? "Guardando..." : "Guardar inventario"}
+                        </button>
                       </div>
                     </div>
                   </div>
