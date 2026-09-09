@@ -1487,7 +1487,7 @@ function App() {
         new Promise((_, reject) => setTimeout(() => reject(new Error("SESSION_TIMEOUT")), 8000)),
       ]);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
+      const timeout = setTimeout(() => controller.abort(), 6000);
       const { error } = await supabase.rpc("set_inventory_quantities", {
         p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
         p_items: changes,
@@ -1506,8 +1506,37 @@ function App() {
       }));
       setStockInventoryEditOpen(false);
       flash(`${Object.keys(changes).length} existencias actualizadas en Supabase`);
-    } catch (error) {
-      flash("No se ha podido guardar. Comprueba la conexión y vuelve a intentarlo");
+    } catch (bulkError) {
+      try {
+        // Respaldo compatible con instalaciones donde la edición conjunta no responde.
+        // Son cantidades absolutas: repetir una petición nunca suma ni duplica stock.
+        for (const [material, quantity] of Object.entries(changes)) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          const { error } = await supabase.rpc("set_inventory_quantity", {
+            p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
+            p_material: material,
+            p_quantity: quantity,
+          }).abortSignal(controller.signal);
+          clearTimeout(timeout);
+          if (error) throw error;
+        }
+        setStockDemo((current) => ({
+          ...current,
+          levels: {
+            ...current.levels,
+            [stockDemoLocation]: {
+              ...current.levels[stockDemoLocation],
+              ...changes,
+            },
+          },
+        }));
+        setStockInventoryEditOpen(false);
+        flash(`${Object.keys(changes).length} existencias actualizadas en Supabase`);
+      } catch (fallbackError) {
+        console.error("No se ha podido guardar el inventario", { bulkError, fallbackError });
+        flash("No se ha podido guardar. Comprueba la conexión y vuelve a intentarlo");
+      }
     } finally {
       setStockInventorySaving(false);
     }
@@ -2569,7 +2598,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v99</span></h1>
+          <h1>Control de material <span className="app-version">v100</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
