@@ -1656,7 +1656,7 @@ function App() {
             const stock = Number(item.quantity || 0);
             const minimum = Number(item.minimum_quantity || 0);
             const status = minimum <= 0
-              ? "Sin mínimo"
+              ? "Material supervisor"
               : stock < minimum
                 ? "REPOSICIÓN NECESARIA"
                 : "Stock correcto";
@@ -2627,7 +2627,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v106</span></h1>
+          <h1>Control de material <span className="app-version">v107</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
