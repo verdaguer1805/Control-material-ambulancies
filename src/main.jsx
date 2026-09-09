@@ -2603,7 +2603,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v103</span></h1>
+          <h1>Control de material <span className="app-version">v104</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3625,6 +3625,9 @@ function App() {
                     </p>
                   </div>
                   <div className="stock-demo-title-actions">
+                    <button className="secondary" onClick={loadRemoteStock} disabled={stockRemoteLoading}>
+                      {stockRemoteLoading ? "Actualizando..." : "Actualizar stock"}
+                    </button>
                     <button className="secondary" onClick={exportStockInventory} disabled={stockRemoteLoading || !stockDemoReady}>
                       Exportar inventario
                     </button>
@@ -3725,7 +3728,10 @@ function App() {
                       <h3>Existencias actuales</h3>
                       <select
                         value={stockDemoLocation}
-                        onChange={(e) => setStockDemoLocation(e.target.value)}
+                        onChange={(e) => {
+                          setStockDemoLocation(e.target.value);
+                          if (e.target.value) loadRemoteStock();
+                        }}
                         disabled={stockRemoteLoading}
                       >
                         <option value="">Selecciona un almacén...</option>
