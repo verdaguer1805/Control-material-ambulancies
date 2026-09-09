@@ -197,6 +197,11 @@
   border-bottom-color: #e9a8aa;
 }
 
+.stock-below-minimum .stock-type-cell,
+.stock-below-minimum .stock-type-select {
+  font-weight: 400;
+}
+
 .stock-below-minimum .stock-edit-button,
 .stock-below-minimum .stock-minimum-button {
   background: #fff;

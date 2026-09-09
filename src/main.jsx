@@ -2622,16 +2622,22 @@ function App() {
           const quantity = Number(stockDemo.levels[location]?.[material] || 0);
           const minimum = Number(stockMinimums[location]?.[material] || 0);
           const pending = Number(stockPendingReplenishment[location]?.[material] || 0);
-          const urgent = minimum > 0 && quantity < minimum;
+          const supplyType = stockMaterialTypes[material] || "standard";
+          const urgent = supplyType === "supervisor"
+            ? pending > 0
+            : minimum > 0 && quantity < minimum;
           return {
             material,
             quantity,
             minimum,
             pending,
+            supplyType,
             urgent,
-            replenish: minimum > 0
-              ? Math.max(0, minimum - quantity)
-              : pending,
+            replenish: supplyType === "supervisor"
+              ? pending
+              : minimum > 0
+                ? Math.max(0, minimum - quantity)
+                : 0,
           };
         }).filter((item) => item.replenish > 0),
       }));
@@ -2639,16 +2645,19 @@ function App() {
         const quantity = Number(stockDemo.levels[STOCK_DEMO_CENTRAL]?.[material] || 0);
         const minimum = Number(stockMinimums[STOCK_DEMO_CENTRAL]?.[material] || 0);
         const pending = Number(stockPendingReplenishment[STOCK_DEMO_CENTRAL]?.[material] || 0);
+        const supplyType = stockMaterialTypes[material] || "standard";
         const outgoing = subwarehouseGroups.reduce(
           (total, group) => total + (group.items.find((item) => item.material === material)?.replenish || 0),
           0,
         );
         const target = minimum;
         const replenish = minimum > 0
-          ? Math.max(0, target + outgoing - quantity)
-          : pending;
-        const urgent = minimum > 0 && quantity - outgoing < minimum;
-        return { material, quantity, minimum, pending, outgoing, urgent, replenish };
+          ? Math.max(0, target + (supplyType === "standard" ? outgoing : 0) - quantity)
+          : supplyType === "supervisor" ? pending : 0;
+        const urgent = minimum > 0 && (
+          supplyType === "standard" ? quantity - outgoing < minimum : quantity < minimum
+        );
+        return { material, quantity, minimum, pending, outgoing, supplyType, urgent, replenish };
       }).filter((item) => item.replenish > 0);
       return [{ location: STOCK_DEMO_CENTRAL, items: centralItems }, ...subwarehouseGroups];
     })(),
@@ -2660,7 +2669,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v111</span></h1>
+          <h1>Control de material <span className="app-version">v112</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3852,7 +3861,7 @@ function App() {
                                 <td>{materialLabel(material)}</td>
                                 <td>{quantity}</td>
                                 <td>{minimum}</td>
-                                <td>
+                                <td className="stock-type-cell">
                                   {adminCanAccessAllZones ? (
                                     <select
                                       className="stock-type-select"
