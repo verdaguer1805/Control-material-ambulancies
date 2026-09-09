@@ -1466,16 +1466,18 @@ function App() {
   }
   async function saveStockInventory() {
     if (stockInventorySaving) return;
-    const invalid = Object.values(stockInventoryDrafts).some((value) => {
-      const quantity = Number(value);
-      return value === "" || !Number.isInteger(quantity) || quantity < 0;
-    });
-    if (invalid) return flash("Todo el inventario debe contener números enteros iguales o superiores a cero");
     const changes = Object.fromEntries(
       Object.entries(stockInventoryDrafts)
         .filter(([material, value]) => String(value) !== String(stockInventoryOriginals[material]))
         .map(([material, value]) => [material, Number(value)]),
     );
+    const invalid = Object.entries(stockInventoryDrafts)
+      .filter(([material, value]) => String(value) !== String(stockInventoryOriginals[material]))
+      .some(([, value]) => {
+        const quantity = Number(value);
+        return value === "" || !Number.isInteger(quantity) || quantity < 0;
+      });
+    if (invalid) return flash("Las existencias modificadas deben ser números enteros iguales o superiores a cero");
     if (!Object.keys(changes).length) {
       setStockInventoryEditOpen(false);
       return flash("No hay cambios en el inventario");
@@ -2598,7 +2600,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v100</span></h1>
+          <h1>Control de material <span className="app-version">v101</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
