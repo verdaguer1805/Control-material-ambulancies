@@ -37,6 +37,9 @@ const MATERIAL_LABELS = {
   "Bolsas de objetos personales SEM grandes": "Bolsas de objetos personales SEM grandes (unidad)",
   "Bolsas de objetos personales SEM pequeñas": "Bolsas de objetos personales SEM pequeñas (unidad)",
   "Empapador": "Empapador (unidad)",
+  "Malla capelina para cabeza": "Malla capelina para cabeza (Tubigrip)",
+  "Mantas de un solo uso": "Mantas de un solo uso (unidad)",
+  "Sábanas de un solo uso": "Sábanas de un solo uso (unidad)",
   "Guantes S (caja)": "Guantes S (cajas)",
   "Guantes M (caja)": "Guantes M (cajas)",
   "Guantes L (caja)": "Guantes L (cajas)",
@@ -2600,7 +2603,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v102</span></h1>
+          <h1>Control de material <span className="app-version">v103</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>

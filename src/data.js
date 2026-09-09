@@ -186,6 +186,7 @@ export const MATERIALS = [
   "Venda gasa de 10 x 10",
   "Venda cohesiva 10 x 10",
   "Malla capelina para cabeza",
+  "Suero fisiológico 5 ml",
   "Suero fisiológico 100ml",
 
   "Suero fisiológico 250 ml",
