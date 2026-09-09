@@ -137,6 +137,13 @@
   background: #f6f8f9;
 }
 
+.stock-demo-stock .stock-status {
+  min-width: 145px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .stock-picker-modal {
   width: min(680px, calc(100vw - 28px));
   max-height: calc(100vh - 32px);

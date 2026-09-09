@@ -2627,7 +2627,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v108</span></h1>
+          <h1>Control de material <span className="app-version">v109</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3791,6 +3791,7 @@ function App() {
                               <th>Material</th>
                               <th>Cantidad</th>
                               <th>Mínimo</th>
+                              <th>Estado</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3804,11 +3805,17 @@ function App() {
                                 : quantity < minimum
                                   ? "stock-below-minimum"
                                   : "stock-above-minimum";
+                              const stockStatus = minimum <= 0
+                                ? "Material supervisor"
+                                : quantity < minimum
+                                  ? "Reposición necesaria"
+                                  : "Stock correcto";
                               return (
                               <tr key={material} className={stockStatusClass}>
                                 <td>{materialLabel(material)}</td>
                                 <td>{quantity}</td>
                                 <td>{minimum}</td>
+                                <td className="stock-status">{stockStatus}</td>
                               </tr>
                               );
                             })}
