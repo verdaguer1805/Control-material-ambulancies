@@ -2651,9 +2651,12 @@ function App() {
           0,
         );
         const target = minimum;
+        // El almacén central se repone únicamente según su mínimo propio.
+        // Los pendientes de material supervisor pertenecen al subalmacén
+        // que debe recibirlo y no deben convertirse en una compra del central.
         const replenish = minimum > 0
           ? Math.max(0, target + (supplyType === "standard" ? outgoing : 0) - quantity)
-          : supplyType === "supervisor" ? pending : 0;
+          : 0;
         const urgent = minimum > 0 && (
           supplyType === "standard" ? quantity - outgoing < minimum : quantity < minimum
         );
@@ -2669,7 +2672,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v112</span></h1>
+          <h1>Control de material <span className="app-version">v113</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
