@@ -1372,14 +1372,29 @@ function App() {
         if (error) throw error;
         flash("Entrada registrada en el almacén central de Olot");
       } else if (stockPickerOpen === "transfer") {
-        const leavesCentralBelowMinimum = Object.entries(items).some(([material, quantity]) => {
+        const transferChecks = Object.entries(items).map(([material, quantity]) => {
           const current = Number(stockDemo.levels[STOCK_DEMO_CENTRAL]?.[material] || 0);
           const minimum = Number(stockMinimums[STOCK_DEMO_CENTRAL]?.[material] || 0);
-          return current - Number(quantity) < minimum;
+          const requested = Number(quantity);
+          return { material, current, minimum, requested, remaining: current - requested };
         });
-        if (leavesCentralBelowMinimum && !confirm(
-          "Este traslado dejará uno o más materiales del almacén central por debajo del mínimo. ¿Quieres continuar por una necesidad excepcional?",
-        )) return;
+        const insufficientMaterials = transferChecks.filter((item) => item.remaining < 0);
+        if (insufficientMaterials.length) {
+          const details = insufficientMaterials
+            .map((item) => `${materialLabel(item.material)}: hay ${item.current} y solicitas ${item.requested}`)
+            .join("\n");
+          alert(`No hay suficiente material en el almacén central:\n\n${details}`);
+          return;
+        }
+        const belowMinimumMaterials = transferChecks.filter((item) => item.remaining < item.minimum);
+        if (belowMinimumMaterials.length) {
+          const details = belowMinimumMaterials
+            .map((item) => `${materialLabel(item.material)}: quedarán ${item.remaining} (mínimo ${item.minimum})`)
+            .join("\n");
+          if (!confirm(
+            `Hay existencias suficientes, pero estos materiales quedarán por debajo del mínimo del almacén central:\n\n${details}\n\n¿Quieres continuar por una necesidad excepcional?`,
+          )) return;
+        }
         const { error } = await supabase.rpc("transfer_stock_recorded", {
           p_origin_id: STOCK_REMOTE_IDS[STOCK_DEMO_CENTRAL],
           p_destination_id: STOCK_REMOTE_IDS[stockDemoTarget],
@@ -2672,7 +2687,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v113</span></h1>
+          <h1>Control de material <span className="app-version">v114</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
