@@ -31,6 +31,7 @@ const KEY = {
 };
 const DEVICE_AUTH_CACHE = "cma_device_authorization_v1";
 const MATERIAL_LABELS = {
+  "Pilas CR123": "Pila CR2032",
   "Parches monitorización schiller": "Electrodos de monitorización (bolsas)",
   "Pañuelos de papel (caja)": "Pañuelos de papel (cajas)",
   "Bolsas de basura negras": "Bolsas de basura (paquete)",
@@ -2687,7 +2688,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v117</span></h1>
+          <h1>Control de material <span className="app-version">v118</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
