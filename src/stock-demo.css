@@ -150,27 +150,6 @@
   font-size: 12px;
 }
 
-.stock-table-scroll {
-  width: 100%;
-  margin-top: 10px;
-  overflow: auto;
-  border: 1px solid #dce5e8;
-  border-radius: 10px;
-  -webkit-overflow-scrolling: touch;
-}
-
-.stock-inventory-table {
-  min-width: 680px;
-}
-
-.stock-inventory-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: #eef2f3;
-  box-shadow: 0 1px 0 #bcc9cc;
-}
-
 .stock-picker-modal {
   width: min(680px, calc(100vw - 28px));
   max-height: calc(100vh - 32px);
@@ -576,49 +555,94 @@
   }
 
   .stock-table-scroll {
-    max-height: 62vh;
-    overscroll-behavior: contain;
+    overflow: visible;
   }
 
   .stock-inventory-table {
-    min-width: 620px;
+    display: block;
+    min-width: 0;
     font-size: 13px;
   }
 
-  .stock-inventory-table th,
+  .stock-inventory-table thead {
+    display: none;
+  }
+
+  .stock-inventory-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .stock-inventory-table tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid #d4dfe2;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(22, 50, 58, .06);
+  }
+
   .stock-inventory-table td {
-    padding: 8px 7px;
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    padding: 8px 11px;
+    border-bottom: 1px solid rgba(22, 50, 58, .1);
+    overflow-wrap: anywhere;
   }
 
-  .stock-inventory-table th:first-child,
+  .stock-inventory-table td::before {
+    color: #5b6e74;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .25px;
+  }
+
   .stock-inventory-table td:first-child {
-    position: sticky;
-    left: 0;
+    display: block;
+    padding: 11px;
+    background: rgba(255, 255, 255, .52);
+    font-size: 15px;
+    font-weight: 800;
   }
 
-  .stock-inventory-table th:first-child {
-    z-index: 4;
-    background: #eef2f3;
+  .stock-inventory-table td:first-child::before {
+    content: none;
   }
 
-  .stock-inventory-table td:first-child {
-    z-index: 2;
-    min-width: 190px;
-    background: #f6f8f9;
-    box-shadow: 1px 0 0 #dce5e8;
+  .stock-inventory-table td:nth-child(2)::before {
+    content: "Cantidad";
   }
 
-  .stock-inventory-table .stock-below-minimum td:first-child {
-    background: #fde2e2;
+  .stock-inventory-table td:nth-child(3)::before {
+    content: "Mínimo";
   }
 
-  .stock-inventory-table .stock-above-minimum td:first-child {
-    background: #e8f4e5;
+  .stock-inventory-table td:nth-child(4)::before {
+    content: "Tipo";
+  }
+
+  .stock-inventory-table td:nth-child(5)::before {
+    content: "Estado";
+  }
+
+  .stock-inventory-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .stock-demo-stock .stock-status {
+    min-width: 0;
+    white-space: normal;
   }
 
   .stock-demo-stock .stock-type-select {
-    width: 100px;
-    min-width: 100px;
+    width: 100%;
+    min-width: 0;
+    max-width: 180px;
   }
 
   .stock-picker-modal {
