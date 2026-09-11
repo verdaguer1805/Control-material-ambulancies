@@ -1,5 +1,5 @@
-const CACHE = "cma-v116";
-const APP_SHELL = ["./", "./index.html", "./admin.html", "./icon.svg", "./falck-eagle-admin.png"];
+const CACHE = "cma-v117";
+const APP_SHELL = ["./", "./index.html", "./admin.html", "./admin/", "./admin/manifest.webmanifest", "./icon.svg", "./falck-eagle-admin.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)));
@@ -25,6 +25,12 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(request)
       .then(updateCache)
-      .catch(() => caches.match(request).then((cached) => cached || (request.mode === "navigate" ? caches.match("./") : Response.error())))
+      .catch(() => caches.match(request).then((cached) => {
+        if (cached) return cached;
+        if (request.mode !== "navigate") return Response.error();
+        return new URL(request.url).pathname.endsWith("/admin/")
+          ? caches.match("./admin/")
+          : caches.match("./");
+      }))
   );
 });

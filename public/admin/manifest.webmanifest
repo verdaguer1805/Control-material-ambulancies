@@ -1,0 +1,19 @@
+{
+  "id": "/Control-material-ambulancies/admin/",
+  "name": "Administración de material",
+  "short_name": "Administración",
+  "description": "Panel de administración del control de material.",
+  "start_url": "/Control-material-ambulancies/admin/",
+  "scope": "/Control-material-ambulancies/admin/",
+  "display": "standalone",
+  "background_color": "#f4f7f8",
+  "theme_color": "#d71920",
+  "icons": [
+    {
+      "src": "/Control-material-ambulancies/falck-eagle-admin.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
