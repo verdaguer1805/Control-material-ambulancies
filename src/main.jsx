@@ -2687,7 +2687,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v114</span></h1>
+          <h1>Control de material <span className="app-version">v115</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3845,7 +3845,8 @@ function App() {
                           onChange={(e) => setStockInventorySearch(e.target.value)}
                           placeholder="Escribe el nombre del material..."
                         />
-                        <table>
+                        <div className="stock-table-scroll" role="region" aria-label="Existencias del almacén" tabIndex="0">
+                        <table className="stock-inventory-table">
                           <thead>
                             <tr>
                               <th>Material</th>
@@ -3898,6 +3899,7 @@ function App() {
                             })}
                           </tbody>
                         </table>
+                        </div>
                       </>
                     ) : (
                       <p className="muted stock-empty">
