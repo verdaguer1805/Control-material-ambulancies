@@ -321,6 +321,7 @@ function App() {
     [stockReplenishmentOpen, setStockReplenishmentOpen] = useState(false),
     [stockHistoryOpen, setStockHistoryOpen] = useState(false),
     [stockHistoryLoading, setStockHistoryLoading] = useState(false),
+    [stockHistoryMessage, setStockHistoryMessage] = useState(""),
     [stockHistoryFrom, setStockHistoryFrom] = useState(""),
     [stockHistoryTo, setStockHistoryTo] = useState(""),
     [stockHistoryDestination, setStockHistoryDestination] = useState(""),
@@ -1418,6 +1419,7 @@ function App() {
     }
   }
   async function openStockHistory() {
+    setStockHistoryMessage("");
     setStockHistoryOpen(true);
   }
   async function changeMaterialSupplyType(material, supplyType) {
@@ -1439,11 +1441,13 @@ function App() {
     }
   }
   async function exportStockHistoryExcel() {
+    if (stockHistoryLoading) return;
+    setStockHistoryMessage("");
     if (!stockHistoryFrom || !stockHistoryTo) {
-      return flash("Selecciona la fecha inicial y la fecha final");
+      return setStockHistoryMessage("Selecciona la fecha inicial y la fecha final");
     }
     if (stockHistoryFrom > stockHistoryTo) {
-      return flash("El periodo seleccionado no es correcto");
+      return setStockHistoryMessage("El periodo seleccionado no es correcto");
     }
     setStockHistoryLoading(true);
     const locationName = (id) => Object.keys(STOCK_REMOTE_IDS).find((name) => STOCK_REMOTE_IDS[name] === id) || id;
@@ -1470,12 +1474,13 @@ function App() {
       }
     } catch {
       setStockHistoryLoading(false);
-      return flash("No se ha podido descargar el historial de movimientos");
+      return setStockHistoryMessage("No se ha podido descargar el historial de movimientos. Puedes volver a intentarlo.");
     }
     if (!filtered.length) {
       setStockHistoryLoading(false);
-      return flash("No hay movimientos para exportar con estos filtros");
+      return setStockHistoryMessage("No hay movimientos para exportar con estos filtros. Puedes cambiar las fechas o el destino.");
     }
+    try {
     const operationNumbers = new Map();
     let nextOperation = 1;
     const rows = filtered.map((row) => {
@@ -1517,6 +1522,11 @@ function App() {
     setStockHistoryLoading(false);
     setStockHistoryOpen(false);
     flash("Historial exportado en Excel");
+    } catch {
+      setStockHistoryMessage("No se ha podido generar el Excel. Puedes volver a intentarlo.");
+    } finally {
+      setStockHistoryLoading(false);
+    }
   }
   function openStockInventoryEditor() {
     const values = Object.fromEntries(
@@ -2688,7 +2698,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v118</span></h1>
+          <h1>Control de material <span className="app-version">v119</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -4097,6 +4107,11 @@ function App() {
                     <div className="modal-backdrop">
                       <div className="card export-modal stock-replenishment-modal">
                         <h2>Descargar historial de movimientos</h2>
+                        {stockHistoryMessage && (
+                          <p role="status" style={{ padding: "12px", background: "#fff3d6", color: "#704500", border: "1px solid #dba949", borderRadius: "10px", textAlign: "center" }}>
+                            {stockHistoryMessage}
+                          </p>
+                        )}
                         <p className="muted">Selecciona el periodo y el destino. Los movimientos se consultarán únicamente al descargar el Excel.</p>
                         <div className="stock-history-filters">
                           <label>Desde<input type="date" value={stockHistoryFrom} onChange={(e) => setStockHistoryFrom(e.target.value)} /></label>
