@@ -1758,6 +1758,7 @@ function App() {
   }
   async function exportStockReplenishmentExcel() {
     const XLSX = await import("xlsx-js-style");
+    const { fitWorkbookToLandscapeA4 } = await import("./excel-print.js");
     const workbook = XLSX.utils.book_new();
     const usedNames = new Set();
     stockReplenishmentGroups.forEach((group) => {
@@ -1807,7 +1808,7 @@ function App() {
         Ref: `'${name.replace(/'/g, "''")}'!$1:$4`,
       });
     });
-    const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const output = fitWorkbookToLandscapeA4(XLSX.write(workbook, { bookType: "xlsx", type: "array" }));
     saveAs(
       new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
       `lista_reposicion_${new Date().toISOString().slice(0, 10)}.xlsx`,
@@ -2711,7 +2712,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v122</span></h1>
+          <h1>Control de material <span className="app-version">v123</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
