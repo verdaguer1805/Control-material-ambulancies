@@ -2699,7 +2699,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v120</span></h1>
+          <h1>Control de material <span className="app-version">v121</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3432,7 +3432,7 @@ function App() {
           </div>
         )}
         {message && (
-          <div className="modal-backdrop">
+          <div className="modal-backdrop app-notice-backdrop" role="alert">
             <div className="card export-modal">
               <h2 style={{ textAlign: "center" }}>Aviso</h2>
               <p style={{ textAlign: "center" }}>{message}</p>
