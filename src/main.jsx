@@ -1769,11 +1769,16 @@ function App() {
         "Consumo pendiente": item.pending,
         Prioridad: item.urgent ? "BAJO MÍNIMO" : "CONSUMO PENDIENTE",
       }));
-      const sheet = XLSX.utils.json_to_sheet(rows);
+      const sheet = XLSX.utils.aoa_to_sheet([[group.location], ["Qué llevar a cada almacén"]]);
+      XLSX.utils.sheet_add_json(sheet, rows, { origin: "A4" });
+      sheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }];
+      sheet.A1.s = { font: { bold: true, sz: 18, color: { rgb: "C8102E" } }, alignment: { horizontal: "center", vertical: "center" } };
+      sheet.A2.s = { font: { sz: 12 }, alignment: { horizontal: "center", vertical: "center" } };
+      sheet["!rows"] = [{ hpt: 30 }, { hpt: 22 }, { hpt: 10 }, { hpt: 30 }];
       sheet["!cols"] = [{ wch: 46 }, { wch: 14 }, { wch: 12 }, { wch: 23 }, { wch: 20 }, { wch: 22 }];
       const range = XLSX.utils.decode_range(sheet["!ref"] || "A1:E1");
       for (let column = range.s.c; column <= range.e.c; column += 1) {
-        const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
+        const cell = sheet[XLSX.utils.encode_cell({ r: 3, c: column })];
         if (cell) cell.s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "C8102E" } }, alignment: { horizontal: "center" } };
       }
       rows.forEach((row, index) => {
@@ -1781,7 +1786,7 @@ function App() {
           ? { fill: { fgColor: { rgb: "F4CCCC" } }, font: { color: { rgb: "9C0006" }, bold: true } }
           : { fill: { fgColor: { rgb: "FCE5CD" } }, font: { color: { rgb: "9C5700" }, bold: true } };
         for (let column = range.s.c; column <= range.e.c; column += 1) {
-          const cell = sheet[XLSX.utils.encode_cell({ r: index + 1, c: column })];
+          const cell = sheet[XLSX.utils.encode_cell({ r: index + 4, c: column })];
           if (cell) cell.s = style;
         }
       });
@@ -1794,6 +1799,13 @@ function App() {
       }
       usedNames.add(name);
       XLSX.utils.book_append_sheet(workbook, sheet, name);
+      workbook.Workbook ||= {};
+      workbook.Workbook.Names ||= [];
+      workbook.Workbook.Names.push({
+        Name: "_xlnm.Print_Titles",
+        Sheet: workbook.SheetNames.length - 1,
+        Ref: `'${name.replace(/'/g, "''")}'!$1:$4`,
+      });
     });
     const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     saveAs(
@@ -2699,7 +2711,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v121</span></h1>
+          <h1>Control de material <span className="app-version">v122</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
