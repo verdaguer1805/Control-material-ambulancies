@@ -271,6 +271,7 @@ function App() {
     [status, setStatus] = useState("draft"),
     sentScrollRef = React.useRef(null),
     loadedGuardRef = React.useRef(""),
+    stockLoadSequence = React.useRef(0),
     [syncing, setSyncing] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [exportLotOpen, setExportLotOpen] = useState(false),
@@ -295,6 +296,7 @@ function App() {
     [stockDemoOpen, setStockDemoOpen] = useState(false),
     [stockDemo, setStockDemo] = useState(getStockDemo),
     [stockRemoteLoading, setStockRemoteLoading] = useState(false),
+    [stockRemoteLoaded, setStockRemoteLoaded] = useState(false),
     [stockDemoLot, setStockDemoLot] = useState(() => Object.keys(LOTS)[0]),
     [stockDemoZone, setStockDemoZone] = useState("Olot"),
     [stockDemoLocation, setStockDemoLocation] = useState(""),
@@ -305,6 +307,7 @@ function App() {
     [stockPickerSearch, setStockPickerSearch] = useState(""),
     [stockPickerQuantities, setStockPickerQuantities] = useState({}),
     [stockInventoryEditOpen, setStockInventoryEditOpen] = useState(false),
+    [stockInventoryTarget, setStockInventoryTarget] = useState(null),
     [stockInventoryEditSearch, setStockInventoryEditSearch] = useState(""),
     [stockInventoryDrafts, setStockInventoryDrafts] = useState({}),
     [stockInventoryOriginals, setStockInventoryOriginals] = useState({}),
@@ -1274,6 +1277,8 @@ function App() {
     setStockDemo(next);
   }
   async function loadRemoteStock() {
+    const request = ++stockLoadSequence.current;
+    setStockRemoteLoaded(false);
     setStockRemoteLoading(true);
     try {
       await ensureAnonymousSession();
@@ -1324,7 +1329,9 @@ function App() {
           pendingReplenishment[location][row.material] = Number(row.pending_replenishment || 0);
         }
       });
+      if (request !== stockLoadSequence.current) return;
       setStockDemo({ levels, movements: [] });
+      setStockRemoteLoaded(true);
       setStockMinimums(minimums);
       setStockMinimumBases(minimumBases);
       setStockSafetyPercentages(safetyPercentages);
@@ -1333,9 +1340,10 @@ function App() {
         (materialSettings || []).map((item) => [item.material, item.supply_type]),
       ));
     } catch (error) {
+      if (request !== stockLoadSequence.current) return;
       flash("No se ha podido cargar el inventario de Supabase");
     } finally {
-      setStockRemoteLoading(false);
+      if (request === stockLoadSequence.current) setStockRemoteLoading(false);
     }
   }
   function addDemoMovement(next, type, detail) {
@@ -1530,6 +1538,8 @@ function App() {
     }
   }
   function openStockInventoryEditor() {
+    if (stockRemoteLoading || !stockRemoteLoaded || !stockDemoReady || !STOCK_REMOTE_IDS[stockDemoLocation]) return;
+    setStockInventoryTarget({ location: stockDemoLocation, id: STOCK_REMOTE_IDS[stockDemoLocation] });
     const values = Object.fromEntries(
       STOCK_DEMO_MATERIALS.map((material) => [
         material,
@@ -1543,6 +1553,11 @@ function App() {
   }
   async function saveStockInventory() {
     if (stockInventorySaving) return;
+    const target = stockInventoryTarget;
+    if (!target || target.location !== stockDemoLocation || target.id !== STOCK_REMOTE_IDS[stockDemoLocation] || !stockDemoReady) {
+      setStockInventoryEditOpen(false);
+      return flash("El almacén seleccionado ha cambiado. Abre de nuevo Editar inventario.");
+    }
     const changes = Object.fromEntries(
       Object.entries(stockInventoryDrafts)
         .filter(([material, value]) => String(value) !== String(stockInventoryOriginals[material]))
@@ -1568,7 +1583,7 @@ function App() {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 6000);
       const { error } = await supabase.rpc("set_inventory_quantities", {
-        p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
+        p_warehouse_id: target.id,
         p_items: changes,
       }).abortSignal(controller.signal);
       clearTimeout(timeout);
@@ -1577,8 +1592,8 @@ function App() {
         ...current,
         levels: {
           ...current.levels,
-          [stockDemoLocation]: {
-            ...current.levels[stockDemoLocation],
+          [target.location]: {
+            ...current.levels[target.location],
             ...changes,
           },
         },
@@ -1593,7 +1608,7 @@ function App() {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 8000);
           const { error } = await supabase.rpc("set_inventory_quantity", {
-            p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
+            p_warehouse_id: target.id,
             p_material: material,
             p_quantity: quantity,
           }).abortSignal(controller.signal);
@@ -1604,8 +1619,8 @@ function App() {
           ...current,
           levels: {
             ...current.levels,
-            [stockDemoLocation]: {
-              ...current.levels[stockDemoLocation],
+            [target.location]: {
+              ...current.levels[target.location],
               ...changes,
             },
           },
@@ -2654,7 +2669,8 @@ function App() {
       .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
       .sort((a, b) => a.localeCompare(b)),
     stockDemoReady =
-      stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot",
+      stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot" &&
+      (adminCanAccessAllZones || adminAccess?.zone === stockDemoZone),
     stockReplenishmentGroups = (() => {
       const subwarehouseGroups = STOCK_DEMO_LOCATIONS.slice(1).map((location) => ({
         location,
@@ -2712,7 +2728,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v123</span></h1>
+          <h1>Control de material <span className="app-version">v124</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3740,8 +3756,8 @@ function App() {
                     <button className="secondary" onClick={exportStockInventory} disabled={stockRemoteLoading || !stockDemoReady}>
                       Exportar inventario
                     </button>
-                    {adminCanAccessAllZones && (
-                      <button className="primary" onClick={() => setStockReplenishmentOpen(true)} disabled={stockRemoteLoading || !stockDemoReady}>
+                    {(adminCanAccessAllZones || adminAccess?.zone === stockDemoZone) && (
+                      <button className="primary" onClick={() => setStockReplenishmentOpen(true)} disabled={stockRemoteLoading || !stockRemoteLoaded || !stockDemoReady}>
                         Qué llevar a cada almacén
                       </button>
                     )}
@@ -3838,10 +3854,14 @@ function App() {
                       <select
                         value={stockDemoLocation}
                         onChange={(e) => {
+                          setStockInventoryEditOpen(false);
+                          setStockInventoryTarget(null);
+                          setStockInventoryDrafts({});
+                          setStockInventoryOriginals({});
                           setStockDemoLocation(e.target.value);
                           if (e.target.value) loadRemoteStock();
                         }}
-                        disabled={stockRemoteLoading}
+                        disabled={stockRemoteLoading || stockInventorySaving || stockInventoryEditOpen}
                       >
                         <option value="">Selecciona un almacén...</option>
                         {STOCK_DEMO_LOCATIONS.map((location) => (
@@ -3849,7 +3869,7 @@ function App() {
                         ))}
                       </select>
                       {stockDemoLocation && (
-                        <button className="stock-edit-button" onClick={openStockInventoryEditor}>
+                        <button className="stock-edit-button" onClick={openStockInventoryEditor} disabled={stockRemoteLoading || !stockRemoteLoaded || stockInventorySaving}>
                           Editar inventario
                         </button>
                       )}
@@ -3984,7 +4004,7 @@ function App() {
                   <div className="modal-backdrop">
                     <div className="card export-modal stock-minimum-modal">
                       <h2>Editar inventario</h2>
-                      <p className="muted">{stockDemoLocation}</p>
+                      <p className="muted">{stockInventoryTarget?.location}</p>
                       <label>Buscar material</label>
                       <input
                         autoFocus
@@ -3999,7 +4019,7 @@ function App() {
                           <div className="stock-minimum-row" key={material}>
                             <div>
                               <strong>{materialLabel(material)}</strong>
-                              <small>Mínimo: {stockMinimums[stockDemoLocation]?.[material] || 0}</small>
+                              <small>Mínimo: {stockMinimums[stockInventoryTarget?.location]?.[material] || 0}</small>
                             </div>
                             <input
                               type="number"
