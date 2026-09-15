@@ -17,8 +17,11 @@ export function fitWorkbookToLandscapeA4(data) {
     } else {
       xml = xml.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
     }
-    // These generated sheets have no drawings or footer elements after margins.
-    xml = xml.replace('</worksheet>', `${margins}${setup}</worksheet>`);
+    // OOXML requires page settings BEFORE ignoredErrors (emitted by SheetJS),
+    // drawings and the other trailing worksheet elements. Appending at the end
+    // produces a ZIP that libraries can read but Excel asks to repair.
+    const trailing = /<(?:headerFooter|rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|legacyDrawingHF|picture|oleObjects|controls|webPublishItems|tableParts|extLst)\b|<\/worksheet>/;
+    xml = xml.replace(trailing, (match) => `${margins}${setup}${match}`);
     files[path] = strToU8(xml);
   }
   return zipSync(files);
