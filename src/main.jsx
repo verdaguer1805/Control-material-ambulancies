@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
@@ -51,7 +52,6 @@ const MATERIAL_LABELS = {
   "Tiras reactivas": "Tiras reactivas (botes)",
 };
 const materialLabel = (material) => MATERIAL_LABELS[material] || material;
-const SUPABASE_DATABASE_LIMIT_MB = 500;
 // El stock utiliza la lista completa que puede registrar Material supervisor.
 const STOCK_DEMO_MATERIALS = [...MATERIALS].sort((a, b) =>
   materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true }),
@@ -912,7 +912,7 @@ function App() {
           .map((row) => row.unit)
           .filter((unitName) => !/^Material supervisor/i.test(unitName)),
       );
-      const databaseMb = Number(databaseUsage.data?.[0]?.database_mb || 0);
+      const capacity = databaseCapacity(databaseUsage.data?.[0]?.database_mb);
       setSystemStatus({
         connected: true,
         recordsToday: (todayRecords.data || []).length,
@@ -921,12 +921,7 @@ function App() {
         lastUnit: lastSubmission.data?.[0]?.unit || "Sin comunicaciones",
         lastCommunication: lastSubmission.data?.[0]?.submitted_at || null,
         warehouses: warehouses.count || 0,
-        databaseMb,
-        databaseLimitMb: SUPABASE_DATABASE_LIMIT_MB,
-        databasePercent: Math.min(
-          100,
-          (databaseMb / SUPABASE_DATABASE_LIMIT_MB) * 100,
-        ),
+        capacity,
         checkedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -2693,7 +2688,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v127</span></h1>
+          <h1>Control de material <span className="app-version">v128</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3183,24 +3178,27 @@ function App() {
                   {systemStatus?.connected && (
                     <div className="database-usage">
                       <div className="database-usage-heading">
-                        <span>Capacidad de Supabase</span>
-                        <strong>{systemStatus.databasePercent.toFixed(2).replace(".", ",")}%</strong>
+                        <span>Base de datos · Plan {DATABASE_PLAN.name}</span>
+                        <strong>{systemStatus.capacity ? `${systemStatus.capacity.percent.toFixed(2).replace(".", ",")}%` : "No disponible"}</strong>
                       </div>
                       <div className="database-usage-track">
                         <span
                           className={
-                            systemStatus.databasePercent >= 80
+                            systemStatus.capacity?.percent >= 80
                               ? "database-usage-danger"
-                              : systemStatus.databasePercent >= 60
+                              : systemStatus.capacity?.percent >= 60
                                 ? "database-usage-warning"
                                 : "database-usage-ok"
                           }
-                          style={{ width: `${Math.max(systemStatus.databasePercent, 0.6)}%` }}
+                          style={{ width: `${systemStatus.capacity?.barPercent ?? 0}%` }}
                         />
                       </div>
                       <small>
-                        {systemStatus.databaseMb.toFixed(2).replace(".", ",")} MB utilizados de {systemStatus.databaseLimitMb} MB configurados (plan Free)
+                        {systemStatus.capacity ? `${systemStatus.capacity.mb.toFixed(2).replace(".", ",")} MiB de base de datos / ${DATABASE_PLAN.includedGib} GiB de referencia incluidos en Pro.` : "No se ha recibido una medida válida de la base de datos."}
                       </small>
+                      <p className="muted">Estimación del tamaño de la base de datos, no del disco total ni de todas las cuotas. Plan configurado manualmente; consulta Supabase para el uso y la facturación oficiales.</p>
+                      <p className="muted">Pro incluye copias diarias con 7 días de retención. Esta pantalla no comprueba si la última copia se ha completado.</p>
+                      <a href="https://supabase.com/dashboard/project/dfnywetqnccykzjyihzq/database/backups/scheduled" target="_blank" rel="noopener noreferrer">Verificar copias en Supabase</a>
                     </div>
                   )}
                   {systemStatus?.connected && (
