@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
+import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist } from "./unit-checklist-config.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -233,6 +234,10 @@ function App() {
     [selectedZone, setSelectedZone] = useState(""),
     [selectedLot, setSelectedLot] = useState(""),
     [selectedShiftStart, setSelectedShiftStart] = useState(""),
+    [selectedService, setSelectedService] = useState(""),
+    [selectedChecklist, setSelectedChecklist] = useState(""),
+    [changeService, setChangeService] = useState(""),
+    [changeChecklist, setChangeChecklist] = useState(""),
     [changeShiftStart, setChangeShiftStart] = useState(""),
     [shiftPickerOpen, setShiftPickerOpen] = useState(false),
     [shiftPickerTarget, setShiftPickerTarget] = useState(""),
@@ -601,17 +606,22 @@ function App() {
     setZoneOpen(true);
   }
   function saveUnit() {
+    let config;
+    try {
+      config = validateUnitChecklist({service:selectedService, checklist:selectedChecklist, unit, lot:selectedLot, zone:selectedZone, shift:selectedShiftStart, supervisor:isSupervisorMaterial(unit)}, selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] : LOTS[selectedLot]?.[selectedZone]);
+    } catch (error) { return flash(error.message); }
     if (!unit) return flash("Selecciona una unidad");
     if (
-      !isSupervisorMaterial(unit) &&
+      selectedService !== 'TSNU' && !isSupervisorMaterial(unit) &&
       !/^(07|08|09):00$/.test(selectedShiftStart)
     )
       return flash("Selecciona la hora de inicio de guardia");
+    localStorage.setItem(UNIT_CHECKLIST_KEY, JSON.stringify(config));
     localStorage.setItem(KEY.unit, unit);
     localStorage.setItem(KEY.lot, selectedLot);
     localStorage.setItem(
       KEY.shift,
-      isSupervisorMaterial(unit) ? "" : selectedShiftStart,
+      config.shift,
     );
     localStorage.removeItem(DEVICE_AUTH_CACHE);
     setDeviceAuth({ checked: false, enforcement: true, authorized: false, unit: "", version: 0 });
@@ -715,6 +725,7 @@ function App() {
   }
   async function submit(noMaterial = false) {
     const currentUnit = localStorage.getItem(KEY.unit);
+    if (readUnitChecklist(localStorage, currentUnit, localStorage.getItem(KEY.lot)).service === 'TSNU') return flash('Las unidades TSNU solo realizan checklist');
     if (!currentUnit)
       return flash("Primero hay que asignar el móvil a una unidad");
     const guard = guardState(currentUnit, localStorage.getItem(KEY.shift));
@@ -1186,16 +1197,21 @@ function App() {
     }
     if (!changeZone) return flash("Selecciona una supervisión");
     if (!nextUnit) return flash("Selecciona una unidad");
+    let config;
+    try {
+      config = validateUnitChecklist({service:changeService, checklist:changeChecklist, unit:nextUnit, lot:changeLot, zone:changeZone, shift:changeShiftStart, supervisor:isSupervisorMaterial(nextUnit)}, changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] : LOTS[changeLot]?.[changeZone]);
+    } catch (error) { return flash(error.message); }
     if (
-      !isSupervisorMaterial(nextUnit) &&
+      changeService !== 'TSNU' && !isSupervisorMaterial(nextUnit) &&
       !/^(07|08|09):00$/.test(changeShiftStart)
     )
       return flash("Selecciona la hora de inicio de guardia");
+    localStorage.setItem(UNIT_CHECKLIST_KEY, JSON.stringify(config));
     localStorage.setItem(KEY.unit, nextUnit);
     localStorage.setItem(KEY.lot, changeLot);
     localStorage.setItem(
       KEY.shift,
-      isSupervisorMaterial(nextUnit) ? "" : changeShiftStart,
+      config.shift,
     );
     localStorage.removeItem(DEVICE_AUTH_CACHE);
     setDeviceAuth({ checked: false, enforcement: true, authorized: false, unit: "", version: 0 });
@@ -1221,6 +1237,7 @@ function App() {
       );
     }
     localStorage.removeItem(KEY.unit);
+    localStorage.removeItem(UNIT_CHECKLIST_KEY);
     localStorage.removeItem(KEY.lot);
     localStorage.removeItem(KEY.shift);
     localStorage.removeItem(DEVICE_AUTH_CACHE);
@@ -2618,6 +2635,7 @@ function App() {
     setExportOpen(false);
   }
   const currentUnit = localStorage.getItem(KEY.unit),
+    currentChecklistConfig = readUnitChecklist(localStorage, currentUnit, localStorage.getItem(KEY.lot)),
     currentGuard = guardState(currentUnit, localStorage.getItem(KEY.shift), new Date(guardTick)),
     currentGuardAlreadySubmitted = records.some(
       (record) => record.unit === currentUnit && record.id === currentGuard.code,
@@ -2689,9 +2707,9 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v131</span></h1>
+          <h1>Control de material <span className="app-version">v132</span></h1>
           <small>
-            {mode === "admin" ? "Administración" : "Registro de consumo"}
+            {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
           {mode === "worker" && currentUnit && (
             <>
@@ -2704,6 +2722,8 @@ function App() {
                   setChangeZone("");
                   setNextUnit("");
                   setChangeShiftStart("");
+                  setChangeService("");
+                  setChangeChecklist("");
                   setShiftPickerOpen(false);
                   setChangeUnitOpen(true);
                 }}
@@ -2712,7 +2732,7 @@ function App() {
               </button>
               <div className="unit-supervision">{lot}</div>
               <div className="unit-supervision">
-                Supervisión {unitZone(currentUnit)}
+                Supervisión {currentChecklistConfig.zone || unitZone(currentUnit)}
               </div>
             </>
           )}
@@ -2863,20 +2883,25 @@ function App() {
               </select>
               {changeZone && (
                 <>
+                  <label>Tipo de servicio</label>
+                  <select value={changeService} onChange={e=>{setChangeService(e.target.value);setChangeChecklist('');setNextUnit('');setChangeShiftStart('');}}>
+                    <option value="">Selecciona TSU o TSNU</option><option>TSU</option><option>TSNU</option>
+                  </select>
+                  {changeService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[changeLot]?.[changeZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                   <label>Nueva unidad</label>
                   <div className="unit-choice-list">
-                    {sortUnits(SUPERVISIONS[changeZone]).map((u) => (
+                    {sortUnits(changeService === 'TSU' ? LOTS[changeLot]?.[changeZone] || {} : changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] || {} : {}).map((u) => (
                       <button
                         key={u}
                         className={`${nextUnit === u ? "unit-choice selected" : "unit-choice"}${isSupervisorMaterial(u) ? " supervisor-choice" : ""}`}
                         onClick={() => {
                           setNextUnit(u);
                           setChangeShiftStart("");
+                          setChangeChecklist("");
                           if (isSupervisorMaterial(u)) {
                             setShiftPickerOpen(false);
                           } else {
-                            setShiftPickerTarget("change");
-                            setShiftPickerOpen(true);
+                            setShiftPickerOpen(false);
                           }
                         }}
                       >
@@ -2884,14 +2909,20 @@ function App() {
                         <span>
                           {isSupervisorMaterial(u)
                             ? "supervisor"
-                            : SUPERVISIONS[changeZone][u]}
+                            : (changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone]?.[u] : SUPERVISIONS[changeZone][u])}
                         </span>
                       </button>
                     ))}
                   </div>
                 </>
               )}
-              {nextUnit && (
+              {nextUnit && !isSupervisorMaterial(nextUnit) && changeService === 'TSU' && <>
+                <label>Checklist asignado</label>
+                <select value={changeChecklist} onChange={e=>{setChangeChecklist(e.target.value);if(e.target.value){setShiftPickerTarget('change');setShiftPickerOpen(true);}}}>
+                  <option value="">Selecciona checklist</option>{TSU_CHECKLISTS.map(v=><option key={v}>{v}</option>)}
+                </select>
+              </>}
+              {nextUnit && !isSupervisorMaterial(nextUnit) && changeService === 'TSU' && (
                 <p className="selected-zone">
                   Inicio de guardia: {changeShiftStart || "pendiente"}
                 </p>
@@ -3480,6 +3511,11 @@ function App() {
                 <p className="selected-zone">
                   {selectedLot} · Supervisión {selectedZone}
                 </p>
+                <label>Tipo de servicio</label>
+                <select value={selectedService} onChange={e=>{setSelectedService(e.target.value);setSelectedChecklist('');setUnit('');setSelectedShiftStart('');}}>
+                  <option value="">Selecciona TSU o TSNU</option><option>TSU</option><option>TSNU</option>
+                </select>
+                {selectedService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[selectedLot]?.[selectedZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                 <label>Unidad</label>
                 <select
                   value={unit}
@@ -3487,24 +3523,30 @@ function App() {
                     const next = e.target.value;
                     setUnit(next);
                     setSelectedShiftStart("");
+                    setSelectedChecklist("");
                     if (next && !isSupervisorMaterial(next)) {
-                      setShiftPickerTarget("initial");
-                      setShiftPickerOpen(true);
+                      setShiftPickerOpen(false);
                     } else {
                       setShiftPickerOpen(false);
                     }
                   }}
                 >
                   <option value="">Selecciona...</option>
-                  {sortUnits(LOTS[selectedLot][selectedZone]).map((u) => (
+                  {sortUnits(selectedService === 'TSU' ? LOTS[selectedLot][selectedZone] : selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] || {} : {}).map((u) => (
                     <option key={u} value={u}>
                       {isSupervisorMaterial(u)
                         ? SUPERVISIONS[selectedZone][u]
-                        : `${u} - ${SUPERVISIONS[selectedZone][u]}`}
+                        : `${u} - ${selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone]?.[u] : SUPERVISIONS[selectedZone][u]}`}
                     </option>
                   ))}
                 </select>
-                {unit && (
+                {unit && !isSupervisorMaterial(unit) && selectedService === 'TSU' && <>
+                  <label>Checklist asignado</label>
+                  <select value={selectedChecklist} onChange={e=>{setSelectedChecklist(e.target.value);if(e.target.value){setShiftPickerTarget('initial');setShiftPickerOpen(true);}}}>
+                    <option value="">Selecciona checklist</option>{TSU_CHECKLISTS.map(v=><option key={v}>{v}</option>)}
+                  </select>
+                </>}
+                {unit && !isSupervisorMaterial(unit) && selectedService === 'TSU' && (
                   <p className="selected-zone">
                     Inicio de guardia: {selectedShiftStart || "pendiente"}
                   </p>
@@ -3529,7 +3571,7 @@ function App() {
                 </button>
               </div>
             )}
-            {deviceAuth.checked && deviceAuth.enforcement && (
+            {currentChecklistConfig.service !== 'TSNU' && deviceAuth.checked && deviceAuth.enforcement && (
               <div className={`card device-auth-card ${deviceAuth.authorized ? "device-authorized" : "device-demo"}`}>
                 <div>
                   <strong>
@@ -3548,6 +3590,7 @@ function App() {
                 )}
               </div>
             )}
+            {currentChecklistConfig.service !== 'TSNU' && <>
             <div className="card">
               <div className="section-title">
                 <div>
@@ -3635,6 +3678,7 @@ function App() {
                   </button>
                 )}
             </div>
+            </>}
           </>
         )}
         {mode === "admin" && !adminOk && (
