@@ -2688,7 +2688,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v128</span></h1>
+          <h1>Control de material <span className="app-version">v129</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3149,8 +3149,12 @@ function App() {
         )}
         {systemStatusOpen && (
           <div className="modal-backdrop">
-            <div className="card export-modal system-status-modal">
-              <h2>Estado del sistema</h2>
+            <div className="card export-modal system-status-modal" role="dialog" aria-modal="true" aria-labelledby="system-status-title" onKeyDown={(event) => { if (event.key === "Escape") setSystemStatusOpen(false); }}>
+              <div className="system-status-header">
+                <h2 id="system-status-title">Estado del sistema</h2>
+                <button className="secondary" aria-label="Cerrar estado del sistema" autoFocus onClick={() => setSystemStatusOpen(false)}>×</button>
+              </div>
+              <div className="system-status-body">
               <p className="muted">
                 Comprobación de solo lectura. No modifica registros ni stock.
               </p>
@@ -3214,7 +3218,8 @@ function App() {
                   )}
                 </>
               )}
-              <div className="toolbar">
+              </div>
+              <div className="toolbar system-status-actions">
                 <button className="secondary" onClick={loadSystemStatus} disabled={systemStatusLoading}>
                   Actualizar
                 </button>
