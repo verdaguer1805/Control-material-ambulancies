@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
-import { canDemoChecklist } from "./checklist-demo.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -2690,7 +2689,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v130</span></h1>
+          <h1>Control de material <span className="app-version">v131</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3523,17 +3522,12 @@ function App() {
         )}
         {mode === "worker" && currentUnit && (
           <>
-            {!isSupervisorMaterial(currentUnit) && !canDemoChecklist(deviceAuth, currentUnit) && (
+            {!isSupervisorMaterial(currentUnit) && (
               <div className="card">
                 <button type="button" className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => flash("Próximamente")}>
                   Checklist
                 </button>
               </div>
-            )}
-            {canDemoChecklist(deviceAuth, currentUnit) && (
-              <React.Suspense fallback={null}>
-                <ChecklistDemo key={`${lot}:${currentUnit}`} unit={currentUnit} lot={lot} zone={unitZone(currentUnit)} warehouse={unitWarehouse(currentUnit)} shift={localStorage.getItem(KEY.shift)} />
-              </React.Suspense>
             )}
             {deviceAuth.checked && deviceAuth.enforcement && (
               <div className={`card device-auth-card ${deviceAuth.authorized ? "device-authorized" : "device-demo"}`}>
