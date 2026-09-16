@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
+import UnitSelector from "./UnitSelector.jsx";
 import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist } from "./unit-checklist-config.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
@@ -2707,7 +2708,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v132</span></h1>
+          <h1>Control de material <span className="app-version">v133</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -2889,31 +2890,7 @@ function App() {
                   </select>
                   {changeService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[changeLot]?.[changeZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                   <label>Nueva unidad</label>
-                  <div className="unit-choice-list">
-                    {sortUnits(changeService === 'TSU' ? LOTS[changeLot]?.[changeZone] || {} : changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] || {} : {}).map((u) => (
-                      <button
-                        key={u}
-                        className={`${nextUnit === u ? "unit-choice selected" : "unit-choice"}${isSupervisorMaterial(u) ? " supervisor-choice" : ""}`}
-                        onClick={() => {
-                          setNextUnit(u);
-                          setChangeShiftStart("");
-                          setChangeChecklist("");
-                          if (isSupervisorMaterial(u)) {
-                            setShiftPickerOpen(false);
-                          } else {
-                            setShiftPickerOpen(false);
-                          }
-                        }}
-                      >
-                        <b>{isSupervisorMaterial(u) ? "Material" : u}</b>
-                        <span>
-                          {isSupervisorMaterial(u)
-                            ? "supervisor"
-                            : (changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone]?.[u] : SUPERVISIONS[changeZone][u])}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <UnitSelector value={nextUnit} units={changeService === 'TSU' ? LOTS[changeLot]?.[changeZone] || {} : changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] || {} : {}} onChange={u=>{setNextUnit(u);setChangeShiftStart('');setChangeChecklist('');setShiftPickerOpen(false);}} />
                 </>
               )}
               {nextUnit && !isSupervisorMaterial(nextUnit) && changeService === 'TSU' && <>
@@ -3517,29 +3494,7 @@ function App() {
                 </select>
                 {selectedService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[selectedLot]?.[selectedZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                 <label>Unidad</label>
-                <select
-                  value={unit}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setUnit(next);
-                    setSelectedShiftStart("");
-                    setSelectedChecklist("");
-                    if (next && !isSupervisorMaterial(next)) {
-                      setShiftPickerOpen(false);
-                    } else {
-                      setShiftPickerOpen(false);
-                    }
-                  }}
-                >
-                  <option value="">Selecciona...</option>
-                  {sortUnits(selectedService === 'TSU' ? LOTS[selectedLot][selectedZone] : selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] || {} : {}).map((u) => (
-                    <option key={u} value={u}>
-                      {isSupervisorMaterial(u)
-                        ? SUPERVISIONS[selectedZone][u]
-                        : `${u} - ${selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone]?.[u] : SUPERVISIONS[selectedZone][u]}`}
-                    </option>
-                  ))}
-                </select>
+                <UnitSelector value={unit} units={selectedService === 'TSU' ? LOTS[selectedLot][selectedZone] : selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] || {} : {}} onChange={u=>{setUnit(u);setSelectedShiftStart('');setSelectedChecklist('');setShiftPickerOpen(false);}} />
                 {unit && !isSupervisorMaterial(unit) && selectedService === 'TSU' && <>
                   <label>Checklist asignado</label>
                   <select value={selectedChecklist} onChange={e=>{setSelectedChecklist(e.target.value);if(e.target.value){setShiftPickerTarget('initial');setShiftPickerOpen(true);}}}>
