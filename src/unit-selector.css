@@ -9,3 +9,10 @@
 .unit-picker-row strong{flex:0 0 auto;font-size:19px}.unit-picker-row span{overflow-wrap:anywhere}.unit-picker-row.is-selected{border-color:#d71920;background:#ffeded}
 .unit-picker-panel footer{border-top:1px solid #ddd}.unit-picker-panel footer button{width:100%;background:#e7f0f2;color:#16323a}
 @media(max-width:640px){.unit-modal{height:auto;max-height:calc(100dvh - 16px);display:block;overflow-y:auto;overscroll-behavior:contain}.unit-picker-row{min-height:62px}.unit-picker-panel{width:100%}}
+.unit-modal.assignment-modal{height:min(800px,calc(100vh - 16px));height:min(800px,calc(100dvh - 16px));display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.assignment-modal>h2{flex:none;margin:0 0 10px}
+.assignment-modal-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 4px 16px;scroll-padding-bottom:16px}
+.assignment-modal-body select,.assignment-modal-body input{font-size:16px;min-height:48px}
+.assignment-modal-footer{flex:0 0 auto;background:#fff;border-top:1px solid #dce5e8;padding-top:8px}
+.unit-modal.assignment-modal .toolbar{position:static;margin:0;padding:0;box-shadow:none}
+.assignment-modal-footer>button{min-height:44px}

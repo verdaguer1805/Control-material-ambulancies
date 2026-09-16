@@ -2708,7 +2708,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v133</span></h1>
+          <h1>Control de material <span className="app-version">v134</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -2828,8 +2828,9 @@ function App() {
         )}
         {changeUnitOpen && (
           <div className="modal-backdrop unit-backdrop">
-            <div className="card export-modal unit-modal">
+            <div className="card export-modal unit-modal assignment-modal">
               <h2>Cambiar unidad</h2>
+              <div className="assignment-modal-body">
               <p className="muted">
                 Introduce el PIN de administrador para reasignar este móvil.
               </p>
@@ -2904,6 +2905,8 @@ function App() {
                   Inicio de guardia: {changeShiftStart || "pendiente"}
                 </p>
               )}
+              </div>
+              <div className="assignment-modal-footer">
               <div className="toolbar">
                 <button
                   className="secondary"
@@ -2927,6 +2930,7 @@ function App() {
               >
                 Dejar móvil sin asignar
               </button>
+              </div>
             </div>
           </div>
         )}
