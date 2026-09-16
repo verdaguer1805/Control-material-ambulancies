@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --base=./",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:warehouses": "node --test tests/warehouse-scope.test.mjs tests/warehouse-expansion.test.mjs",
+    "prepare:warehouses": "node scripts/prepare-warehouse-expansion.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

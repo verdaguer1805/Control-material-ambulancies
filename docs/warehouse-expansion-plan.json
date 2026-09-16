@@ -1,0 +1,296 @@
+{
+  "materials": 145,
+  "deployments": [
+    {
+      "lot": "Lot 5 · Girona - Alt Maresme",
+      "zone": "Figueres",
+      "enabled": false,
+      "initializeRpc": null,
+      "safetyRpc": "set_expansion_safety_percentages",
+      "openingQuantity": 1000,
+      "safetyPercentage": 30,
+      "warehouses": [
+        {
+          "id": "lot5_figueres_central",
+          "name": "Figueres",
+          "kind": "central",
+          "unitCount": 5
+        },
+        {
+          "id": "lot5_figueres_cadaques",
+          "name": "Cadaqués",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_figueres_castello_d_empuries",
+          "name": "Castelló d'Empúries",
+          "kind": "subwarehouse",
+          "unitCount": 2
+        },
+        {
+          "id": "lot5_figueres_l_escala",
+          "name": "L'Escala",
+          "kind": "subwarehouse",
+          "unitCount": 2
+        },
+        {
+          "id": "lot5_figueres_la_bisbal_d_emporda",
+          "name": "La Bisbal d'Empordà",
+          "kind": "subwarehouse",
+          "unitCount": 2
+        },
+        {
+          "id": "lot5_figueres_la_jonquera",
+          "name": "La Jonquera",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_figueres_llanca",
+          "name": "Llançà",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_figueres_portbou",
+          "name": "Portbou",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_figueres_roses",
+          "name": "Roses",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_figueres_torroella_de_montgri_estartit",
+          "name": "Torroella de Montgrí/Estartit",
+          "kind": "subwarehouse",
+          "unitCount": 2
+        }
+      ],
+      "unitAssignments": {
+        "SL51": "lot5_figueres_central",
+        "G216": "lot5_figueres_castello_d_empuries",
+        "G206": "lot5_figueres_central",
+        "G460": "lot5_figueres_central",
+        "G461": "lot5_figueres_central",
+        "G462": "lot5_figueres_cadaques",
+        "G463": "lot5_figueres_portbou",
+        "G464": "lot5_figueres_l_escala",
+        "G465": "lot5_figueres_la_jonquera",
+        "G466": "lot5_figueres_castello_d_empuries",
+        "G467": "lot5_figueres_roses",
+        "G468": "lot5_figueres_llanca",
+        "G469": "lot5_figueres_l_escala",
+        "G433": "lot5_figueres_la_bisbal_d_emporda",
+        "G434": "lot5_figueres_torroella_de_montgri_estartit",
+        "G437": "lot5_figueres_torroella_de_montgri_estartit",
+        "G306": "lot5_figueres_central",
+        "G303": "lot5_figueres_la_bisbal_d_emporda",
+        "Material Supervisor · Figueres": "lot5_figueres_central"
+      }
+    },
+    {
+      "lot": "Lot 5 · Girona - Alt Maresme",
+      "zone": "Girona",
+      "enabled": false,
+      "initializeRpc": null,
+      "safetyRpc": "set_expansion_safety_percentages",
+      "openingQuantity": 1000,
+      "safetyPercentage": 30,
+      "warehouses": [
+        {
+          "id": "lot5_girona_central",
+          "name": "Girona",
+          "kind": "central",
+          "unitCount": 7
+        },
+        {
+          "id": "lot5_girona_angles",
+          "name": "Anglès",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_girona_cassa_de_la_selva",
+          "name": "Cassà de la Selva",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_girona_castell_d_aro",
+          "name": "Castell d'Aro",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_girona_llagostera",
+          "name": "Llagostera",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_girona_palafrugell",
+          "name": "Palafrugell",
+          "kind": "subwarehouse",
+          "unitCount": 2
+        },
+        {
+          "id": "lot5_girona_palamos",
+          "name": "Palamós",
+          "kind": "subwarehouse",
+          "unitCount": 3
+        },
+        {
+          "id": "lot5_girona_salt",
+          "name": "Salt",
+          "kind": "subwarehouse",
+          "unitCount": 3
+        },
+        {
+          "id": "lot5_girona_sant_feliu_de_guixols",
+          "name": "Sant Feliu de Guíxols",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_girona_sant_hilari_de_sacalm",
+          "name": "Sant Hilari de Sacalm",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_girona_santa_coloma_de_farners",
+          "name": "Santa Coloma de Farners",
+          "kind": "subwarehouse",
+          "unitCount": 2
+        }
+      ],
+      "unitAssignments": {
+        "SL50": "lot5_girona_central",
+        "G213": "lot5_girona_palamos",
+        "G202": "lot5_girona_llagostera",
+        "G211": "lot5_girona_salt",
+        "G210": "lot5_girona_central",
+        "G212": "lot5_girona_santa_coloma_de_farners",
+        "G431": "lot5_girona_palamos",
+        "G432": "lot5_girona_palafrugell",
+        "G435": "lot5_girona_sant_feliu_de_guixols",
+        "G436": "lot5_girona_castell_d_aro",
+        "G438": "lot5_girona_palafrugell",
+        "G439": "lot5_girona_palamos",
+        "G410": "lot5_girona_central",
+        "G411": "lot5_girona_central",
+        "G412": "lot5_girona_salt",
+        "G414": "lot5_girona_salt",
+        "G415": "lot5_girona_central",
+        "G425": "lot5_girona_cassa_de_la_selva",
+        "G420": "lot5_girona_sant_hilari_de_sacalm",
+        "G421": "lot5_girona_santa_coloma_de_farners",
+        "G423": "lot5_girona_angles",
+        "BP50": "lot5_girona_central",
+        "G300": "lot5_girona_central",
+        "Material Supervisor · Girona": "lot5_girona_central"
+      }
+    },
+    {
+      "lot": "Lot 5 · Girona - Alt Maresme",
+      "zone": "Blanes",
+      "enabled": false,
+      "initializeRpc": null,
+      "safetyRpc": "set_expansion_safety_percentages",
+      "openingQuantity": 1000,
+      "safetyPercentage": 30,
+      "warehouses": [
+        {
+          "id": "lot5_blanes_central",
+          "name": "Blanes",
+          "kind": "central",
+          "unitCount": 6
+        },
+        {
+          "id": "lot5_blanes_calella",
+          "name": "Calella",
+          "kind": "subwarehouse",
+          "unitCount": 3
+        },
+        {
+          "id": "lot5_blanes_canet_de_mar",
+          "name": "Canet de Mar",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_blanes_hostalric",
+          "name": "Hostalric",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_blanes_lloret_de_mar",
+          "name": "Lloret de Mar",
+          "kind": "subwarehouse",
+          "unitCount": 4
+        },
+        {
+          "id": "lot5_blanes_macanet_de_la_selva",
+          "name": "Maçanet de la Selva",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_blanes_malgrat_de_mar",
+          "name": "Malgrat de Mar",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_blanes_pineda_de_mar",
+          "name": "Pineda de Mar",
+          "kind": "subwarehouse",
+          "unitCount": 3
+        },
+        {
+          "id": "lot5_blanes_tordera",
+          "name": "Tordera",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        },
+        {
+          "id": "lot5_blanes_tossa_de_mar",
+          "name": "Tossa de Mar",
+          "kind": "subwarehouse",
+          "unitCount": 1
+        }
+      ],
+      "unitAssignments": {
+        "G204": "lot5_blanes_calella",
+        "G218": "lot5_blanes_lloret_de_mar",
+        "G217": "lot5_blanes_central",
+        "G440": "lot5_blanes_calella",
+        "G441": "lot5_blanes_canet_de_mar",
+        "G442": "lot5_blanes_malgrat_de_mar",
+        "G443": "lot5_blanes_pineda_de_mar",
+        "G444": "lot5_blanes_pineda_de_mar",
+        "G445": "lot5_blanes_pineda_de_mar",
+        "G446": "lot5_blanes_calella",
+        "G471": "lot5_blanes_tordera",
+        "G422": "lot5_blanes_hostalric",
+        "G424": "lot5_blanes_macanet_de_la_selva",
+        "G472": "lot5_blanes_central",
+        "G473": "lot5_blanes_central",
+        "G474": "lot5_blanes_lloret_de_mar",
+        "G475": "lot5_blanes_lloret_de_mar",
+        "G476": "lot5_blanes_tossa_de_mar",
+        "G477": "lot5_blanes_central",
+        "G478": "lot5_blanes_lloret_de_mar",
+        "BP51": "lot5_blanes_central",
+        "G307": "lot5_blanes_central",
+        "Material Supervisor · Blanes": "lot5_blanes_central"
+      }
+    }
+  ]
+}

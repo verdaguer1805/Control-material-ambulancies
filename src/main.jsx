@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
+import { DEFAULT_STOCK_LOT, DEFAULT_STOCK_ZONE, getWarehouseScope, canAccessWarehouseScope } from "./warehouse-config.mjs";
 const FALCK_PDF_LOGO =
   "data:image/png;base64,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";
 import {
@@ -50,40 +51,11 @@ const MATERIAL_LABELS = {
   "Tiras reactivas": "Tiras reactivas (botes)",
 };
 const materialLabel = (material) => MATERIAL_LABELS[material] || material;
-const STOCK_DEMO_KEY = "cma_stock_demo_olot_v4";
 const SUPABASE_DATABASE_LIMIT_MB = 500;
-const STOCK_DEMO_CENTRAL = "Almacén central Olot";
-const STOCK_DEMO_LOCATIONS = [
-  STOCK_DEMO_CENTRAL,
-  "Subalmacén Banyoles",
-  "Subalmacén Campdevànol",
-  "Subalmacén Camprodon",
-  "Subalmacén Sant Joan de les Abadesses",
-];
-const STOCK_REMOTE_IDS = {
-  [STOCK_DEMO_CENTRAL]: "lot5_olot_central",
-  "Subalmacén Banyoles": "lot5_olot_banyoles",
-  "Subalmacén Campdevànol": "lot5_olot_campdevanol",
-  "Subalmacén Camprodon": "lot5_olot_camprodon",
-  "Subalmacén Sant Joan de les Abadesses": "lot5_olot_sant_joan",
-};
 // El stock utiliza la lista completa que puede registrar Material supervisor.
-// Así la demostración reproduce el flujo real sin tocar Supabase.
 const STOCK_DEMO_MATERIALS = [...MATERIALS].sort((a, b) =>
   materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true }),
 );
-const STOCK_DEMO_UNITS = {
-  G205: STOCK_DEMO_CENTRAL,
-  G450: STOCK_DEMO_CENTRAL,
-  G451: STOCK_DEMO_CENTRAL,
-  BP52: STOCK_DEMO_CENTRAL,
-  G413: "Subalmacén Banyoles",
-  G215: "Subalmacén Campdevànol",
-  G452: "Subalmacén Campdevànol",
-  G453: "Subalmacén Camprodon",
-  G305: "Subalmacén Sant Joan de les Abadesses",
-  "Material supervisor Olot": STOCK_DEMO_CENTRAL,
-};
 const stockLevel = (values = {}, defaultQuantity = 0) =>
   Object.fromEntries(
     STOCK_DEMO_MATERIALS.map((material) => [
@@ -91,35 +63,6 @@ const stockLevel = (values = {}, defaultQuantity = 0) =>
       values[material] ?? defaultQuantity,
     ]),
   );
-const createStockDemo = () => ({
-  levels: {
-    [STOCK_DEMO_CENTRAL]: stockLevel({}, 200),
-    "Subalmacén Banyoles": stockLevel({}, 25),
-    "Subalmacén Campdevànol": stockLevel({}, 25),
-    "Subalmacén Camprodon": stockLevel({}, 25),
-    "Subalmacén Sant Joan de les Abadesses": stockLevel({}, 25),
-  },
-  movements: [
-    {
-      at: "Datos ficticios",
-      type: "Inventario inicial",
-      detail: "Piloto de Supervisión Olot",
-    },
-  ],
-});
-const getStockDemo = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STOCK_DEMO_KEY));
-    if (!saved?.levels) return createStockDemo();
-    // Amplía automáticamente los datos ficticios ya guardados con artículos nuevos.
-    STOCK_DEMO_LOCATIONS.forEach((location) => {
-      saved.levels[location] = stockLevel(saved.levels[location]);
-    });
-    return saved;
-  } catch {
-    return createStockDemo();
-  }
-};
 const nowParts = () => {
   const d = new Date(),
     p = (n) => String(n).padStart(2, "0");
@@ -294,15 +237,14 @@ function App() {
     [shiftPickerTarget, setShiftPickerTarget] = useState(""),
     [editingRecord, setEditingRecord] = useState(null),
     [stockDemoOpen, setStockDemoOpen] = useState(false),
-    [stockDemo, setStockDemo] = useState(getStockDemo),
+    [stockDemo, setStockDemo] = useState(() => ({ levels: {}, movements: [] })),
     [stockRemoteLoading, setStockRemoteLoading] = useState(false),
     [stockRemoteLoaded, setStockRemoteLoaded] = useState(false),
-    [stockDemoLot, setStockDemoLot] = useState(() => Object.keys(LOTS)[0]),
-    [stockDemoZone, setStockDemoZone] = useState("Olot"),
+    [stockDemoLot, setStockDemoLot] = useState(DEFAULT_STOCK_LOT),
+    [stockDemoZone, setStockDemoZone] = useState(DEFAULT_STOCK_ZONE),
     [stockDemoLocation, setStockDemoLocation] = useState(""),
     [stockInventorySearch, setStockInventorySearch] = useState(""),
-    [stockDemoTarget, setStockDemoTarget] = useState("Subalmacén Camprodon"),
-    [stockDemoUnit, setStockDemoUnit] = useState("G453"),
+    [stockDemoTarget, setStockDemoTarget] = useState(""),
     [stockPickerOpen, setStockPickerOpen] = useState(""),
     [stockPickerSearch, setStockPickerSearch] = useState(""),
     [stockPickerQuantities, setStockPickerQuantities] = useState({}),
@@ -330,6 +272,32 @@ function App() {
     [stockHistoryTo, setStockHistoryTo] = useState(""),
     [stockHistoryDestination, setStockHistoryDestination] = useState(""),
     [guardTick, setGuardTick] = useState(Date.now());
+  const stockScope = useMemo(() => getWarehouseScope(stockDemoLot, stockDemoZone), [stockDemoLot, stockDemoZone]);
+  const stockScopeAllowed = adminOk && canAccessWarehouseScope(adminAccess, stockScope);
+  // Compatibility aliases keep the existing shared layouts unchanged.
+  const STOCK_DEMO_CENTRAL = stockScope?.centralLabel || "";
+  const STOCK_DEMO_LOCATIONS = stockScope?.locations || [];
+  const STOCK_REMOTE_IDS = stockScope?.remoteIds || {};
+  React.useEffect(() => {
+    ++stockLoadSequence.current;
+    setStockRemoteLoaded(false);
+    setStockRemoteLoading(false);
+    setStockDemo({ levels: {}, movements: [] });
+    setStockDemoLocation("");
+    setStockDemoTarget(Object.entries(stockScope?.remoteIds || {}).find(([, id]) => id === stockScope.defaultTransferWarehouseId)?.[0] || stockScope?.locations[1] || "");
+    setStockInventoryEditOpen(false);
+    setStockInventoryTarget(null);
+    setStockInventoryDrafts({});
+    setStockInventoryOriginals({});
+    setStockMinimumOpen(false);
+    setStockPickerOpen("");
+    setStockPickerQuantities({});
+    setStockReplenishmentOpen(false);
+    setStockHistoryOpen(false);
+    setStockHistoryDestination("");
+    if (stockDemoOpen && stockScopeAllowed) loadRemoteStock();
+    return () => { ++stockLoadSequence.current; };
+  }, [stockScope, stockScopeAllowed, stockDemoOpen]);
   React.useEffect(() => {
     const h = () => {
       const next = currentMode();
@@ -1272,21 +1240,17 @@ function App() {
     setChangeUnitOpen(false);
     flash("Móvil sin asignar. Ya puedes configurarlo de nuevo");
   }
-  function saveStockDemo(next) {
-    localStorage.setItem(STOCK_DEMO_KEY, JSON.stringify(next));
-    setStockDemo(next);
-  }
   async function loadRemoteStock() {
+    if (!stockScopeAllowed) return;
     const request = ++stockLoadSequence.current;
     setStockRemoteLoaded(false);
     setStockRemoteLoading(true);
     try {
       await ensureAnonymousSession();
-      const { error: initError } = await supabase.rpc(
-        "initialize_olot_inventory",
-        { p_materials: MATERIALS },
-      );
-      if (initError) throw initError;
+      if (stockScope.initializeRpc) {
+        const { error: initError } = await supabase.rpc(stockScope.initializeRpc, { p_materials: MATERIALS });
+        if (initError) throw initError;
+      }
       const inventoryResults = await Promise.all(
         Object.values(STOCK_REMOTE_IDS).map((warehouseId) =>
           supabase
@@ -1346,15 +1310,8 @@ function App() {
       if (request === stockLoadSequence.current) setStockRemoteLoading(false);
     }
   }
-  function addDemoMovement(next, type, detail) {
-    next.movements.unshift({
-      at: new Date().toLocaleString("es-ES"),
-      type,
-      detail,
-    });
-    next.movements = next.movements.slice(0, 20);
-  }
   function openStockPicker(type) {
+    if (!stockScopeAllowed || !stockRemoteLoaded || stockRemoteLoading) return;
     setStockPickerSearch("");
     setStockPickerQuantities({});
     setStockPickerOpen(type);
@@ -1366,6 +1323,10 @@ function App() {
     }));
   }
   async function applyStockPicker() {
+    if (!stockScopeAllowed || !stockRemoteLoaded || stockRemoteLoading) return;
+    if (stockPickerOpen === "transfer" && !STOCK_DEMO_LOCATIONS.slice(1).includes(stockDemoTarget)) {
+      return flash("Selecciona un subalmacén de esta zona");
+    }
     const selected = Object.entries(stockPickerQuantities).filter(
       ([, quantity]) => Number(quantity) > 0,
     );
@@ -1381,7 +1342,7 @@ function App() {
           p_items: items,
         });
         if (error) throw error;
-        flash("Entrada registrada en el almacén central de Olot");
+        flash(`Entrada registrada en ${STOCK_DEMO_CENTRAL}`);
       } else if (stockPickerOpen === "transfer") {
         const transferChecks = Object.entries(items).map(([material, quantity]) => {
           const current = Number(stockDemo.levels[STOCK_DEMO_CENTRAL]?.[material] || 0);
@@ -1450,13 +1411,16 @@ function App() {
     }
   }
   async function exportStockHistoryExcel() {
-    if (stockHistoryLoading) return;
+    if (stockHistoryLoading || !stockScopeAllowed) return;
     setStockHistoryMessage("");
     if (!stockHistoryFrom || !stockHistoryTo) {
       return setStockHistoryMessage("Selecciona la fecha inicial y la fecha final");
     }
     if (stockHistoryFrom > stockHistoryTo) {
       return setStockHistoryMessage("El periodo seleccionado no es correcto");
+    }
+    if (stockHistoryDestination && !stockScope.warehouseIds.includes(stockHistoryDestination)) {
+      return setStockHistoryMessage("Selecciona un destino de esta zona");
     }
     setStockHistoryLoading(true);
     const locationName = (id) => Object.keys(STOCK_REMOTE_IDS).find((name) => STOCK_REMOTE_IDS[name] === id) || id;
@@ -1470,6 +1434,7 @@ function App() {
           .from("stock_movements")
           .select("id,warehouse_id,material,delta,movement_type,created_at,operation_id,performed_role,performed_zone")
           .in("movement_type", ["central_receipt", "transfer_in"])
+          .in("warehouse_id", stockScope.warehouseIds)
           .gte("created_at", `${stockHistoryFrom}T00:00:00.000Z`)
           .lte("created_at", `${stockHistoryTo}T23:59:59.999Z`)
           .order("created_at", { ascending: false })
@@ -1638,6 +1603,7 @@ function App() {
     }
   }
   function openStockMinimumEditor() {
+    if (!stockScopeAllowed || !stockRemoteLoaded || stockRemoteLoading || !STOCK_REMOTE_IDS[stockDemoLocation]) return;
     const editingSafety = stockDemoLocation === STOCK_DEMO_CENTRAL;
     const values = Object.fromEntries(
       STOCK_DEMO_MATERIALS.map((material) => [
@@ -1653,6 +1619,7 @@ function App() {
     setStockMinimumOpen(true);
   }
   async function saveStockMinimums() {
+    if (!stockScopeAllowed || !STOCK_REMOTE_IDS[stockDemoLocation]) return;
     const editingSafety = stockDemoLocation === STOCK_DEMO_CENTRAL;
     const invalid = Object.values(stockMinimumDrafts).some((value) => {
       const quantity = Number(value);
@@ -1672,7 +1639,7 @@ function App() {
     }
     try {
       await ensureAnonymousSession();
-      const { error } = await supabase.rpc(editingSafety ? "set_inventory_safety_percentages" : "set_inventory_minimums", {
+      const { error } = await supabase.rpc(editingSafety ? stockScope.safetyRpc : "set_inventory_minimums", {
         p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
         p_items: changes,
       });
@@ -1689,6 +1656,7 @@ function App() {
     }
   }
   async function exportStockInventory() {
+    if (!stockScopeAllowed) return;
     try {
       setStockRemoteLoading(true);
       await ensureAnonymousSession();
@@ -1774,6 +1742,7 @@ function App() {
     }
   }
   async function exportStockReplenishmentExcel() {
+    if (!stockScopeAllowed || !stockRemoteLoaded || stockRemoteLoading) return;
     const XLSX = await import("xlsx-js-style");
     const { fitWorkbookToLandscapeA4 } = await import("./excel-print.js");
     const workbook = XLSX.utils.book_new();
@@ -1833,6 +1802,7 @@ function App() {
     flash("Lista de reposición exportada en Excel");
   }
   function exportStockReplenishmentPdf() {
+    if (!stockScopeAllowed || !stockRemoteLoaded || stockRemoteLoading) return;
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     let page = 0;
     const addHeader = (location) => {
@@ -1887,12 +1857,6 @@ function App() {
     });
     doc.save(`lista_reposicion_${new Date().toISOString().slice(0, 10)}.pdf`);
     flash("Lista de reposición exportada en PDF");
-  }
-  function resetStockDemo() {
-    if (!confirm("¿Restablecer los datos ficticios del piloto de Olot?")) return;
-    const next = createStockDemo();
-    saveStockDemo(next);
-    flash("Demostración restablecida");
   }
   async function exportExcel(source = adminRecords, submissions = []) {
     if (!exportZone) return flash("Selecciona una supervisión");
@@ -2670,10 +2634,9 @@ function App() {
     adminZones = Object.keys(SUPERVISIONS)
       .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
       .sort((a, b) => a.localeCompare(b)),
-    stockDemoReady =
-      stockDemoLot === Object.keys(LOTS)[0] && stockDemoZone === "Olot" &&
-      (adminCanAccessAllZones || adminAccess?.zone === stockDemoZone),
+    stockDemoReady = stockScopeAllowed,
     stockReplenishmentGroups = (() => {
+      if (!stockScopeAllowed || !stockRemoteLoaded) return [];
       const subwarehouseGroups = STOCK_DEMO_LOCATIONS.slice(1).map((location) => ({
         location,
         items: STOCK_DEMO_MATERIALS.map((material) => {
@@ -2730,7 +2693,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v126</span></h1>
+          <h1>Control de material <span className="app-version">v127</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -3734,7 +3697,6 @@ function App() {
                     setStockDemoOpen(opening);
                     if (opening) {
                       setStockDemoLocation("");
-                      loadRemoteStock();
                     }
                   }}
                 >
@@ -3773,6 +3735,7 @@ function App() {
                     <label>Lote</label>
                     <select
                       value={stockDemoLot}
+                      disabled={stockInventorySaving || stockInventoryEditOpen || stockMinimumOpen || !!stockPickerOpen || stockHistoryLoading || stockRemoteLoading}
                       onChange={(e) => {
                         setStockDemoLot(e.target.value);
                         setStockDemoZone("");
@@ -3788,7 +3751,7 @@ function App() {
                     <select
                       value={stockDemoZone}
                       onChange={(e) => setStockDemoZone(e.target.value)}
-                      disabled={!Object.keys(LOTS[stockDemoLot] || {}).length}
+                      disabled={!Object.keys(LOTS[stockDemoLot] || {}).length || stockInventorySaving || stockInventoryEditOpen || stockMinimumOpen || !!stockPickerOpen || stockHistoryLoading || stockRemoteLoading}
                     >
                       <option value="">Selecciona...</option>
                       {Object.keys(LOTS[stockDemoLot] || {})
@@ -3805,18 +3768,18 @@ function App() {
                 <div className="stock-demo-cards">
                   <div>
                     <small>Almacén central</small>
-                    <strong>Olot</strong>
+                    <strong>{stockScope.central.name}</strong>
                     <span>{STOCK_DEMO_MATERIALS.length} artículos disponibles</span>
                   </div>
                   <div>
                     <small>Subalmacenes</small>
-                    <strong>4</strong>
-                    <span>Banyoles, Camprodon, Campdevànol y Sant Joan</span>
+                    <strong>{stockScope.warehouses.filter((warehouse) => warehouse.kind === "subwarehouse").length}</strong>
+                    <span>{stockScope.warehouses.filter((warehouse) => warehouse.kind === "subwarehouse").map((warehouse) => warehouse.name).join(", ")}</span>
                   </div>
                   <div>
                     <small>Unidades vinculadas</small>
-                    <strong>9</strong>
-                    <span>Olot directo al central y resto por subalmacén</span>
+                    <strong>{Object.keys(stockScope.unitAssignments).filter((unit) => !unit.startsWith("Material Supervisor") && !unit.startsWith("SUPERVISOR_")).length}</strong>
+                    <span>Unidades asignadas al central o a su subalmacén</span>
                   </div>
                 </div>
                 <div className="stock-demo-actions">
@@ -3824,7 +3787,7 @@ function App() {
                     <h3>1. Recibir pedido</h3>
                     <p className="muted small">
                       Selecciona todos los artículos y cantidades que han llegado
-                      al almacén central de Olot.
+                      al almacén central de {stockScope.central.name}.
                     </p>
                     <button className="primary full" onClick={() => openStockPicker("entry")}>
                       Seleccionar material recibido
@@ -3876,7 +3839,7 @@ function App() {
                         </button>
                       )}
                       {adminCanManageMinimums && stockDemoLocation && (
-                        <button className="stock-minimum-button" onClick={openStockMinimumEditor}>
+                        <button className="stock-minimum-button" onClick={openStockMinimumEditor} disabled={stockRemoteLoading || !stockRemoteLoaded}>
                           Editar mínimos
                         </button>
                       )}
@@ -4163,17 +4126,14 @@ function App() {
                       </div>
                     </div>
                 )}
-                <button className="danger" style={{ display: "none" }} onClick={resetStockDemo}>
-                  Restablecer datos ficticios
-                </button>
                   </>
                 ) : (
                   <div className="stock-demo-coming">
                     <h3>Zona preparada para la siguiente fase</h3>
                     <p>
                       El selector ya permite trabajar por lote y supervisión. El
-                      piloto funcional con subalmacenes y cantidades ficticias está
-                      configurado actualmente para Supervisión Olot.
+                      circuito de esta zona todavía no está activado. No se
+                      mostrarán ni modificarán los almacenes de otra zona.
                     </p>
                     <p className="muted">
                       Cuando definamos los subalmacenes de esta zona, tendrá la misma
