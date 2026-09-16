@@ -1468,11 +1468,12 @@ function App() {
       while (true) {
         let query = supabase
           .from("stock_movements")
-          .select("id,warehouse_id,material,delta,created_at,operation_id,performed_role,performed_zone")
-          .eq("movement_type", "transfer_in")
+          .select("id,warehouse_id,material,delta,movement_type,created_at,operation_id,performed_role,performed_zone")
+          .in("movement_type", ["central_receipt", "transfer_in"])
           .gte("created_at", `${stockHistoryFrom}T00:00:00.000Z`)
           .lte("created_at", `${stockHistoryTo}T23:59:59.999Z`)
           .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
           .range(offset, offset + pageSize - 1);
         if (stockHistoryDestination) query = query.eq("warehouse_id", stockHistoryDestination);
         const { data, error } = await query;
@@ -1500,7 +1501,8 @@ function App() {
         "N.º operación": operationNumbers.get(key),
         Fecha: date.toLocaleDateString("es-ES"),
         Hora: date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
-        Origen: STOCK_DEMO_CENTRAL,
+        "Tipo de movimiento": row.movement_type === "central_receipt" ? "Entrada al almacén central" : "Traslado a subalmacén",
+        Origen: row.movement_type === "central_receipt" ? "Entrada externa" : STOCK_DEMO_CENTRAL,
         Destino: locationName(row.warehouse_id),
         "Realizado por": row.performed_role === "owner"
           ? "Propietario"
@@ -1508,7 +1510,7 @@ function App() {
             ? "Logística"
             : row.performed_role === "supervisor"
               ? `Supervisión ${row.performed_zone || ""}`
-              : "Registro anterior",
+              : "No registrado",
         Material: materialLabel(row.material),
         Cantidad: Math.abs(Number(row.delta || 0)),
       };
@@ -1516,7 +1518,7 @@ function App() {
     const XLSX = await import("xlsx-js-style");
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.json_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 14 }, { wch: 13 }, { wch: 9 }, { wch: 24 }, { wch: 35 }, { wch: 22 }, { wch: 46 }, { wch: 12 }];
+    sheet["!cols"] = [{ wch: 14 }, { wch: 13 }, { wch: 9 }, { wch: 30 }, { wch: 24 }, { wch: 35 }, { wch: 22 }, { wch: 46 }, { wch: 12 }];
     const range = XLSX.utils.decode_range(sheet["!ref"]);
     for (let column = range.s.c; column <= range.e.c; column += 1) {
       const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
@@ -2728,7 +2730,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v125</span></h1>
+          <h1>Control de material <span className="app-version">v126</span></h1>
           <small>
             {mode === "admin" ? "Administración" : "Registro de consumo"}
           </small>
@@ -4146,11 +4148,11 @@ function App() {
                             {stockHistoryMessage}
                           </p>
                         )}
-                        <p className="muted">Selecciona el periodo y el destino. Los movimientos se consultarán únicamente al descargar el Excel.</p>
+                        <p className="muted">Incluye entradas al almacén central y traslados a subalmacenes. Selecciona el periodo y el destino. Los movimientos se consultarán únicamente al descargar el Excel.</p>
                         <div className="stock-history-filters">
                           <label>Desde<input type="date" value={stockHistoryFrom} onChange={(e) => setStockHistoryFrom(e.target.value)} /></label>
                           <label>Hasta<input type="date" value={stockHistoryTo} onChange={(e) => setStockHistoryTo(e.target.value)} /></label>
-                          <label>Destino<select value={stockHistoryDestination} onChange={(e) => setStockHistoryDestination(e.target.value)}><option value="">Todos</option>{STOCK_DEMO_LOCATIONS.slice(1).map((location) => <option key={location} value={STOCK_REMOTE_IDS[location]}>{location}</option>)}</select></label>
+                          <label>Destino<select value={stockHistoryDestination} onChange={(e) => setStockHistoryDestination(e.target.value)}><option value="">Todos</option>{STOCK_DEMO_LOCATIONS.map((location) => <option key={location} value={STOCK_REMOTE_IDS[location]}>{location}</option>)}</select></label>
                         </div>
                         <div className="toolbar stock-minimum-toolbar">
                           <button className="secondary" onClick={() => setStockHistoryOpen(false)}>Cerrar</button>
