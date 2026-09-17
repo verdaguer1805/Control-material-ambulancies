@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
+import { GUARD_HANDOFF_KEY, restoreGuardRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
 import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone } from "./unit-checklist-config.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
@@ -221,6 +222,7 @@ function App() {
     [status, setStatus] = useState("draft"),
     sentScrollRef = React.useRef(null),
     loadedGuardRef = React.useRef(""),
+    consumptionOperationRef = React.useRef(false),
     stockLoadSequence = React.useRef(0),
     [syncing, setSyncing] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
@@ -451,17 +453,20 @@ function App() {
   async function activateThisDevice() {
     const currentUnit = localStorage.getItem(KEY.unit);
     if (!currentUnit) return flash("Primero asigna una unidad a este móvil");
+    if (getRecords().some(record => !record.synced)) return flash(recoveryErrorMessage('LOCAL_PENDING_REQUIRES_REVIEW'),5000);
     if (!/^\d{8,12}$/.test(deviceActivationCode))
       return flash("El código de activación debe tener entre 8 y 12 cifras");
     setDeviceAuthLoading(true);
     try {
       await ensureAnonymousSession();
+      localStorage.setItem(GUARD_HANDOFF_KEY, JSON.stringify({unit:currentUnit,lot:localStorage.getItem(KEY.lot) || lot}));
       const { data, error } = await supabase.rpc("activate_device", {
         p_activation_code: deviceActivationCode,
         p_unit: displayUnit(currentUnit),
         p_lot: localStorage.getItem(KEY.lot) || lot,
       });
       if (error) throw error;
+      await prepareDeviceGuard(currentUnit);
       const next = {
         checked: true,
         enforcement: Boolean(data?.enforcement_enabled),
@@ -471,10 +476,7 @@ function App() {
       };
       setDeviceAuth(next);
       localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
-      // No arrosseguem enviaments de prova o pendents d'una autorització antiga.
-      const cleanRecords = getRecords().filter((record) => record.synced);
-      saveRecords(cleanRecords);
-      setRecords(cleanRecords);
+      // Los registros previos se conservan; nunca borramos consumos pendientes.
       setDeviceActivationCode("");
       setDeviceActivationOpen(false);
       flash("Dispositivo autorizado correctamente");
@@ -483,11 +485,25 @@ function App() {
       flash(
         reason.includes("LOCKED")
           ? "Demasiados intentos. Espera 15 minutos"
-          : "Código de activación incorrecto",
+          : /INVALID_DEVICE_ACTIVATION_CODE/.test(reason) ? "Código de activación incorrecto" : recoveryErrorMessage(error),
+        5000,
       );
     } finally {
       setDeviceAuthLoading(false);
     }
+  }
+  async function prepareDeviceGuard(targetUnit) {
+    const targetLot=localStorage.getItem(KEY.lot) || lot;
+    if(readUnitChecklist(localStorage,targetUnit,targetLot).service==='TSNU') {localStorage.removeItem(GUARD_HANDOFF_KEY);return;}
+    const guard=guardState(targetUnit,localStorage.getItem(KEY.shift));
+    if(!guard.active) {localStorage.removeItem(GUARD_HANDOFF_KEY);return;}
+    if(getRecords().some(r=>r.unit===targetUnit && r.id===guard.code && !r.synced)) throw new Error('LOCAL_PENDING_REQUIRES_REVIEW');
+    await ensureAnonymousSession();
+    const {data,error}=await supabase.rpc('recover_guard_consumption',{p_unit:displayUnit(targetUnit),p_lot:targetLot,p_guard_code:guard.code,p_occurred_at:guard.start.toISOString()});
+    if(error) throw error;
+    const updated=restoreGuardRecord(getRecords(),data,{unit:targetUnit,serverUnit:displayUnit(targetUnit),lot:targetLot,code:guard.code,start:guard.start.toISOString(),date:guard.date,time:isSupervisorMaterial(targetUnit)?'07:00':localStorage.getItem(KEY.shift),warehouse:unitWarehouse(targetUnit)});
+    saveRecords(updated);setRecords(updated);
+    localStorage.removeItem(GUARD_HANDOFF_KEY);
   }
   const editDeadline = (record) => {
     const start = localStorage.getItem(KEY.shift);
@@ -729,10 +745,16 @@ function App() {
     document.activeElement?.blur();
   }
   async function submit(noMaterial = false) {
+    if(consumptionOperationRef.current) return flash('Espera: se está preparando o enviando el consumo');
+    consumptionOperationRef.current=true;
+    try {
     const currentUnit = localStorage.getItem(KEY.unit);
     if (readUnitChecklist(localStorage, currentUnit, localStorage.getItem(KEY.lot)).service === 'TSNU') return flash('Las unidades TSNU solo realizan checklist');
     if (!currentUnit)
       return flash("Primero hay que asignar el móvil a una unidad");
+    if(localStorage.getItem(GUARD_HANDOFF_KEY)) {
+      try {await prepareDeviceGuard(currentUnit);} catch(error) {return flash(recoveryErrorMessage(error),5000);}
+    }
     const guard = guardState(currentUnit, localStorage.getItem(KEY.shift));
     if (!guard.active) return flash(guard.reason || "No hay una guardia activa");
     const id = guard.code;
@@ -757,6 +779,7 @@ function App() {
       entry = { createdAt: savedAt, materials: used };
     if (rec) {
       rec.entries = [...(rec.entries || []), entry];
+      rec.recoveredBaseline = false;
       rec.updatedAt = savedAt;
       rec.synced = false;
       rec.pendingUpdate = true;
@@ -788,15 +811,8 @@ function App() {
     }
     try {
       await ensureAnonymousSession();
-      const { error } = await supabase.rpc("save_guard_consumption", {
-        p_incident_code: id,
-        p_unit: displayUnit(currentUnit),
-        p_warehouse: unitWarehouse(currentUnit),
-        p_occurred_at: guard.start.toISOString(),
-        // Supabase conserva un unico registro agregado por unidad y guardia.
-        // La funcion calcula la diferencia y descuenta solo esta retirada.
-        p_materials: aggregate(rec),
-      });
+      const request=guardSaveRequest(rec,displayUnit(currentUnit),unitWarehouse(currentUnit));
+      const { error } = await supabase.rpc(request.name,request.args);
       if (error) throw error;
       rec.synced = true;
       rec.pendingUpdate = false;
@@ -806,29 +822,30 @@ function App() {
       setStatus("sent");
     } catch (error) {
       if (String(error?.message || "").includes("DEVICE_NOT_AUTHORIZED")) {
-        rec.entries = (rec.entries || []).filter((item) => item.createdAt !== savedAt);
-        if (!rec.entries.length) list = list.filter((item) => item !== rec);
-        else rec.synced = true;
+        rec.synced = false;
         saveRecords(list);
         setRecords([...list]);
         localStorage.removeItem(DEVICE_AUTH_CACHE);
         setDeviceAuth({ checked: true, enforcement: true, authorized: false, unit: "", version: 0 });
-        setStatus("demo");
-        setTimeout(() => setStatus("draft"), 2000);
+        setStatus("queued");
+        flash(recoveryErrorMessage(error),5000);
         return;
       }
       rec.synced = false;
       saveRecords(list);
       setRecords([...list]);
       setStatus("queued");
-      flash("Sin cobertura: consumo guardado en el móvil");
+      flash(/RECOVERY|STALE_GUARD|MULTIPLE_ACTIVE|GUARD_START|CLIENT_UPGRADE/.test(String(error?.message || '')) ? recoveryErrorMessage(error) : "No se ha podido enviar: consumo guardado en el móvil",5000);
     }
+    } finally { consumptionOperationRef.current=false; }
   }
   async function syncPending() {
-    if (syncing) return;
+    if (syncing || consumptionOperationRef.current) return;
+    if(localStorage.getItem(GUARD_HANDOFF_KEY)) return flash('Primero hay que recuperar la guardia antes de sincronizar. Contacta con supervisión.',5000);
     let list = getRecords(),
       todo = list.filter((r) => !r.synced);
     if (!todo.length) return flash("No hay registros pendientes");
+    consumptionOperationRef.current=true;
     setSyncing(true);
     try {
       await ensureAnonymousSession();
@@ -838,13 +855,8 @@ function App() {
           conflict = conflict || rec;
           continue;
         }
-        const { error } = await supabase.rpc("save_guard_consumption", {
-          p_incident_code: rec.id,
-          p_unit: displayUnit(rec.unit),
-          p_warehouse: rec.warehouse || unitWarehouse(rec.unit),
-          p_occurred_at: new Date(`${rec.date}T${rec.time || "00:00"}`).toISOString(),
-          p_materials: aggregate(rec),
-        });
+        const request=guardSaveRequest(rec,displayUnit(rec.unit),rec.warehouse || unitWarehouse(rec.unit));
+        const { error } = await supabase.rpc(request.name,request.args);
         if (error) throw error;
         rec.pendingUpdate = false;
         rec.synced = true;
@@ -860,8 +872,9 @@ function App() {
     } catch (error) {
       saveRecords(list);
       setRecords([...list]);
-      flash("No se han podido sincronizar: comprueba la cobertura");
+      flash(/RECOVERY|STALE_GUARD|MULTIPLE_ACTIVE|GUARD_START|CLIENT_UPGRADE|DEVICE_NOT_AUTHORIZED/.test(String(error?.message || '')) ? recoveryErrorMessage(error) : "No se han podido sincronizar: comprueba la cobertura",5000);
     } finally {
+      consumptionOperationRef.current=false;
       setSyncing(false);
     }
   }
@@ -2648,7 +2661,7 @@ function App() {
     currentChecklistConfig = readUnitChecklist(localStorage, currentUnit, localStorage.getItem(KEY.lot)),
     currentGuard = guardState(currentUnit, localStorage.getItem(KEY.shift), new Date(guardTick)),
     currentGuardAlreadySubmitted = records.some(
-      (record) => record.unit === currentUnit && record.id === currentGuard.code,
+      (record) => record.unit === currentUnit && record.id === currentGuard.code && (!record.recoveredBaseline || record.serverIncidentId),
     ),
     pending = records.filter((r) => !r.synced).length,
     adminCanAccessAllZones = ["owner", "logistics"].includes(adminAccess?.role),
@@ -2717,7 +2730,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v138</span></h1>
+          <h1>Control de material <span className="app-version">v139</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
