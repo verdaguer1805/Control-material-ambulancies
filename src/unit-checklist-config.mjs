@@ -25,6 +25,21 @@ export function readUnitChecklist(storage, unit, lot) {
 export function deviceServiceLabel(unit, lot) {
   return Object.values(TSNU_UNITS[lot] || {}).some(units => Object.hasOwn(units, unit)) ? 'TSNU · Solo checklist' : 'TSU / Material';
 }
+export function managedDeviceZone(device, lots) {
+  const zones = lots[device.lot] || {};
+  const supervisor = /^Material supervisor\s*·\s*(.+)$/i.exec(device.unit || '');
+  if (supervisor && Object.hasOwn(zones, supervisor[1])) return supervisor[1];
+  return Object.keys(zones).find(zone => Object.hasOwn(zones[zone], device.unit) || Object.hasOwn(TSNU_UNITS[device.lot]?.[zone] || {}, device.unit)) || '';
+}
+export function filterManagedDevices(devices, service = 'all', includeRevoked = false, scope = {}, lots = {}) {
+  return devices.filter(device => {
+    if (scope.lot && device.lot !== scope.lot) return false;
+    if (scope.zone && managedDeviceZone(device, lots) !== scope.zone) return false;
+    if (!includeRevoked && !device.active) return false;
+    const tsnu = deviceServiceLabel(device.unit, device.lot).startsWith('TSNU');
+    return service === 'all' || (service === 'TSNU' ? tsnu : !tsnu);
+  });
+}
 export function validateUnitChecklist({service, checklist, unit, lot, zone, shift, supervisor = false}, units) {
   if (!lot || !zone || !unit || !Object.hasOwn(units || {}, unit)) throw new Error('Selecciona una unidad de esta zona');
   if (!['TSU','TSNU'].includes(service)) throw new Error('Selecciona TSU o TSNU');

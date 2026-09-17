@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
-import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel } from "./unit-checklist-config.mjs";
+import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone } from "./unit-checklist-config.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -197,6 +197,10 @@ function App() {
     [deviceManagerOpen, setDeviceManagerOpen] = useState(false),
     [deviceManagerLoading, setDeviceManagerLoading] = useState(false),
     [authorizedDevices, setAuthorizedDevices] = useState([]),
+    [deviceServiceFilter, setDeviceServiceFilter] = useState('all'),
+    [deviceLotFilter, setDeviceLotFilter] = useState(''),
+    [deviceZoneFilter, setDeviceZoneFilter] = useState(''),
+    [showRevokedDevices, setShowRevokedDevices] = useState(false),
     [adminRecords, setAdminRecords] = useState([]),
     [adminLoaded, setAdminLoaded] = useState(false),
     [reportLoading, setReportLoading] = useState(false),
@@ -1142,6 +1146,10 @@ function App() {
     }
   }
   async function openDeviceManager() {
+    setDeviceLotFilter('');
+    setDeviceZoneFilter('');
+    setDeviceServiceFilter('all');
+    setShowRevokedDevices(false);
     setDeviceManagerLoading(true);
     try {
       await ensureAnonymousSession();
@@ -2636,6 +2644,7 @@ function App() {
     setExportOpen(false);
   }
   const currentUnit = localStorage.getItem(KEY.unit),
+    visibleDevices = filterManagedDevices(authorizedDevices, deviceServiceFilter, showRevokedDevices, {lot:deviceLotFilter,zone:deviceZoneFilter}, LOTS),
     currentChecklistConfig = readUnitChecklist(localStorage, currentUnit, localStorage.getItem(KEY.lot)),
     currentGuard = guardState(currentUnit, localStorage.getItem(KEY.shift), new Date(guardTick)),
     currentGuardAlreadySubmitted = records.some(
@@ -2708,7 +2717,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v136</span></h1>
+          <h1>Control de material <span className="app-version">v137</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3252,20 +3261,37 @@ function App() {
                   <p className="muted">Solo estos dispositivos pueden enviar datos reales.</p>
                 </div>
                 <span className="device-count">
-                  {authorizedDevices.filter((device) => device.active).length} activos
+                  {visibleDevices.filter((device) => device.active).length} activos
                 </span>
               </div>
+              <label>Lote
+                <select value={deviceLotFilter} onChange={e=>{setDeviceLotFilter(e.target.value);setDeviceZoneFilter('');}}>
+                  <option value="">Todos los lotes</option>{Object.keys(LOTS).map(name=><option key={name}>{name}</option>)}
+                </select>
+              </label>
+              <label>Supervisión
+                <select value={deviceZoneFilter} onChange={e=>setDeviceZoneFilter(e.target.value)}>
+                  <option value="">Todas las zonas</option>{[...new Set(deviceLotFilter ? Object.keys(LOTS[deviceLotFilter] || {}) : Object.values(LOTS).flatMap(zones=>Object.keys(zones)))].sort((a,b)=>a.localeCompare(b)).map(name=><option key={name}>{name}</option>)}
+                </select>
+              </label>
+              <label>Tipo de dispositivo
+                <select value={deviceServiceFilter} onChange={e=>setDeviceServiceFilter(e.target.value)}>
+                  <option value="all">Todos</option><option value="TSU">TSU / Material supervisor</option><option value="TSNU">TSNU</option>
+                </select>
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:8}}><input style={{width:'auto'}} type="checkbox" checked={showRevokedDevices} onChange={e=>setShowRevokedDevices(e.target.checked)} />Mostrar revocados</label>
               <div className="device-list">
                 {deviceManagerLoading && !authorizedDevices.length ? (
                   <p className="muted">Cargando dispositivos...</p>
-                ) : !authorizedDevices.length ? (
-                  <p className="muted">Todavía no hay dispositivos autorizados.</p>
-                ) : authorizedDevices.map((device) => (
+                ) : !visibleDevices.length ? (
+                  <p className="muted">No hay dispositivos con estos filtros.</p>
+                ) : visibleDevices.map((device) => (
                   <article className={`device-row ${device.active ? "" : "device-row-revoked"}`} key={device.user_id}>
                     <div className="device-row-main">
                       <strong>{displayUnit(device.unit)}</strong>
                       <small>{deviceServiceLabel(device.unit, device.lot)}</small>
                       <span>{device.lot}</span>
+                      <small>Supervisión: {managedDeviceZone(device, LOTS) || 'Sin zona identificada'}</small>
                       <small>ID dispositivo: {device.device_id}</small>
                     </div>
                     <div className="device-row-meta">
