@@ -15,6 +15,9 @@
 .device-management-table .device-revoked-row td{background:#e5e7eb;color:#374151}
 .device-management-table small{display:block;font-size:12px;margin-top:3px;color:inherit}
 .device-management-table button{min-height:44px;padding:8px 12px;background:#fff;color:#a61b1b;border:1px solid #a61b1b}
+.device-management-table th:first-child,.device-management-table td:first-child{width:145px;min-width:120px;max-width:145px;white-space:normal;overflow-wrap:anywhere}
+.device-management-table th:last-child,.device-management-table td:last-child{position:sticky;right:0;min-width:96px;width:96px;z-index:2;box-shadow:-3px 0 5px #0002;text-align:center}
+.device-management-table th:last-child{z-index:3}
 @media(max-width:600px){.device-table-filters{grid-template-columns:1fr 1fr}.device-table-filters label:first-child{grid-column:1/-1}.device-manager-modal{padding:12px}.device-manager-modal .device-manager-heading h2{font-size:19px}.device-manager-modal .device-manager-heading p{font-size:12px;margin:4px 0}}
 
 .container {
