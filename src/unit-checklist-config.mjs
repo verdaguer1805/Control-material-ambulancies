@@ -22,6 +22,9 @@ export function readUnitChecklist(storage, unit, lot) {
   }
   return {unit, lot, service:'TSU', checklist:''};
 }
+export function deviceServiceLabel(unit, lot) {
+  return Object.values(TSNU_UNITS[lot] || {}).some(units => Object.hasOwn(units, unit)) ? 'TSNU · Solo checklist' : 'TSU / Material';
+}
 export function validateUnitChecklist({service, checklist, unit, lot, zone, shift, supervisor = false}, units) {
   if (!lot || !zone || !unit || !Object.hasOwn(units || {}, unit)) throw new Error('Selecciona una unidad de esta zona');
   if (!['TSU','TSNU'].includes(service)) throw new Error('Selecciona TSU o TSNU');

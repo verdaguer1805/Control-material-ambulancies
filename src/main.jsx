@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
-import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist } from "./unit-checklist-config.mjs";
+import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel } from "./unit-checklist-config.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -2708,7 +2708,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v135</span></h1>
+          <h1>Control de material <span className="app-version">v136</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3264,6 +3264,7 @@ function App() {
                   <article className={`device-row ${device.active ? "" : "device-row-revoked"}`} key={device.user_id}>
                     <div className="device-row-main">
                       <strong>{displayUnit(device.unit)}</strong>
+                      <small>{deviceServiceLabel(device.unit, device.lot)}</small>
                       <span>{device.lot}</span>
                       <small>ID dispositivo: {device.device_id}</small>
                     </div>
@@ -3530,16 +3531,20 @@ function App() {
                 </button>
               </div>
             )}
-            {currentChecklistConfig.service !== 'TSNU' && deviceAuth.checked && deviceAuth.enforcement && (
+            {deviceAuth.checked && deviceAuth.enforcement && (
               <div className={`card device-auth-card ${deviceAuth.authorized ? "device-authorized" : "device-demo"}`}>
                 <div>
                   <strong>
                     {deviceAuth.authorized ? "Dispositivo autorizado" : "Modo demostración"}
                   </strong>
                   <p className="small">
-                    {deviceAuth.authorized
-                      ? "Los consumos se enviarán a Supabase y actualizarán el stock."
-                      : "Puedes probar la aplicación, pero no se enviará ningún dato ni se modificará el stock."}
+                    {currentChecklistConfig.service === 'TSNU'
+                      ? deviceAuth.authorized
+                        ? "Dispositivo TSNU autorizado. El checklist estará disponible próximamente; no registra consumos ni modifica stock."
+                        : "Unidad TSNU asignada, pero dispositivo sin autorización vigente. La administración debe autorizarlo para registrarlo en Dispositivos oficiales. El checklist todavía no está activo."
+                      : deviceAuth.authorized
+                        ? "Los consumos se enviarán a Supabase y actualizarán el stock."
+                        : "Puedes probar la aplicación, pero no se enviará ningún dato ni se modificará el stock."}
                   </p>
                 </div>
                 {!deviceAuth.authorized && (
