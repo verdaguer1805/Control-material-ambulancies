@@ -2,6 +2,21 @@
   z-index: 1000;
 }
 
+.device-manager-modal{width:min(1100px,100%);max-width:1100px;height:min(780px,calc(100dvh - 24px));max-height:calc(100dvh - 24px);display:flex;flex-direction:column;overflow:hidden}
+.device-manager-modal .device-manager-heading,.device-manager-modal>.toolbar,.device-manager-modal>label,.device-table-filters{flex-shrink:0}
+.device-table-filters{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px}
+.device-table-filters label{min-width:0;margin:4px 0;font-size:13px}
+.device-table-filters select{padding:8px;font-size:16px;min-height:42px}
+.device-table-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;border:1px solid #c7d3d8;border-radius:8px}
+.device-management-table{width:100%;min-width:790px;border-collapse:separate;border-spacing:0;font-size:14px}
+.device-management-table th{position:sticky;top:0;z-index:1;background:#263b44;color:#fff;white-space:nowrap}
+.device-management-table th,.device-management-table td{padding:9px 10px;vertical-align:middle;border-bottom:1px solid #ffffff55}
+.device-management-table .device-active-row td{background:#087a35;color:#fff}
+.device-management-table .device-revoked-row td{background:#e5e7eb;color:#374151}
+.device-management-table small{display:block;font-size:12px;margin-top:3px;color:inherit}
+.device-management-table button{min-height:44px;padding:8px 12px;background:#fff;color:#a61b1b;border:1px solid #a61b1b}
+@media(max-width:600px){.device-table-filters{grid-template-columns:1fr 1fr}.device-table-filters label:first-child{grid-column:1/-1}.device-manager-modal{padding:12px}.device-manager-modal .device-manager-heading h2{font-size:19px}.device-manager-modal .device-manager-heading p{font-size:12px;margin:4px 0}}
+
 .container {
   padding-bottom: 205px;
 }

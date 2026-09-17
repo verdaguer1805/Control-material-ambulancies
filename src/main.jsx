@@ -2717,7 +2717,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v137</span></h1>
+          <h1>Control de material <span className="app-version">v138</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3264,6 +3264,7 @@ function App() {
                   {visibleDevices.filter((device) => device.active).length} activos
                 </span>
               </div>
+              <div className="device-table-filters">
               <label>Lote
                 <select value={deviceLotFilter} onChange={e=>{setDeviceLotFilter(e.target.value);setDeviceZoneFilter('');}}>
                   <option value="">Todos los lotes</option>{Object.keys(LOTS).map(name=><option key={name}>{name}</option>)}
@@ -3279,35 +3280,26 @@ function App() {
                   <option value="all">Todos</option><option value="TSU">TSU / Material supervisor</option><option value="TSNU">TSNU</option>
                 </select>
               </label>
+              </div>
               <label style={{display:'flex',alignItems:'center',gap:8}}><input style={{width:'auto'}} type="checkbox" checked={showRevokedDevices} onChange={e=>setShowRevokedDevices(e.target.checked)} />Mostrar revocados</label>
-              <div className="device-list">
+              <div className="device-table-scroll" tabIndex={0} aria-label="Lista de dispositivos; desplaza para ver todas las columnas">
                 {deviceManagerLoading && !authorizedDevices.length ? (
                   <p className="muted">Cargando dispositivos...</p>
                 ) : !visibleDevices.length ? (
                   <p className="muted">No hay dispositivos con estos filtros.</p>
-                ) : visibleDevices.map((device) => (
-                  <article className={`device-row ${device.active ? "" : "device-row-revoked"}`} key={device.user_id}>
-                    <div className="device-row-main">
-                      <strong>{displayUnit(device.unit)}</strong>
-                      <small>{deviceServiceLabel(device.unit, device.lot)}</small>
-                      <span>{device.lot}</span>
-                      <small>Supervisión: {managedDeviceZone(device, LOTS) || 'Sin zona identificada'}</small>
-                      <small>ID dispositivo: {device.device_id}</small>
-                    </div>
-                    <div className="device-row-meta">
-                      <span className={`badge ${device.active ? "green" : "red"}`}>
-                        {device.active ? "Activo" : "Revocado"}
-                      </span>
-                      <small>Activado: {new Date(device.activated_at).toLocaleString("es-ES")}</small>
-                      <small>Última conexión: {new Date(device.last_seen_at).toLocaleString("es-ES")}</small>
-                    </div>
-                    {device.active && (
-                      <button className="danger" onClick={() => revokeAuthorizedDevice(device)} disabled={deviceManagerLoading}>
-                        Revocar
-                      </button>
-                    )}
-                  </article>
-                ))}
+                ) : <table className="device-management-table">
+                  <thead><tr><th scope="col">Unidad / dispositivo</th><th scope="col">Tipo</th><th scope="col">Lote / zona</th><th scope="col">Estado</th><th scope="col">Última conexión</th><th scope="col">Acción</th></tr></thead>
+                  <tbody>{visibleDevices.map((device) => (
+                    <tr className={device.active ? 'device-active-row' : 'device-revoked-row'} key={device.user_id}>
+                      <td><strong>{displayUnit(device.unit)}</strong><small>ID: {device.device_id}</small></td>
+                      <td>{deviceServiceLabel(device.unit, device.lot)}</td>
+                      <td>{device.lot}<small>{managedDeviceZone(device, LOTS) || 'Sin zona identificada'}</small></td>
+                      <td><strong>{device.active ? 'ACTIVO' : 'REVOCADO'}</strong></td>
+                      <td title={`Activado: ${new Date(device.activated_at).toLocaleString('es-ES')}`}>{new Date(device.last_seen_at).toLocaleString('es-ES')}</td>
+                      <td>{device.active ? <button className="danger" onClick={() => revokeAuthorizedDevice(device)} disabled={deviceManagerLoading} aria-label={`Revocar ${device.unit}, dispositivo ${device.device_id}`}>Revocar</button> : '—'}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>}
               </div>
               <div className="toolbar">
                 <button className="secondary" onClick={refreshAuthorizedDevices} disabled={deviceManagerLoading}>
