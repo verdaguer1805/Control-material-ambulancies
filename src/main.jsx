@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
+import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
@@ -472,6 +473,10 @@ function App() {
         p_lot: localStorage.getItem(KEY.lot) || lot,
       });
       if (error) throw error;
+      if (data?.authorized === false && Number.isFinite(data?.retry_after_seconds)) {
+        flash(accessAttemptMessage(data, "Código de activación incorrecto"), 5000);
+        return;
+      }
       if (!confirmedDeviceAuthorization(data, displayUnit(currentUnit), targetLot))
         throw new Error('DEVICE_AUTHORIZATION_NOT_CONFIRMED');
       await prepareDeviceGuard(currentUnit);
@@ -603,6 +608,13 @@ function App() {
       }
     }, 2000);
   }
+  async function showAccessRejection(scope, fallback) {
+    try {
+      const { data, error } = await supabase.rpc("get_access_attempt_status", { p_scope: scope });
+      flash(accessAttemptMessage(error ? null : data, fallback), 5000);
+    } catch { flash(fallback, 5000); }
+    return null;
+  }
   async function verifyAdminPin(value) {
     try {
       await ensureAnonymousSession();
@@ -610,6 +622,7 @@ function App() {
         input_pin: value,
       });
       if (error) throw error;
+      if (data !== true) return await showAccessRejection('unit_pin', 'PIN incorrecto');
       return data === true;
     } catch (error) {
       flash("No se puede verificar el PIN ahora");
@@ -623,6 +636,7 @@ function App() {
         input_owner_code: value,
       });
       if (error) throw error;
+      if (data !== true) return await showAccessRejection('owner', 'Clave exclusiva incorrecta');
       return data === true;
     } catch (error) {
       flash("No se puede verificar la clave exclusiva ahora");
@@ -905,7 +919,7 @@ function App() {
         input_code: enteredCode,
       });
       if (error) throw error;
-      if (!data?.authorized) return flash("Código de acceso incorrecto");
+      if (data?.authorized !== true) return flash(accessAttemptMessage(data, "Código de acceso incorrecto"), 5000);
       setAdminRecords([]);
       setAdminLoaded(false);
       setAdminAccess(data);
@@ -1091,7 +1105,7 @@ function App() {
         input_new_pin: newPin,
       });
       if (error) throw error;
-      if (!data) return flash("PIN actual incorrecto");
+      if (!data) return await showAccessRejection('unit_pin', 'No se ha cambiado el PIN. Revisa los códigos');
       flash("PIN cambiado para todos los dispositivos");
     } catch (error) {
       flash("No se puede cambiar el PIN ahora");
@@ -1141,7 +1155,7 @@ function App() {
           p_code: code,
         });
         if (error || !data) {
-          const stagedError = error || new Error("No guardado");
+          const stagedError = error || new Error("OWNER_AUTHORIZATION_REQUIRED");
           stagedError.accessLabel = labels[accessKey];
           throw stagedError;
         }
@@ -1149,7 +1163,7 @@ function App() {
       const { data, error } = await supabase.rpc("finalize_admin_access_codes", {
         input_owner_code: accessCodesOwnerKey,
       });
-      if (error || !data) throw error || new Error("No guardado");
+      if (error || !data) throw error || new Error("OWNER_AUTHORIZATION_REQUIRED");
       setAccessCodesOpen(false);
       setAccessCodesOwnerKey("");
       setAccessCodesDraft({ owner: "", logistics: "", olot: "", figueres: "", blanes: "", girona: "" });
@@ -1160,7 +1174,8 @@ function App() {
     } catch (error) {
       const message = String(error?.message || "");
       if (message.includes("OWNER_AUTHORIZATION_REQUIRED")) {
-        setAccessCodesError("La clave exclusiva del propietario no es correcta.");
+        const status = await supabase.rpc("get_access_attempt_status", { p_scope: 'owner' });
+        setAccessCodesError(accessAttemptMessage(status.error ? null : status.data, "La clave exclusiva del propietario no es correcta"));
       } else if (message.includes("INVALID_ACCESS_CODE")) {
         setAccessCodesError("Algún código no cumple el formato de 6 a 13 letras o números.");
       } else if (message.includes("DUPLICATED_ACCESS_CODE")) {
@@ -1455,6 +1470,7 @@ function App() {
         p_supply_type: supplyType,
       });
       if (error) throw error;
+      if (!Number.isInteger(data) || data < 1) return await showAccessRejection('owner', 'Clave exclusiva incorrecta');
       setStockMaterialTypes((current) => ({ ...current, [material]: supplyType }));
       flash(supplyType === "supervisor" ? "Material clasificado como supervisor" : "Material clasificado como estándar");
     } catch {
@@ -2748,7 +2764,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v144</span></h1>
+          <h1>Control de material <span className="app-version">v145</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
