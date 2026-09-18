@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
@@ -224,6 +225,7 @@ function App() {
     loadedGuardRef = React.useRef(""),
     consumptionOperationRef = React.useRef(false),
     stockLoadSequence = React.useRef(0),
+    deviceAuthSequence = React.useRef(0),
     [syncing, setSyncing] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [exportLotOpen, setExportLotOpen] = useState(false),
@@ -413,17 +415,18 @@ function App() {
     };
   async function refreshDeviceAuthorization(targetUnit = localStorage.getItem(KEY.unit)) {
     if (!targetUnit) return false;
+    const request = ++deviceAuthSequence.current;
+    const targetLot = localStorage.getItem(KEY.lot) || lot;
     try {
       await ensureAnonymousSession();
       const { data, error } = await supabase.rpc("get_device_authorization");
       if (error) throw error;
-      const authorized = Boolean(data?.authorized) &&
-        data?.unit === displayUnit(targetUnit) &&
-        data?.lot === (localStorage.getItem(KEY.lot) || lot);
+      if (request !== deviceAuthSequence.current) return false;
+      const authorized = confirmedDeviceAuthorization(data, displayUnit(targetUnit), targetLot);
       const next = {
         checked: true,
-        enforcement: Boolean(data?.enforcement_enabled),
-        authorized: !data?.enforcement_enabled || authorized,
+        enforcement: true,
+        authorized,
         unit: data?.unit || "",
         version: Number(data?.current_version || 0),
       };
@@ -432,6 +435,7 @@ function App() {
       else localStorage.removeItem(DEVICE_AUTH_CACHE);
       return next.authorized;
     } catch {
+      if (request !== deviceAuthSequence.current) return false;
       try {
         const cached = JSON.parse(localStorage.getItem(DEVICE_AUTH_CACHE) || "null");
         const cachedMatches = cached?.authorized &&
@@ -457,6 +461,8 @@ function App() {
     if (!/^\d{8,12}$/.test(deviceActivationCode))
       return flash("El código de activación debe tener entre 8 y 12 cifras");
     setDeviceAuthLoading(true);
+    const request = ++deviceAuthSequence.current;
+    const targetLot = localStorage.getItem(KEY.lot) || lot;
     try {
       await ensureAnonymousSession();
       localStorage.setItem(GUARD_HANDOFF_KEY, JSON.stringify({unit:currentUnit,lot:localStorage.getItem(KEY.lot) || lot}));
@@ -466,7 +472,16 @@ function App() {
         p_lot: localStorage.getItem(KEY.lot) || lot,
       });
       if (error) throw error;
+      if (!confirmedDeviceAuthorization(data, displayUnit(currentUnit), targetLot))
+        throw new Error('DEVICE_AUTHORIZATION_NOT_CONFIRMED');
       await prepareDeviceGuard(currentUnit);
+      const verification = await supabase.rpc("get_device_authorization");
+      if (verification.error) throw verification.error;
+      if (request !== deviceAuthSequence.current ||
+          localStorage.getItem(KEY.unit) !== currentUnit ||
+          localStorage.getItem(KEY.lot) !== targetLot ||
+          !confirmedDeviceAuthorization(verification.data, displayUnit(currentUnit), targetLot))
+        throw new Error('DEVICE_AUTHORIZATION_NOT_CONFIRMED');
       const next = {
         checked: true,
         enforcement: Boolean(data?.enforcement_enabled),
@@ -485,7 +500,8 @@ function App() {
       flash(
         reason.includes("LOCKED")
           ? "Demasiados intentos. Espera 15 minutos"
-          : /INVALID_DEVICE_ACTIVATION_CODE/.test(reason) ? "Código de activación incorrecto" : recoveryErrorMessage(error),
+          : /INVALID_DEVICE_ACTIVATION_CODE/.test(reason) ? "Código de activación incorrecto"
+          : reason === 'DEVICE_AUTHORIZATION_NOT_CONFIRMED' ? "No se ha podido confirmar la autorización. Revisa la conexión e inténtalo de nuevo." : recoveryErrorMessage(error),
         5000,
       );
     } finally {
@@ -649,6 +665,8 @@ function App() {
     setLot(selectedLot);
     setPinInput("");
     flash("Móvil asignado correctamente");
+    // Selectors can already hold these values before localStorage is assigned.
+    void refreshDeviceAuthorization(unit);
   }
   const filtered = useMemo(
     () =>
@@ -2730,7 +2748,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v143</span></h1>
+          <h1>Control de material <span className="app-version">v144</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
