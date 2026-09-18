@@ -47,7 +47,7 @@ const MATERIAL_LABELS = {
   "Empapador": "Empapador (unidad)",
   "Malla capelina para cabeza": "Malla capelina para cabeza (Tubigrip)",
   "Mantas de un solo uso": "Mantas de un solo uso (unidad)",
-  "Sábanas de un solo uso": "Sábanas de un solo uso (unidad)",
+  "Sábanas de un solo uso": "Sabanas de un solo uso (unidad)",
   "Guantes S (caja)": "Guantes S (cajas)",
   "Guantes M (caja)": "Guantes M (cajas)",
   "Guantes L (caja)": "Guantes L (cajas)",
@@ -2730,7 +2730,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v142</span></h1>
+          <h1>Control de material <span className="app-version">v143</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
