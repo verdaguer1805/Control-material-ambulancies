@@ -28,7 +28,7 @@ function harness(scope, options = {}) {
     flash: (message) => messages.push(message),
     stockDemo: { levels: { [scope?.centralLabel]: { Test: 100 } } },
     stockMinimums: { [scope?.centralLabel]: { Test: 10 } },
-    stockPickerOpen: "entry", stockPickerQuantities: { Test: 3 }, stockDemoTarget: scope?.locations[1],
+    stockPickerOpen: "entry", stockPickerQuantities: { Test: 3 }, stockDemoTarget: scope?.locations[1], stockPickerTarget: scope?.locations[1],
     confirm: () => true, alert: (message) => messages.push(message), loadRemoteStock: async () => {},
     stockHistoryLoading: false, stockHistoryFrom: "2026-09-16", stockHistoryTo: "2026-09-16", stockHistoryDestination: "",
     materialLabel: (m) => m, saveAs: (blob) => { context.blob = blob; },
@@ -44,7 +44,7 @@ function harness(scope, options = {}) {
       },
     },
   };
-  for (const name of ["StockRemoteLoaded", "StockRemoteLoading", "StockMinimums", "StockMinimumBases", "StockSafetyPercentages", "StockPendingReplenishment", "StockMaterialTypes", "StockDemo", "StockPickerOpen", "StockHistoryMessage", "StockHistoryLoading", "StockHistoryOpen"]) {
+  for (const name of ["StockRemoteLoaded", "StockRemoteLoading", "StockMinimums", "StockMinimumBases", "StockSafetyPercentages", "StockPendingReplenishment", "StockMaterialTypes", "StockDemo", "StockPickerOpen", "StockPickerTarget", "StockHistoryMessage", "StockHistoryLoading", "StockHistoryOpen"]) {
     context[`set${name}`] = (value) => { context[`last${name}`] = value; };
   }
   vm.createContext(context);
@@ -97,7 +97,10 @@ test("receipt and transfer use the selected zone IDs, never Olot", async () => {
     assert.equal(h.calls[1].args.p_destination_id, scope.warehouseIds[1]);
     h.context.stockDemoTarget = "Subalmacén fuera de zona";
     await h.context.applyStockPicker();
-    assert.equal(h.calls.length, 2);
+    assert.equal(h.calls[2].args.p_destination_id, scope.warehouseIds[1], "the open operation keeps its confirmed destination");
+    h.context.stockPickerTarget = "Subalmacén fuera de zona";
+    await h.context.applyStockPicker();
+    assert.equal(h.calls.length, 3);
   }
 });
 

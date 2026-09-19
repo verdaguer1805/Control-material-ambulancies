@@ -262,6 +262,7 @@ function App() {
     [stockInventorySearch, setStockInventorySearch] = useState(""),
     [stockDemoTarget, setStockDemoTarget] = useState(""),
     [stockPickerOpen, setStockPickerOpen] = useState(""),
+    [stockPickerTarget, setStockPickerTarget] = useState(""),
     [stockPickerSearch, setStockPickerSearch] = useState(""),
     [stockPickerQuantities, setStockPickerQuantities] = useState({}),
     [stockInventoryEditOpen, setStockInventoryEditOpen] = useState(false),
@@ -307,6 +308,7 @@ function App() {
     setStockInventoryOriginals({});
     setStockMinimumOpen(false);
     setStockPickerOpen("");
+    setStockPickerTarget("");
     setStockPickerQuantities({});
     setStockReplenishmentOpen(false);
     setStockHistoryOpen(false);
@@ -1380,8 +1382,12 @@ function App() {
   }
   function openStockPicker(type) {
     if (!stockScopeAllowed || !stockRemoteLoaded || stockRemoteLoading) return;
+    if (type === "transfer" && !STOCK_DEMO_LOCATIONS.slice(1).includes(stockDemoTarget)) {
+      return flash("Selecciona un subalmacén de esta zona");
+    }
     setStockPickerSearch("");
     setStockPickerQuantities({});
+    setStockPickerTarget(type === "transfer" ? stockDemoTarget : "");
     setStockPickerOpen(type);
   }
   function changeStockPickerQuantity(material, amount) {
@@ -1392,7 +1398,7 @@ function App() {
   }
   async function applyStockPicker() {
     if (!stockScopeAllowed || !stockRemoteLoaded || stockRemoteLoading) return;
-    if (stockPickerOpen === "transfer" && !STOCK_DEMO_LOCATIONS.slice(1).includes(stockDemoTarget)) {
+    if (stockPickerOpen === "transfer" && !STOCK_DEMO_LOCATIONS.slice(1).includes(stockPickerTarget)) {
       return flash("Selecciona un subalmacén de esta zona");
     }
     const selected = Object.entries(stockPickerQuantities).filter(
@@ -1437,7 +1443,7 @@ function App() {
         }
         const { error } = await supabase.rpc("transfer_stock_recorded", {
           p_origin_id: STOCK_REMOTE_IDS[STOCK_DEMO_CENTRAL],
-          p_destination_id: STOCK_REMOTE_IDS[stockDemoTarget],
+          p_destination_id: STOCK_REMOTE_IDS[stockPickerTarget],
           p_items: items,
         });
         if (error) throw error;
@@ -1446,6 +1452,7 @@ function App() {
         return flash("La simulación de consumo está desactivada");
       }
       setStockPickerOpen("");
+      setStockPickerTarget("");
       await loadRemoteStock();
     } catch (error) {
       const insufficient = String(error?.message || "").includes("Insufficient stock");
@@ -2764,7 +2771,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v145</span></h1>
+          <h1>Control de material <span className="app-version">v146</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4019,6 +4026,13 @@ function App() {
                         Usa el buscador y los botones + / −. Puedes seleccionar
                         varios artículos en la misma operación.
                       </p>
+                      {stockPickerOpen === "transfer" && (
+                        <div className="stock-transfer-destination" role="status">
+                          <small>DESTINO CONFIRMADO</small>
+                          <strong>{stockPickerTarget}</strong>
+                          <span>Origen: {STOCK_DEMO_CENTRAL}</span>
+                        </div>
+                      )}
                       <label>Buscar material</label>
                       <input
                         autoFocus
@@ -4044,9 +4058,9 @@ function App() {
                         ))}
                       </div>
                       <div className="toolbar">
-                        <button className="secondary" onClick={() => setStockPickerOpen("")}>Cancelar</button>
+                        <button className="secondary" onClick={() => { setStockPickerOpen(""); setStockPickerTarget(""); }}>Cancelar</button>
                         <button className="primary" onClick={applyStockPicker}>
-                          {stockPickerOpen === "entry" ? "Registrar entrada" : stockPickerOpen === "transfer" ? "Confirmar reposición" : "Registrar consumo"}
+                          {stockPickerOpen === "entry" ? "Registrar entrada" : stockPickerOpen === "transfer" ? `Confirmar en ${stockPickerTarget}` : "Registrar consumo"}
                         </button>
                       </div>
                     </div>
