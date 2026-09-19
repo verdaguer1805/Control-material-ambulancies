@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {restoreGuardRecord,guardSaveRequest} from '../src/guard-recovery-client.mjs';
+import {restoreGuardRecord,attachRecoveryToPendingRecord,guardSaveRequest} from '../src/guard-recovery-client.mjs';
 
 const context={unit:'G453',serverUnit:'G453',lot:'lot5',code:'170926',start:'2026-09-17T05:00:00Z',date:'2026-09-17',time:'07:00',warehouse:'Camprodon'};
 const snapshot={token:'test-token',unit:'G453',lot:'lot5',guard_code:'170926',occurred_at:context.start,materials:{Gasa:3},incident_id:'existing',user_id:'new-device'};
@@ -22,6 +22,22 @@ test('pending local consumption is never overwritten during recovery',()=>{
  const before=JSON.stringify(records);
  assert.throws(()=>restoreGuardRecord(records,snapshot,context),/LOCAL_PENDING/);
  assert.equal(JSON.stringify(records),before);
+});
+
+test('authorized device can attach recovery safely to its cumulative pending total',()=>{
+ const pending={unit:'G453',id:'170926',synced:false,entries:[{materials:{Gasa:3}},{materials:{Gasa:2}}]};
+ const records=attachRecoveryToPendingRecord([pending],snapshot,context);
+ const request=guardSaveRequest(records[0],'G453','Camprodon');
+ assert.equal(request.name,'save_recovered_guard_consumption');
+ assert.deepEqual(request.args.p_materials,{Gasa:5});
+ assert.equal(records[0].synced,false);
+ assert.equal(pending.recoveryToken,undefined);
+});
+
+test('recovery blocks instead of overwriting when local total is below server total',()=>{
+ const pending={unit:'G453',id:'170926',synced:false,entries:[{materials:{Gasa:2}}]};
+ assert.throws(()=>attachRecoveryToPendingRecord([pending],snapshot,context),/AMBIGUOUS_LOCAL_PENDING/);
+ assert.equal(pending.recoveryToken,undefined);
 });
 
 test('recovery rejects another unit, lot, guard, start or malformed material',()=>{

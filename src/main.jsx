@@ -4,7 +4,7 @@ import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { classifyPendingRecords, pendingUnitsLabel } from "./device-pending-authorization.mjs";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
-import { GUARD_HANDOFF_KEY, restoreGuardRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
+import { GUARD_HANDOFF_KEY, restoreGuardRecord, attachRecoveryToPendingRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
 import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone, tsnuWarehouse } from "./unit-checklist-config.mjs";
 import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisibility, saveMaterialVisibility } from "./material-visibility.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
@@ -590,11 +590,13 @@ function App() {
     if(readUnitChecklist(localStorage,targetUnit,targetLot).service==='TSNU') {localStorage.removeItem(GUARD_HANDOFF_KEY);return;}
     const guard=guardState(targetUnit,localStorage.getItem(KEY.shift));
     if(!guard.active) {localStorage.removeItem(GUARD_HANDOFF_KEY);return;}
-    if(getRecords().some(r=>r.unit===targetUnit && r.id===guard.code && !r.synced)) throw new Error('LOCAL_PENDING_REQUIRES_REVIEW');
     await ensureAnonymousSession();
     const {data,error}=await supabase.rpc('recover_guard_consumption',{p_unit:displayUnit(targetUnit),p_lot:targetLot,p_guard_code:guard.code,p_occurred_at:guard.start.toISOString()});
     if(error) throw error;
-    const updated=restoreGuardRecord(getRecords(),data,{unit:targetUnit,serverUnit:displayUnit(targetUnit),lot:targetLot,code:guard.code,start:guard.start.toISOString(),date:guard.date,time:isSupervisorMaterial(targetUnit)?'07:00':localStorage.getItem(KEY.shift),warehouse:unitWarehouse(targetUnit)});
+    const context={unit:targetUnit,serverUnit:displayUnit(targetUnit),lot:targetLot,code:guard.code,start:guard.start.toISOString(),date:guard.date,time:isSupervisorMaterial(targetUnit)?'07:00':localStorage.getItem(KEY.shift),warehouse:unitWarehouse(targetUnit)};
+    const currentRecords=getRecords();
+    const hasPending=currentRecords.some(r=>r.unit===targetUnit && r.id===guard.code && !r.synced);
+    const updated=hasPending ? attachRecoveryToPendingRecord(currentRecords,data,context) : restoreGuardRecord(currentRecords,data,context);
     saveRecords(updated);setRecords(updated);
     localStorage.removeItem(GUARD_HANDOFF_KEY);
   }
@@ -969,7 +971,13 @@ function App() {
   }
   async function syncPending() {
     if (syncing || consumptionOperationRef.current) return;
-    if(localStorage.getItem(GUARD_HANDOFF_KEY)) return flash('Primero hay que recuperar la guardia antes de sincronizar. Contacta con supervisión.',5000);
+    if(localStorage.getItem(GUARD_HANDOFF_KEY)) {
+      const currentUnit=localStorage.getItem(KEY.unit);
+      const authorized=await refreshDeviceAuthorization(currentUnit);
+      if(!authorized) return flash('Primero hay que autorizar este dispositivo. Los consumos pendientes se conservan.',5000);
+      try { await prepareDeviceGuard(currentUnit); }
+      catch(error) { return flash(recoveryErrorMessage(error),7000); }
+    }
     let list = getRecords(),
       todo = list.filter((r) => !r.synced);
     if (!todo.length) return flash("No hay registros pendientes");
@@ -3088,7 +3096,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v156</span></h1>
+          <h1>Control de material <span className="app-version">v157</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
