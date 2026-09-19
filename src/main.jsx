@@ -5,6 +5,7 @@ import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
 import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone } from "./unit-checklist-config.mjs";
+import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisibility, saveMaterialVisibility } from "./material-visibility.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -58,6 +59,7 @@ const MATERIAL_LABELS = {
   "Tiras reactivas": "Tiras reactivas (botes)",
 };
 const materialLabel = (material) => MATERIAL_LABELS[material] || material;
+const DEFAULT_MATERIAL_VISIBILITY = defaultMaterialVisibility(MATERIALS, SUPERVISOR_ONLY_MATERIALS);
 // El stock utiliza la lista completa que puede registrar Material supervisor.
 const STOCK_DEMO_MATERIALS = [...MATERIALS].sort((a, b) =>
   materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true }),
@@ -226,6 +228,7 @@ function App() {
     loadedGuardRef = React.useRef(""),
     consumptionOperationRef = React.useRef(false),
     stockLoadSequence = React.useRef(0),
+    materialVisibilitySequence = React.useRef(0),
     deviceAuthSequence = React.useRef(0),
     [syncing, setSyncing] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
@@ -274,6 +277,9 @@ function App() {
     [stockMinimums, setStockMinimums] = useState({}),
     [stockPendingReplenishment, setStockPendingReplenishment] = useState({}),
     [stockMaterialTypes, setStockMaterialTypes] = useState({}),
+    [materialVisibility, setMaterialVisibility] = useState(() =>
+      readMaterialVisibility(localStorage, DEFAULT_MATERIAL_VISIBILITY),
+    ),
     [stockMaterialTypeSaving, setStockMaterialTypeSaving] = useState(""),
     [stockMinimumBases, setStockMinimumBases] = useState({}),
     [stockSafetyPercentages, setStockSafetyPercentages] = useState({}),
@@ -359,6 +365,19 @@ function App() {
     const retry = () => syncPending();
     addEventListener("online", retry);
     return () => removeEventListener("online", retry);
+  }, []);
+  React.useEffect(() => {
+    const refresh = () => { if (navigator.onLine) void loadMaterialVisibility(); };
+    refresh();
+    addEventListener("online", refresh);
+    addEventListener("focus", refresh);
+    const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      removeEventListener("online", refresh);
+      removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
   React.useEffect(() => {
     const timer = setInterval(() => setGuardTick(Date.now()), 30000);
@@ -688,10 +707,7 @@ function App() {
     () =>
       MATERIALS.filter(
         (m) =>
-          (isSupervisorMaterial(unit) ||
-            !SUPERVISOR_ONLY_MATERIALS.some(
-              (x) => x.toLowerCase() === m.toLowerCase(),
-            )) &&
+          (isSupervisorMaterial(unit) || materialVisibility[m] !== false) &&
           materialLabel(m).toLowerCase().includes(search.toLowerCase()),
       ).sort((a, b) => {
         const ga = /^(Guantes(?: estériles)?) (S|M|L|XL)(?: \(caja\))?$/.exec(a),
@@ -738,8 +754,25 @@ function App() {
                           numeric: true,
                         });
       }),
-    [search, unit],
+    [search, unit, materialVisibility],
   );
+
+  async function loadMaterialVisibility() {
+    const request = ++materialVisibilitySequence.current;
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase
+        .from("material_settings")
+        .select("material,unit_visible");
+      if (error) throw error;
+      if (request !== materialVisibilitySequence.current) return;
+      const next = materialVisibilityFromRows(MATERIALS, DEFAULT_MATERIAL_VISIBILITY, data);
+      setMaterialVisibility(next);
+      saveMaterialVisibility(localStorage, next);
+    } catch {
+      // La còpia local manté la llista operativa sense cobertura.
+    }
+  }
   const inc = (m) => setQuantities((q) => ({ ...q, [m]: (q[m] || 0) + 1 }));
   const dec = (m) =>
     setQuantities((q) => ({ ...q, [m]: Math.max(0, (q[m] || 0) - 1) }));
@@ -1373,6 +1406,7 @@ function App() {
       setStockMaterialTypes(Object.fromEntries(
         (materialSettings || []).map((item) => [item.material, item.supply_type]),
       ));
+      void loadMaterialVisibility();
     } catch (error) {
       if (request !== stockLoadSequence.current) return;
       flash("No se ha podido cargar el inventario de Supabase");
@@ -1472,16 +1506,39 @@ function App() {
     setStockMaterialTypeSaving(material);
     try {
       await ensureAnonymousSession();
-      const { error } = await supabase.rpc("set_material_supply_type", {
+      const { data, error } = await supabase.rpc("set_material_configuration", {
         p_material: material,
         p_supply_type: supplyType,
+        p_unit_visible: materialVisibility[material] !== false,
       });
       if (error) throw error;
-      if (!Number.isInteger(data) || data < 1) return await showAccessRejection('owner', 'Clave exclusiva incorrecta');
+      if (!Number.isInteger(data) || data < 1) throw new Error("MATERIAL_CONFIGURATION_NOT_SAVED");
       setStockMaterialTypes((current) => ({ ...current, [material]: supplyType }));
       flash(supplyType === "supervisor" ? "Material clasificado como supervisor" : "Material clasificado como estándar");
     } catch {
       flash("No se ha podido cambiar el tipo de material");
+    } finally {
+      setStockMaterialTypeSaving("");
+    }
+  }
+  async function changeMaterialUnitVisibility(material, visible) {
+    if (!adminCanAccessAllZones) return;
+    setStockMaterialTypeSaving(material);
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase.rpc("set_material_configuration", {
+        p_material: material,
+        p_supply_type: stockMaterialTypes[material] || "standard",
+        p_unit_visible: visible,
+      });
+      if (error) throw error;
+      if (!Number.isInteger(data) || data < 1) throw new Error("MATERIAL_CONFIGURATION_NOT_SAVED");
+      const next = { ...materialVisibility, [material]: visible };
+      setMaterialVisibility(next);
+      saveMaterialVisibility(localStorage, next);
+      flash(visible ? "Material visible para las unidades" : "Material oculto para las unidades");
+    } catch {
+      flash("No se ha podido cambiar la visibilidad del material");
     } finally {
       setStockMaterialTypeSaving("");
     }
@@ -2771,7 +2828,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v147</span></h1>
+          <h1>Control de material <span className="app-version">v148</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3957,6 +4014,7 @@ function App() {
                               <th>Cantidad</th>
                               <th>Mínimo</th>
                               <th>Tipo</th>
+                              <th>Unidades</th>
                               <th>Estado</th>
                             </tr>
                           </thead>
@@ -3996,6 +4054,19 @@ function App() {
                                       <option value="supervisor">Supervisor</option>
                                     </select>
                                   ) : supplyType === "supervisor" ? "Supervisor" : "Estándar"}
+                                </td>
+                                <td className="stock-type-cell">
+                                  {adminCanAccessAllZones ? (
+                                    <select
+                                      className="stock-type-select"
+                                      value={materialVisibility[material] === false ? "hidden" : "visible"}
+                                      disabled={stockMaterialTypeSaving === material}
+                                      onChange={(event) => changeMaterialUnitVisibility(material, event.target.value === "visible")}
+                                    >
+                                      <option value="visible">Visible</option>
+                                      <option value="hidden">Oculto</option>
+                                    </select>
+                                  ) : materialVisibility[material] === false ? "Oculto" : "Visible"}
                                 </td>
                                 <td className="stock-status">{stockStatus}</td>
                               </tr>

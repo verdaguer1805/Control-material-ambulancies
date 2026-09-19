@@ -7,7 +7,7 @@
     "build": "vite build --base=./",
     "preview": "vite preview",
     "test:warehouses": "node --test tests/warehouse-scope.test.mjs tests/warehouse-expansion.test.mjs",
-    "test:materials": "node --test tests/material-visibility.test.mjs",
+    "test:materials": "node --test tests/material-visibility.test.mjs tests/material-configuration.test.mjs",
     "prepare:warehouses": "node scripts/prepare-warehouse-expansion.mjs"
   },
   "dependencies": {
