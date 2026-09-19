@@ -1150,7 +1150,7 @@ function App() {
       setAdminRecords([]);
       setAdminLoaded(false);
       if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu);
-      else exportPdf(selected.records, selected.submissions);
+      else exportPdf(selected.records, selected.submissions, selected.tsnu);
     } catch (error) {
       flash("No se pueden cargar los datos seleccionados de Supabase");
     } finally {
@@ -2319,7 +2319,7 @@ function App() {
     );
     setExportOpen(false);
   }
-  function exportPdf(source = adminRecords, submissions = []) {
+  function exportPdf(source = adminRecords, submissions = [], tsnuData = {}) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
@@ -2334,15 +2334,19 @@ function App() {
             : name.includes("faixa") || name.includes("faja")
               ? "Faja p\u00e9lvica"
               : name.includes("dea")
-                ? "Pegats DEA"
+                ? "Parches DEA"
                 : name.includes("schiller")
-                  ? "Pegats Schiller"
+                  ? "Parches Schiller"
                   : "";
       },
+      tsnuShifts = Array.isArray(tsnuData?.shifts) ? tsnuData.shifts : [],
+      tsnuWithdrawals = Array.isArray(tsnuData?.withdrawals) ? tsnuData.withdrawals : [],
+      tsnuShiftById = new Map(tsnuShifts.map((shift) => [shift.id, shift])),
+      tsnuWarehouseByUnit = new Map(tsnuShifts.map((shift) => [shift.unit, shift.warehouse || ""])),
       unitWithBase = (u) =>
         /^Material supervisor · /i.test(u)
           ? u
-          : u + " — " + (unitWarehouse(u) || ""),
+          : u + " — " + (unitWarehouse(u) || tsnuWarehouseByUnit.get(u) || ""),
       selected = source.filter(
         (r) =>
           recordZone(r) === exportZone &&
@@ -2420,6 +2424,24 @@ function App() {
         warehouses[warehouse][m] = (warehouses[warehouse][m] || 0) + quantity;
       });
     });
+    tsnuWithdrawals.forEach((withdrawal) => {
+      const shift = tsnuShiftById.get(withdrawal.shift_id) || {},
+        unit = withdrawal.unit || shift.unit || "TSNU",
+        warehouse = reportWarehouse(withdrawal.warehouse || shift.warehouse),
+        used = withdrawal.materials || {};
+      warehouses[warehouse] = warehouses[warehouse] || {};
+      Object.entries(used).forEach(([m, n]) => {
+        const quantity = Number(n);
+        materials[m] = (materials[m] || 0) + quantity;
+        unitMaterials[unit] = (unitMaterials[unit] || 0) + quantity;
+        const critical = criticalCategory(m);
+        if (critical) {
+          criticalUnits[unit] = criticalUnits[unit] || {};
+          criticalUnits[unit][critical] = (criticalUnits[unit][critical] || 0) + quantity;
+        }
+        warehouses[warehouse][m] = (warehouses[warehouse][m] || 0) + quantity;
+      });
+    });
     Object.keys(SUPERVISIONS[exportZone] || {})
       .filter((u) => !isSupervisorMaterial(u))
       .forEach((u) => {
@@ -2454,6 +2476,8 @@ function App() {
           Object.entries(items).sort(([a], [b]) => a.localeCompare(b)),
         ]),
       topMaterialRows = materialRows.slice(0, 12),
+      tsuGuardTotal = selected.filter((record) => !/^Material supervisor · /i.test(record.unit)).length,
+      tsnuShiftTotal = tsnuShifts.length,
       serviceTotal = serviceRows.reduce((sum, [, value]) => sum + value, 0),
       totalMaterial = materialRows.reduce((sum, [, value]) => sum + value, 0),
       unitPercentRows = unitMaterialRows.map(([unit, value]) => [
@@ -2468,14 +2492,14 @@ function App() {
       criticalMatrixRows = Object.entries(criticalUnits)
         .sort(
           ([a], [b]) =>
-            unitWarehouse(a).localeCompare(unitWarehouse(b)) ||
+            (unitWarehouse(a) || tsnuWarehouseByUnit.get(a) || "").localeCompare(unitWarehouse(b) || tsnuWarehouseByUnit.get(b) || "") ||
             a.localeCompare(b),
         )
         .map(([unit, items]) => [
           unitWithBase(unit),
           items["Faja p\u00e9lvica"] || 0,
-          items["Pegats DEA"] || 0,
-          items["Pegats Schiller"] || 0,
+          items["Parches DEA"] || 0,
+          items["Parches Schiller"] || 0,
           items["Torniquet"] || 0,
           items["Kit quemados"] || 0,
         ]),
@@ -2519,8 +2543,8 @@ function App() {
     };
     const compactUnitCharts = (rows) => {
       doc.setFontSize(13);
-      doc.text("Material consumido por unidad", 15, 88);
-      doc.text("Material consumido por unidad", 151, 88);
+      doc.text("Material consumido por unidad (TSU + TSNU)", 15, 88);
+      doc.text("Material consumido por unidad (TSU + TSNU)", 151, 88);
       if (!rows.length) {
         doc.setFontSize(10);
         doc.text("No hay consumo en este periodo.", 15, 100);
@@ -2567,14 +2591,11 @@ function App() {
     const summary = () => {
       header(1);
       doc.setFontSize(15);
-      doc.text("Resumenen operativo", 15, 37);
+      doc.text("Resumen operativo TSU + TSNU", 15, 37);
+      card(5, "Guardias TSU", tsuGuardTotal, [11, 95, 115]);
       card(79, "Material consumido", totalMaterial, [215, 25, 32]);
-      card(
-        153,
-        "Unidades de la supervisión",
-        serviceRows.length,
-        [11, 95, 115],
-      );
+      card(153, "Guardias TSNU", tsnuShiftTotal, [232, 117, 0]);
+      card(227, "Unidades TSU + TSNU", serviceRows.length + new Set(tsnuShifts.map((shift) => shift.unit)).size, [11, 95, 115]);
       doc.setFillColor(244, 246, 248);
       doc.roundedRect(15, 65, 267, 12, 2, 2, "F");
       doc.setFont("helvetica", "bold");
@@ -2763,7 +2784,7 @@ function App() {
         doc.setFontSize(8);
         doc.setTextColor(107, 125, 131);
         doc.text(
-          "Les variants adult i pediàtric estan sumades dins cada tipus de pegat.",
+          "Las variantes adulta y pediátrica están sumadas dentro de cada tipo de parche.",
           15,
           47,
         );
@@ -2775,10 +2796,10 @@ function App() {
         }
         const columns = [
           [18, "Unidad / población", "left"],
-          [102, "Ús", "center"],
-          [126, "Faixa", "center"],
-          [153, "Pegats DEA", "center"],
-          [190, "Pegats Schiller", "center"],
+          [102, "Uso", "center"],
+          [126, "Faja", "center"],
+          [153, "Parches DEA", "center"],
+          [190, "Parches Schiller", "center"],
           [226, "Torniquet", "center"],
           [253, "Kit quemados", "center"],
           [275, "Total", "center"],
@@ -2823,6 +2844,70 @@ function App() {
             doc.setTextColor(22, 50, 58);
           },
         );
+      });
+    };
+    const tsnuChecklistPages = (shifts) => {
+      const rows = shifts.map((shift) => {
+          const answers = shift.checklist_answers || {},
+            issues = Object.entries(answers).filter(([, value]) => value === "issue").map(([item]) => item),
+            started = new Date(shift.started_at),
+            submitted = shift.checklist_submitted_at ? new Date(shift.checklist_submitted_at) : null;
+          return {
+            date: started.toLocaleDateString("es-ES"),
+            time: started.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+            unit: shift.unit,
+            warehouse: shift.warehouse || "",
+            submitted: submitted ? submitted.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "—",
+            status: !submitted ? "NO REALIZADO" : issues.length ? "INCIDENCIA" : "CORRECTO",
+            issues: issues.join(" · ") || "—",
+          };
+        }),
+        chunks = [];
+      for (let i = 0; i < Math.max(rows.length, 1); i += 14) chunks.push(rows.slice(i, i + 14));
+      chunks.forEach((chunk, index) => {
+        doc.addPage();
+        header(doc.getNumberOfPages());
+        doc.setFontSize(14);
+        doc.text(`Control de checklist TSNU${chunks.length > 1 ? ` (${index + 1}/${chunks.length})` : ""}`, 15, 40);
+        doc.setFontSize(8);
+        doc.setTextColor(107, 125, 131);
+        doc.text("Una fila por guardia TSNU iniciada dentro del lote, zona y periodo seleccionados.", 15, 47);
+        doc.setTextColor(22, 50, 58);
+        if (!chunk.length) {
+          doc.setFontSize(11);
+          doc.text("No hay guardias TSNU en este periodo.", 15, 62);
+          return;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text("Fecha", 18, 57);
+        doc.text("Inicio", 48, 57);
+        doc.text("Unidad", 68, 57);
+        doc.text("Almacén", 96, 57);
+        doc.text("Enviado", 148, 57);
+        doc.text("Estado", 174, 57);
+        doc.text("Incidencias", 211, 57);
+        doc.setFont("helvetica", "normal");
+        chunk.forEach((row, rowIndex) => {
+          const y = 66 + rowIndex * 9;
+          if (row.status === "CORRECTO") doc.setFillColor(226, 240, 217);
+          else if (row.status === "INCIDENCIA") doc.setFillColor(255, 220, 69);
+          else doc.setFillColor(252, 232, 230);
+          doc.rect(15, y - 5.5, 267, 7.5, "F");
+          doc.setTextColor(22, 50, 58);
+          doc.setFontSize(7.5);
+          doc.text(row.date, 18, y);
+          doc.text(row.time, 48, y);
+          doc.setFont("helvetica", "bold");
+          doc.text(row.unit, 68, y);
+          doc.setFont("helvetica", "normal");
+          doc.text(row.warehouse, 96, y, { maxWidth: 47 });
+          doc.text(row.submitted, 148, y);
+          doc.setFont("helvetica", "bold");
+          doc.text(row.status, 174, y);
+          doc.setFont("helvetica", "normal");
+          doc.text(row.issues, 211, y, { maxWidth: 68 });
+        });
       });
     };
     const replenishmentPages = (groups) => {
@@ -2888,6 +2973,7 @@ function App() {
     summary();
     percentagePages(unitPercentRows);
     criticalPages(criticalMatrixRows);
+    tsnuChecklistPages(tsnuShifts);
     chartPages(
       "Material m\u00e1s utilizado (incluye supervisión)",
       topMaterialRows,
@@ -2970,7 +3056,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v154</span></h1>
+          <h1>Control de material <span className="app-version">v155</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>

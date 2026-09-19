@@ -21,6 +21,16 @@ test('the general Excel separates TSU, TSNU and both checklist types', () => {
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
 });
 
+test('the PDF receives TSNU data and renders consumption, critical material and checklist status', () => {
+  assert.match(source, /exportPdf\(selected\.records, selected\.submissions, selected\.tsnu\)/);
+  assert.match(source, /function exportPdf\(source = adminRecords, submissions = \[\], tsnuData = \{\}\)/);
+  assert.match(source, /tsnuWithdrawals\.forEach/);
+  assert.match(source, /unitMaterials\[unit\] = \(unitMaterials\[unit\] \|\| 0\) \+ quantity/);
+  assert.match(source, /criticalUnits\[unit\]/);
+  assert.match(source, /Control de checklist TSNU/);
+  assert.match(source, /tsnuChecklistPages\(tsnuShifts\)/);
+});
+
 test('TSNU shows its DEA patches but excludes every Schiller patch from its material scroll', () => {
   assert.match(source, /"Parches dea tsnu": "Parches DEA TSNU"/);
   assert.match(source, /!\/\^Parches schiller \/i\.test\(material\)/);
