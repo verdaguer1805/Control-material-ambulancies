@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import XLSX from "xlsx-js-style";
-import {DEMO_KEY,DEMO_ITEMS,canDemoChecklist,inChecklistWindow,checklistStatus,saveDemo,readDemo,completeDemo,filterDemo} from "../src/checklist-demo.mjs";
+import {DEMO_KEY,DEMO_ITEMS,TSNU_CHECKLIST_ITEMS,canDemoChecklist,inChecklistWindow,checklistStatus,saveDemo,readDemo,completeDemo,closeDemoShift,filterDemo} from "../src/checklist-demo.mjs";
 import {buildChecklistWorkbook} from "../src/checklist-demo-export.mjs";
 const base={lot:"Lot 5",zone:"Olot",warehouse:"Camprodon",unit:"G453",date:"2026-09-16",phase:"open",answers:{},notes:{}};
 const memory=()=>{const map=new Map();return {getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v),map};};
@@ -11,8 +11,16 @@ test('TSNU daily checklist ignores two-hour phase and separates calendar dates',
  const now=new Date(2026,8,16,23,59);
  assert.equal(checklistStatus(daily,now),'Pendiente');
  assert.equal(checklistStatus({...daily,date:'2026-09-15'},now),'No realizado');
- assert.equal(checklistStatus(completeDemo({...daily,answers:Object.fromEntries(DEMO_ITEMS.map(m=>[m,'ok']))}),now),'Correcto');
+ assert.equal(checklistStatus(completeDemo({...daily,answers:Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']))}),now),'Correcto');
  const store=memory();saveDemo(store,daily);saveDemo(store,{...daily,date:'2026-09-17'});assert.equal(readDemo(store).length,2);
+});
+test('TSNU supports several shift sessions on the same date and cannot close with pending material',()=>{
+ const store=memory(), answers=Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']));
+ const first=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'one',answers});
+ const second=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'two',answers});
+ saveDemo(store,closeDemoShift(first));saveDemo(store,second);
+ assert.equal(readDemo(store).length,2);assert.ok(readDemo(store).find(r=>r.sessionId==='one').endedAt);
+ assert.throws(()=>closeDemoShift(second,true),/cantidades a cero/);
 });
 test("authorized, unchecked, supervisor and enforcement-off devices cannot access demo",()=>{
   const demo={checked:true,enforcement:true,authorized:false};

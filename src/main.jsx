@@ -4,7 +4,7 @@ import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
-import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone } from "./unit-checklist-config.mjs";
+import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone, tsnuWarehouse } from "./unit-checklist-config.mjs";
 import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisibility, saveMaterialVisibility } from "./material-visibility.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
@@ -2851,7 +2851,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v150</span></h1>
+          <h1>Control de material <span className="app-version">v151</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3676,12 +3676,23 @@ function App() {
         )}
         {mode === "worker" && currentUnit && (
           <>
-            {!isSupervisorMaterial(currentUnit) && (
+            {!isSupervisorMaterial(currentUnit) && currentChecklistConfig.service !== 'TSNU' && (
               <div className="card">
                 <button type="button" className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => flash("Próximamente")}>
                   Checklist
                 </button>
               </div>
+            )}
+            {currentChecklistConfig.service === 'TSNU' && deviceAuth.authorized && (
+              <React.Suspense fallback={<div className="card"><p>Cargando checklist TSNU...</p></div>}>
+                <ChecklistDemo
+                  unit={currentUnit}
+                  lot={localStorage.getItem(KEY.lot) || lot}
+                  zone={currentChecklistConfig.zone || unitZone(currentUnit)}
+                  warehouse={tsnuWarehouse(currentUnit, localStorage.getItem(KEY.lot) || lot, currentChecklistConfig.zone || unitZone(currentUnit))}
+                  assignedChecklist="TSNU"
+                />
+              </React.Suspense>
             )}
             {deviceAuth.checked && deviceAuth.enforcement && (
               <div className={`card device-auth-card ${deviceAuth.authorized ? "device-authorized" : "device-demo"}`}>
@@ -3692,7 +3703,7 @@ function App() {
                   <p className="small">
                     {currentChecklistConfig.service === 'TSNU'
                       ? deviceAuth.authorized
-                        ? "Dispositivo TSNU autorizado. El checklist estará disponible próximamente; no registra consumos ni modifica stock."
+                        ? "Dispositivo TSNU autorizado. El piloto de checklist está disponible; las pruebas todavía no modifican el stock."
                         : "Unidad TSNU asignada, pero dispositivo sin autorización vigente. La administración debe autorizarlo para registrarlo en Dispositivos oficiales. El checklist todavía no está activo."
                       : deviceAuth.authorized
                         ? "Los consumos se enviarán a Supabase y actualizarán el stock."

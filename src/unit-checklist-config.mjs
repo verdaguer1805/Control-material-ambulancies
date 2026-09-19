@@ -10,6 +10,13 @@ export const TSNU_UNITS = {
     ].map(unit => [unit, 'TSNU'])),
   },
 };
+const CAMPDEVANOL_TSNU = new Set(['K1376','K1377','T1731','T1732','T1733','T1734','T1735','T1736']);
+export function tsnuWarehouse(unit, lot, zone) {
+  if (!Object.hasOwn(TSNU_UNITS[lot]?.[zone] || {}, unit)) return '';
+  if (lot === 'Lot 5 · Girona - Alt Maresme' && zone === 'Olot')
+    return CAMPDEVANOL_TSNU.has(unit) ? 'Campdevànol' : 'Olot';
+  return '';
+}
 export function readUnitChecklist(storage, unit, lot) {
   try {
     const value = JSON.parse(storage.getItem(UNIT_CHECKLIST_KEY) || 'null');

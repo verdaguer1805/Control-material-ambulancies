@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateUnitChecklist,readUnitChecklist,UNIT_CHECKLIST_KEY,TSU_CHECKLISTS,TSNU_UNITS} from '../src/unit-checklist-config.mjs';
+import {validateUnitChecklist,readUnitChecklist,UNIT_CHECKLIST_KEY,TSU_CHECKLISTS,TSNU_UNITS,tsnuWarehouse} from '../src/unit-checklist-config.mjs';
 const base={service:'TSU', checklist:'SVB', unit:'G453', lot:'Lot 5', zone:'Olot', shift:'07:00'};
 test('only the three approved legacy mobiles default to SVB without writing settings',()=>{
  const lot='Lot 5 · Girona - Alt Maresme';
@@ -45,4 +45,10 @@ test('all 19 Olot TSNU units have automatic checklist and no shift',()=>{
   assert.equal(readUnitChecklist({getItem:()=>JSON.stringify(result)},unit,lot).service,'TSNU');
  }
  assert.throws(()=>validateUnitChecklist({...base,unit:'T1731',lot,zone:'Figueres',service:'TSNU'},units));
+});
+test('TSNU warehouse mapping is scoped and does not alter central minimum weights',()=>{
+ const lot='Lot 5 · Girona - Alt Maresme';
+ assert.equal(tsnuWarehouse('T1731',lot,'Olot'),'Campdevànol');
+ assert.equal(tsnuWarehouse('T1744',lot,'Olot'),'Olot');
+ assert.equal(tsnuWarehouse('T1731',lot,'Figueres'),'');
 });
