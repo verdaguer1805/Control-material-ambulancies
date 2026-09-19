@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
 import { accessAttemptMessage } from "./access-attempt-message.mjs";
+import { classifyPendingRecords, pendingUnitsLabel } from "./device-pending-authorization.mjs";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
@@ -211,6 +212,9 @@ function App() {
     [deviceActivationOpen, setDeviceActivationOpen] = useState(false),
     [deviceActivationCode, setDeviceActivationCode] = useState(""),
     [deviceAuthLoading, setDeviceAuthLoading] = useState(false),
+    [deviceReplacementOpen, setDeviceReplacementOpen] = useState(false),
+    [deviceReplacementCount, setDeviceReplacementCount] = useState(0),
+    [deviceReplacementUnitInput, setDeviceReplacementUnitInput] = useState(""),
     [deviceManagerOpen, setDeviceManagerOpen] = useState(false),
     [deviceManagerLoading, setDeviceManagerLoading] = useState(false),
     [authorizedDevices, setAuthorizedDevices] = useState([]),
@@ -496,17 +500,36 @@ function App() {
       }
     }
   }
-  async function activateThisDevice() {
+  async function activateThisDevice(replacementConfirmed = false) {
     const currentUnit = localStorage.getItem(KEY.unit);
     if (!currentUnit) return flash("Primero asigna una unidad a este móvil");
-    if (getRecords().some(record => !record.synced)) return flash(recoveryErrorMessage('LOCAL_PENDING_REQUIRES_REVIEW'),5000);
     if (!/^\d{8,12}$/.test(deviceActivationCode))
       return flash("El código de activación debe tener entre 8 y 12 cifras");
+    const targetLot = localStorage.getItem(KEY.lot) || lot;
+    const pendingState = classifyPendingRecords(getRecords(), currentUnit, targetLot);
+    if (pendingState.foreign.length) {
+      return flash(
+        `Hay consumos pendientes de ${pendingUnitsLabel(pendingState.foreign)}. No se borrarán. Autoriza primero esa unidad y sincronízalos antes de cambiar a ${displayUnit(currentUnit)}.`,
+        7000,
+      );
+    }
     setDeviceAuthLoading(true);
     const request = ++deviceAuthSequence.current;
-    const targetLot = localStorage.getItem(KEY.lot) || lot;
     try {
       await ensureAnonymousSession();
+      if (!replacementConfirmed) {
+        const preview = await supabase.rpc("get_device_activation_preview", {
+          p_unit: displayUnit(currentUnit),
+          p_lot: targetLot,
+        });
+        if (preview.error) throw preview.error;
+        if (preview.data?.replacement_required) {
+          setDeviceReplacementCount(Number(preview.data.active_devices_to_revoke || 1));
+          setDeviceReplacementUnitInput("");
+          setDeviceReplacementOpen(true);
+          return;
+        }
+      }
       localStorage.setItem(GUARD_HANDOFF_KEY, JSON.stringify({unit:currentUnit,lot:localStorage.getItem(KEY.lot) || lot}));
       const { data, error } = await supabase.rpc("activate_device", {
         p_activation_code: deviceActivationCode,
@@ -520,7 +543,8 @@ function App() {
       }
       if (!confirmedDeviceAuthorization(data, displayUnit(currentUnit), targetLot))
         throw new Error('DEVICE_AUTHORIZATION_NOT_CONFIRMED');
-      await prepareDeviceGuard(currentUnit);
+      if (pendingState.matching.length) localStorage.removeItem(GUARD_HANDOFF_KEY);
+      else await prepareDeviceGuard(currentUnit);
       const verification = await supabase.rpc("get_device_authorization");
       if (verification.error) throw verification.error;
       if (request !== deviceAuthSequence.current ||
@@ -540,7 +564,14 @@ function App() {
       // Los registros previos se conservan; nunca borramos consumos pendientes.
       setDeviceActivationCode("");
       setDeviceActivationOpen(false);
-      flash("Dispositivo autorizado correctamente");
+      setDeviceReplacementOpen(false);
+      setDeviceReplacementUnitInput("");
+      flash(
+        pendingState.matching.length
+          ? `Dispositivo autorizado. Se conservan ${pendingState.matching.length} consumos pendientes de ${displayUnit(currentUnit)}. Pulsa Sincronizar pendientes.`
+          : "Dispositivo autorizado correctamente",
+        pendingState.matching.length ? 7000 : 3000,
+      );
     } catch (error) {
       const reason = String(error?.message || "");
       flash(
@@ -883,6 +914,7 @@ function App() {
       rec = {
         id,
         unit: currentUnit,
+        lot: localStorage.getItem(KEY.lot) || lot,
         warehouse: unitWarehouse(currentUnit),
         date: guard.date,
         time: isSupervisorMaterial(currentUnit) ? "07:00" : localStorage.getItem(KEY.shift),
@@ -3056,7 +3088,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v155</span></h1>
+          <h1>Control de material <span className="app-version">v156</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3133,8 +3165,43 @@ function App() {
                 >
                   Cancelar
                 </button>
-                <button className="primary" onClick={activateThisDevice} disabled={deviceAuthLoading}>
+                <button className="primary" onClick={() => activateThisDevice(false)} disabled={deviceAuthLoading}>
                   {deviceAuthLoading ? "Comprobando..." : "Autorizar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {deviceReplacementOpen && (
+          <div className="modal-backdrop">
+            <div className="card export-modal" role="dialog" aria-modal="true" aria-labelledby="device-replacement-title">
+              <h2 id="device-replacement-title" style={{ textAlign: "center", color: "#b42318" }}>
+                ATENCIÓN: sustitución de dispositivo
+              </h2>
+              <p style={{ textAlign: "center" }}>
+                Estás autorizando este móvil como <strong>{displayUnit(localStorage.getItem(KEY.unit))}</strong> en <strong>{localStorage.getItem(KEY.lot) || lot}</strong>.
+              </p>
+              <p style={{ textAlign: "center" }}>
+                Se revocarán automáticamente {deviceReplacementCount} dispositivo(s) anterior(es) de esta misma unidad. Sus datos ya enviados no se borrarán.
+              </p>
+              <label style={{ textAlign: "center" }}>
+                Para confirmar, escribe <strong>{displayUnit(localStorage.getItem(KEY.unit))}</strong>
+              </label>
+              <input
+                autoComplete="off"
+                value={deviceReplacementUnitInput}
+                onChange={(event) => setDeviceReplacementUnitInput(event.target.value.toUpperCase())}
+              />
+              <div className="toolbar">
+                <button className="secondary" onClick={() => { setDeviceReplacementOpen(false); setDeviceReplacementUnitInput(""); }}>
+                  Cancelar
+                </button>
+                <button
+                  className="danger"
+                  disabled={deviceAuthLoading || deviceReplacementUnitInput.trim().toUpperCase() !== displayUnit(localStorage.getItem(KEY.unit)).toUpperCase()}
+                  onClick={() => activateThisDevice(true)}
+                >
+                  {deviceAuthLoading ? "Comprobando..." : "Sustituir dispositivo"}
                 </button>
               </div>
             </div>
