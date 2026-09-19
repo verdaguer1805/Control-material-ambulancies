@@ -293,9 +293,6 @@ export const SUPERVISOR_ONLY_MATERIALS = [
   "Limpiacristales",
   "Pulsioxímetro de dedo",
   "desinfectante",
-  "Pilas CR123",
-  "Pilas AA",
-  "Pilas AAA"
 ];
 
 

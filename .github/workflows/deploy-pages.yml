@@ -23,6 +23,8 @@ jobs:
           cache: npm
       - name: Instal·la dependències
         run: npm ci --no-audit --no-fund
+      - name: Comprova la visibilitat dels materials
+        run: npm run test:materials
       - name: Compila l'aplicació
         run: npm run build
       - name: Prepara GitHub Pages
