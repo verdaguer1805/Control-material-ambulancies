@@ -1,4 +1,4 @@
-export const MATERIAL_VISIBILITY_CACHE = "cma_material_visibility_v1";
+export const MATERIAL_VISIBILITY_CACHE = "cma_material_visibility_v2";
 
 const key = (value) => String(value || "").trim().toLocaleLowerCase("es");
 
@@ -14,15 +14,21 @@ export function materialVisibilityFromRows(materials, fallback, rows) {
   );
 }
 
-export function readMaterialVisibility(storage, fallback) {
+const scopeKey = (lot, zone) => `${String(lot || "").trim()}::${String(zone || "").trim()}`;
+
+export function readMaterialVisibility(storage, fallback, lot, zone) {
   try {
-    const saved = JSON.parse(storage.getItem(MATERIAL_VISIBILITY_CACHE) || "null");
+    const allSaved = JSON.parse(storage.getItem(MATERIAL_VISIBILITY_CACHE) || "null");
+    const saved = allSaved?.[scopeKey(lot, zone)];
     return saved && typeof saved === "object" ? { ...fallback, ...saved } : fallback;
   } catch {
     return fallback;
   }
 }
 
-export function saveMaterialVisibility(storage, visibility) {
-  storage.setItem(MATERIAL_VISIBILITY_CACHE, JSON.stringify(visibility));
+export function saveMaterialVisibility(storage, visibility, lot, zone) {
+  let allSaved = {};
+  try { allSaved = JSON.parse(storage.getItem(MATERIAL_VISIBILITY_CACHE) || "{}") || {}; } catch { /* cache nou */ }
+  allSaved[scopeKey(lot, zone)] = visibility;
+  storage.setItem(MATERIAL_VISIBILITY_CACHE, JSON.stringify(allSaved));
 }

@@ -60,6 +60,12 @@ const MATERIAL_LABELS = {
 };
 const materialLabel = (material) => MATERIAL_LABELS[material] || material;
 const DEFAULT_MATERIAL_VISIBILITY = defaultMaterialVisibility(MATERIALS, SUPERVISOR_ONLY_MATERIALS);
+const storedWorkerMaterialScope = () => {
+  const savedUnit = localStorage.getItem(KEY.unit) || "";
+  const savedLot = localStorage.getItem(KEY.lot) || "Lot 5 · Girona - Alt Maresme";
+  const savedConfig = readUnitChecklist(localStorage, savedUnit, savedLot);
+  return { lot: savedLot, zone: savedConfig.zone || unitZone(savedUnit) };
+};
 // El stock utiliza la lista completa que puede registrar Material supervisor.
 const STOCK_DEMO_MATERIALS = [...MATERIALS].sort((a, b) =>
   materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true }),
@@ -277,9 +283,10 @@ function App() {
     [stockMinimums, setStockMinimums] = useState({}),
     [stockPendingReplenishment, setStockPendingReplenishment] = useState({}),
     [stockMaterialTypes, setStockMaterialTypes] = useState({}),
-    [materialVisibility, setMaterialVisibility] = useState(() =>
-      readMaterialVisibility(localStorage, DEFAULT_MATERIAL_VISIBILITY),
-    ),
+    [materialVisibility, setMaterialVisibility] = useState(() => {
+      const scope = storedWorkerMaterialScope();
+      return readMaterialVisibility(localStorage, DEFAULT_MATERIAL_VISIBILITY, scope.lot, scope.zone);
+    }),
     [stockMaterialTypeSaving, setStockMaterialTypeSaving] = useState(""),
     [stockMinimumBases, setStockMinimumBases] = useState({}),
     [stockSafetyPercentages, setStockSafetyPercentages] = useState({}),
@@ -367,7 +374,11 @@ function App() {
     return () => removeEventListener("online", retry);
   }, []);
   React.useEffect(() => {
-    const refresh = () => { if (navigator.onLine) void loadMaterialVisibility(); };
+    const refresh = () => {
+      if (!navigator.onLine || mode !== "worker") return;
+      const scope = storedWorkerMaterialScope();
+      if (scope.lot && scope.zone) void loadMaterialVisibility(scope.lot, scope.zone);
+    };
     refresh();
     addEventListener("online", refresh);
     addEventListener("focus", refresh);
@@ -378,7 +389,7 @@ function App() {
       removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [mode, unit, lot]);
   React.useEffect(() => {
     const timer = setInterval(() => setGuardTick(Date.now()), 30000);
     return () => clearInterval(timer);
@@ -757,18 +768,20 @@ function App() {
     [search, unit, materialVisibility],
   );
 
-  async function loadMaterialVisibility() {
+  async function loadMaterialVisibility(targetLot, targetZone) {
+    if (!targetLot || !targetZone) return;
     const request = ++materialVisibilitySequence.current;
     try {
       await ensureAnonymousSession();
-      const { data, error } = await supabase
-        .from("material_settings")
-        .select("material,unit_visible");
+      const { data, error } = await supabase.rpc("get_material_configuration", {
+        p_lot: targetLot,
+        p_zone: targetZone,
+      });
       if (error) throw error;
       if (request !== materialVisibilitySequence.current) return;
       const next = materialVisibilityFromRows(MATERIALS, DEFAULT_MATERIAL_VISIBILITY, data);
       setMaterialVisibility(next);
-      saveMaterialVisibility(localStorage, next);
+      saveMaterialVisibility(localStorage, next, targetLot, targetZone);
     } catch {
       // La còpia local manté la llista operativa sense cobertura.
     }
@@ -1366,8 +1379,10 @@ function App() {
       if (failed) throw failed.error;
       const data = inventoryResults.flatMap((result) => result.data || []);
       const { data: materialSettings, error: materialSettingsError } = await supabase
-        .from("material_settings")
-        .select("material,supply_type");
+        .rpc("get_material_configuration", {
+          p_lot: stockDemoLot,
+          p_zone: stockDemoZone,
+        });
       if (materialSettingsError) throw materialSettingsError;
       const levels = Object.fromEntries(
         STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 300)]),
@@ -1406,7 +1421,9 @@ function App() {
       setStockMaterialTypes(Object.fromEntries(
         (materialSettings || []).map((item) => [item.material, item.supply_type]),
       ));
-      void loadMaterialVisibility();
+      const scopedVisibility = materialVisibilityFromRows(MATERIALS, DEFAULT_MATERIAL_VISIBILITY, materialSettings);
+      setMaterialVisibility(scopedVisibility);
+      saveMaterialVisibility(localStorage, scopedVisibility, stockDemoLot, stockDemoZone);
     } catch (error) {
       if (request !== stockLoadSequence.current) return;
       flash("No se ha podido cargar el inventario de Supabase");
@@ -1507,6 +1524,8 @@ function App() {
     try {
       await ensureAnonymousSession();
       const { data, error } = await supabase.rpc("set_material_configuration", {
+        p_lot: stockDemoLot,
+        p_zone: stockDemoZone,
         p_material: material,
         p_supply_type: supplyType,
         p_unit_visible: materialVisibility[material] !== false,
@@ -1527,6 +1546,8 @@ function App() {
     try {
       await ensureAnonymousSession();
       const { data, error } = await supabase.rpc("set_material_configuration", {
+        p_lot: stockDemoLot,
+        p_zone: stockDemoZone,
         p_material: material,
         p_supply_type: stockMaterialTypes[material] || "standard",
         p_unit_visible: visible,
@@ -1535,7 +1556,7 @@ function App() {
       if (!Number.isInteger(data) || data < 1) throw new Error("MATERIAL_CONFIGURATION_NOT_SAVED");
       const next = { ...materialVisibility, [material]: visible };
       setMaterialVisibility(next);
-      saveMaterialVisibility(localStorage, next);
+      saveMaterialVisibility(localStorage, next, stockDemoLot, stockDemoZone);
       flash(visible ? "Material visible para las unidades" : "Material oculto para las unidades");
     } catch {
       flash("No se ha podido cambiar la visibilidad del material");
@@ -2828,7 +2849,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v148</span></h1>
+          <h1>Control de material <span className="app-version">v149</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
