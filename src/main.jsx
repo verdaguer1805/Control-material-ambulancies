@@ -257,8 +257,10 @@ function App() {
     [selectedShiftStart, setSelectedShiftStart] = useState(""),
     [selectedService, setSelectedService] = useState(""),
     [selectedChecklist, setSelectedChecklist] = useState(""),
+    [selectedWarehouse, setSelectedWarehouse] = useState(""),
     [changeService, setChangeService] = useState(""),
     [changeChecklist, setChangeChecklist] = useState(""),
+    [changeWarehouse, setChangeWarehouse] = useState(""),
     [changeShiftStart, setChangeShiftStart] = useState(""),
     [shiftPickerOpen, setShiftPickerOpen] = useState(false),
     [shiftPickerTarget, setShiftPickerTarget] = useState(""),
@@ -693,7 +695,8 @@ function App() {
   function saveUnit() {
     let config;
     try {
-      config = validateUnitChecklist({service:selectedService, checklist:selectedChecklist, unit, lot:selectedLot, zone:selectedZone, shift:selectedShiftStart, supervisor:isSupervisorMaterial(unit)}, selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] : LOTS[selectedLot]?.[selectedZone]);
+      const scope=getWarehouseScope(selectedLot,selectedZone), selected=scope?.warehouses.find(w=>w.id===selectedWarehouse);
+      config = validateUnitChecklist({service:selectedService, checklist:selectedChecklist, unit, lot:selectedLot, zone:selectedZone, shift:selectedShiftStart, warehouse:selected?.name, warehouseId:selected?.id, supervisor:isSupervisorMaterial(unit)}, selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] : LOTS[selectedLot]?.[selectedZone]);
     } catch (error) { return flash(error.message); }
     if (!unit) return flash("Selecciona una unidad");
     if (
@@ -1304,7 +1307,8 @@ function App() {
     if (!nextUnit) return flash("Selecciona una unidad");
     let config;
     try {
-      config = validateUnitChecklist({service:changeService, checklist:changeChecklist, unit:nextUnit, lot:changeLot, zone:changeZone, shift:changeShiftStart, supervisor:isSupervisorMaterial(nextUnit)}, changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] : LOTS[changeLot]?.[changeZone]);
+      const scope=getWarehouseScope(changeLot,changeZone), selected=scope?.warehouses.find(w=>w.id===changeWarehouse);
+      config = validateUnitChecklist({service:changeService, checklist:changeChecklist, unit:nextUnit, lot:changeLot, zone:changeZone, shift:changeShiftStart, warehouse:selected?.name, warehouseId:selected?.id, supervisor:isSupervisorMaterial(nextUnit)}, changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] : LOTS[changeLot]?.[changeZone]);
     } catch (error) { return flash(error.message); }
     if (
       changeService !== 'TSNU' && !isSupervisorMaterial(nextUnit) &&
@@ -1324,6 +1328,7 @@ function App() {
     setLot(changeLot);
     setChangeZone("");
     setNextUnit("");
+    setChangeWarehouse("");
     setChangeShiftStart("");
     setChangeUnitOpen(false);
     flash("Unidad cambiada correctamente", 2000);
@@ -2851,7 +2856,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v151</span></h1>
+          <h1>Control de material <span className="app-version">v152</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3029,14 +3034,15 @@ function App() {
               {changeZone && (
                 <>
                   <label>Tipo de servicio</label>
-                  <select value={changeService} onChange={e=>{setChangeService(e.target.value);setChangeChecklist('');setNextUnit('');setChangeShiftStart('');}}>
+                  <select value={changeService} onChange={e=>{setChangeService(e.target.value);setChangeChecklist('');setChangeWarehouse('');setNextUnit('');setChangeShiftStart('');}}>
                     <option value="">Selecciona TSU o TSNU</option><option>TSU</option><option>TSNU</option>
                   </select>
                   {changeService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[changeLot]?.[changeZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                   <label>Nueva unidad</label>
-                  <UnitSelector value={nextUnit} units={changeService === 'TSU' ? LOTS[changeLot]?.[changeZone] || {} : changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] || {} : {}} onChange={u=>{setNextUnit(u);setChangeShiftStart('');setChangeChecklist('');setShiftPickerOpen(false);}} />
+                  <UnitSelector value={nextUnit} units={changeService === 'TSU' ? LOTS[changeLot]?.[changeZone] || {} : changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] || {} : {}} onChange={u=>{setNextUnit(u);setChangeWarehouse('');setChangeShiftStart('');setChangeChecklist('');setShiftPickerOpen(false);}} />
                 </>
               )}
+              {nextUnit && changeService === 'TSNU' && <><label>Almacén asignado</label><select value={changeWarehouse} onChange={e=>setChangeWarehouse(e.target.value)}><option value="">Selecciona el almacén</option>{(getWarehouseScope(changeLot,changeZone)?.warehouses||[]).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Almacén central':'Subalmacén'} · {w.name}</option>)}</select>{changeWarehouse&&<p className="selected-zone">Los consumos futuros se descontarán de este almacén.</p>}</>}
               {nextUnit && !isSupervisorMaterial(nextUnit) && changeService === 'TSU' && <>
                 <label>Checklist asignado</label>
                 <select value={changeChecklist} onChange={e=>{setChangeChecklist(e.target.value);if(e.target.value){setShiftPickerTarget('change');setShiftPickerOpen(true);}}}>
@@ -3646,12 +3652,13 @@ function App() {
                   {selectedLot} · Supervisión {selectedZone}
                 </p>
                 <label>Tipo de servicio</label>
-                <select value={selectedService} onChange={e=>{setSelectedService(e.target.value);setSelectedChecklist('');setUnit('');setSelectedShiftStart('');}}>
+                <select value={selectedService} onChange={e=>{setSelectedService(e.target.value);setSelectedChecklist('');setSelectedWarehouse('');setUnit('');setSelectedShiftStart('');}}>
                   <option value="">Selecciona TSU o TSNU</option><option>TSU</option><option>TSNU</option>
                 </select>
                 {selectedService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[selectedLot]?.[selectedZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                 <label>Unidad</label>
-                <UnitSelector value={unit} units={selectedService === 'TSU' ? LOTS[selectedLot][selectedZone] : selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] || {} : {}} onChange={u=>{setUnit(u);setSelectedShiftStart('');setSelectedChecklist('');setShiftPickerOpen(false);}} />
+                <UnitSelector value={unit} units={selectedService === 'TSU' ? LOTS[selectedLot][selectedZone] : selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] || {} : {}} onChange={u=>{setUnit(u);setSelectedWarehouse('');setSelectedShiftStart('');setSelectedChecklist('');setShiftPickerOpen(false);}} />
+                {unit && selectedService === 'TSNU' && <><label>Almacén asignado</label><select value={selectedWarehouse} onChange={e=>setSelectedWarehouse(e.target.value)}><option value="">Selecciona el almacén</option>{(getWarehouseScope(selectedLot,selectedZone)?.warehouses||[]).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Almacén central':'Subalmacén'} · {w.name}</option>)}</select>{selectedWarehouse&&<p className="selected-zone">Los consumos futuros se descontarán de este almacén.</p>}</>}
                 {unit && !isSupervisorMaterial(unit) && selectedService === 'TSU' && <>
                   <label>Checklist asignado</label>
                   <select value={selectedChecklist} onChange={e=>{setSelectedChecklist(e.target.value);if(e.target.value){setShiftPickerTarget('initial');setShiftPickerOpen(true);}}}>
@@ -3689,7 +3696,7 @@ function App() {
                   unit={currentUnit}
                   lot={localStorage.getItem(KEY.lot) || lot}
                   zone={currentChecklistConfig.zone || unitZone(currentUnit)}
-                  warehouse={tsnuWarehouse(currentUnit, localStorage.getItem(KEY.lot) || lot, currentChecklistConfig.zone || unitZone(currentUnit))}
+                  warehouse={currentChecklistConfig.warehouse || tsnuWarehouse(currentUnit, localStorage.getItem(KEY.lot) || lot, currentChecklistConfig.zone || unitZone(currentUnit))}
                   assignedChecklist="TSNU"
                 />
               </React.Suspense>

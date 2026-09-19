@@ -32,7 +32,7 @@ test('supervisor material keeps no shift and no checklist',()=>{
  assert.equal(result.shift,'');assert.equal(result.checklist,'');
 });
 test('TSNU cannot accidentally select an existing TSU unit',()=>{
- assert.throws(()=>validateUnitChecklist({...base,service:'TSNU'},{G453:'Camprodon'}));
+ assert.throws(()=>validateUnitChecklist({...base,service:'TSNU',warehouse:'Camprodon',warehouseId:'lot5_olot_camprodon'},{G453:'Camprodon'}));
 });
 test('all 19 Olot TSNU units have automatic checklist and no shift',()=>{
  const lot='Lot 5 · Girona - Alt Maresme';
@@ -40,11 +40,17 @@ test('all 19 Olot TSNU units have automatic checklist and no shift',()=>{
  assert.equal(Object.keys(units).length,19);
  assert.equal(units.KE1388,'TSNU');
  for(const unit of Object.keys(units)) {
-  const result=validateUnitChecklist({...base,unit,lot,service:'TSNU',checklist:'',shift:''},units);
+  const result=validateUnitChecklist({...base,unit,lot,service:'TSNU',checklist:'',shift:'',warehouse:'Olot',warehouseId:'lot5_olot_central'},units);
   assert.equal(result.checklist,'TSNU');assert.equal(result.shift,'');
   assert.equal(readUnitChecklist({getItem:()=>JSON.stringify(result)},unit,lot).service,'TSNU');
  }
  assert.throws(()=>validateUnitChecklist({...base,unit:'T1731',lot,zone:'Figueres',service:'TSNU'},units));
+});
+test('new TSNU assignment requires an explicit warehouse chosen by administration',()=>{
+ const lot='Lot 5 · Girona - Alt Maresme', units=TSNU_UNITS[lot].Olot;
+ assert.throws(()=>validateUnitChecklist({...base,unit:'T1731',lot,zone:'Olot',service:'TSNU',shift:''},units),/almacén/);
+ const result=validateUnitChecklist({...base,unit:'T1731',lot,zone:'Olot',service:'TSNU',shift:'',warehouse:'Campdevànol',warehouseId:'lot5_olot_campdevanol'},units);
+ assert.equal(result.warehouse,'Campdevànol');assert.equal(result.warehouseId,'lot5_olot_campdevanol');
 });
 test('TSNU warehouse mapping is scoped and does not alter central minimum weights',()=>{
  const lot='Lot 5 · Girona - Alt Maresme';

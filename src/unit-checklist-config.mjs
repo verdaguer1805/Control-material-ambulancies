@@ -47,12 +47,13 @@ export function filterManagedDevices(devices, service = 'all', includeRevoked = 
     return service === 'all' || (service === 'TSNU' ? tsnu : !tsnu);
   });
 }
-export function validateUnitChecklist({service, checklist, unit, lot, zone, shift, supervisor = false}, units) {
+export function validateUnitChecklist({service, checklist, unit, lot, zone, shift, warehouse = '', warehouseId = '', supervisor = false}, units) {
   if (!lot || !zone || !unit || !Object.hasOwn(units || {}, unit)) throw new Error('Selecciona una unidad de esta zona');
   if (!['TSU','TSNU'].includes(service)) throw new Error('Selecciona TSU o TSNU');
   if (service === 'TSNU' && !Object.hasOwn(TSNU_UNITS[lot]?.[zone] || {}, unit)) throw new Error('Todavía no hay unidades TSNU configuradas');
   if (supervisor) return {service:'TSU', checklist:'', unit, lot, zone, shift:''};
   if (service === 'TSU' && !TSU_CHECKLISTS.includes(checklist)) throw new Error('Selecciona el tipo de checklist');
   if (service === 'TSU' && !['07:00','08:00','09:00'].includes(shift)) throw new Error('Selecciona la hora de inicio de guardia');
-  return {service, checklist:service === 'TSNU' ? 'TSNU' : checklist, unit, lot, zone, shift:service === 'TSNU' ? '' : shift};
+  if (service === 'TSNU' && (!warehouse || !warehouseId)) throw new Error('Selecciona el almacén asignado');
+  return {service, checklist:service === 'TSNU' ? 'TSNU' : checklist, unit, lot, zone, shift:service === 'TSNU' ? '' : shift, ...(service === 'TSNU' ? {warehouse,warehouseId} : {})};
 }

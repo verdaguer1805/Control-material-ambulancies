@@ -74,9 +74,9 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     </div>}
     {open && draft && <Modal title="Checklist de material · PRUEBA" close={()=>setOpen(false)} footer={<button className="primary" onClick={finish}>Guardar checklist de prueba</button>}>
       <p><strong>{unit} · {date} · {draft.vehicleType === "TSU" ? "SVB" : draft.vehicleType}</strong><br/>Lista provisional: comprueba cada elemento. No es una dotación oficial.</p>
-      {(daily ? TSNU_CHECKLIST_GROUPS : [["Material",DEMO_ITEMS]]).map(([group,items])=><section key={group}><h3 className="checklist-group-title">{group}</h3>{items.map(item=><div className="checklist-item" key={item}><strong>{item}</strong><div className="checklist-choices">
-        <button aria-pressed={draft.answers[item]==="ok"} className={draft.answers[item]==="ok"?"checklist-ok":"secondary"} onClick={()=>edit(item,"answers","ok")}>✓ Correcto</button>
-        <button aria-pressed={draft.answers[item]==="issue"} className={draft.answers[item]==="issue"?"checklist-issue":"secondary"} onClick={()=>edit(item,"answers","issue")}>✕ Incidencia</button>
+      {(daily ? TSNU_CHECKLIST_GROUPS : [["Material",DEMO_ITEMS]]).map(([group,items])=><section key={group}><h3 className="checklist-group-title">{group}</h3>{items.map(item=><div className={`checklist-item ${draft.answers[item]==='ok'?'checklist-row-ok':draft.answers[item]==='issue'?'checklist-row-issue':''}`} key={item}><strong>{item}</strong><div className="checklist-choices">
+        <button title="Correcto" aria-label={`${item}: correcto`} aria-pressed={draft.answers[item]==="ok"} className={draft.answers[item]==="ok"?"checklist-ok":"checklist-ok checklist-unselected"} onClick={()=>edit(item,"answers","ok")}>✓</button>
+        <button title="Incidencia" aria-label={`${item}: incidencia`} aria-pressed={draft.answers[item]==="issue"} className={draft.answers[item]==="issue"?"checklist-issue":"checklist-issue checklist-unselected"} onClick={()=>edit(item,"answers","issue")}>✕</button>
       </div></div>)}</section>)}
     </Modal>}
     {closeOpen && <Modal title="Finalizar guardia" close={()=>setCloseOpen(false)} footer={<button className="danger" onClick={finishShift}>Finalizar guardia</button>}><p>¿Seguro que quieres finalizar la guardia? Después deberás iniciar una nueva guardia y realizar otro checklist.</p>{Object.values(material).some(Number)&&<p className="checklist-pending-warning">Hay material seleccionado pendiente de enviar.</p>}</Modal>}
