@@ -1337,7 +1337,13 @@ function App() {
     }
   }
   async function revokeAuthorizedDevice(device) {
-    if (!confirm(`¿Revocar el dispositivo de ${displayUnit(device.unit)}?`)) return;
+    const expectedUnit=displayUnit(device.unit);
+    const confirmation=prompt(
+      `ATENCIÓN: vas a revocar el dispositivo de ${expectedUnit}.\n\nLote: ${device.lot}\nSupervisión: ${managedDeviceZone(device, LOTS) || 'Sin zona identificada'}\n\nEscribe ${expectedUnit} para confirmar:`,
+      '',
+    );
+    if(confirmation===null) return;
+    if(confirmation.trim().toUpperCase()!==expectedUnit.toUpperCase()) return flash('No se ha revocado: la unidad escrita no coincide',4000);
     setDeviceManagerLoading(true);
     try {
       const { data, error } = await supabase.rpc("revoke_authorized_device_for_admin", {
@@ -3096,7 +3102,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v157</span></h1>
+          <h1>Control de material <span className="app-version">v158</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3703,15 +3709,20 @@ function App() {
                 ) : !visibleDevices.length ? (
                   <p className="muted">No hay dispositivos con estos filtros.</p>
                 ) : <table className="device-management-table">
-                  <thead><tr><th scope="col">Unidad / dispositivo</th><th scope="col">Tipo</th><th scope="col">Lote / zona</th><th scope="col">Estado</th><th scope="col">Última conexión</th><th scope="col">Acción</th></tr></thead>
+                  <thead><tr><th scope="col">Unidad / dispositivo</th><th scope="col">Tipo</th><th scope="col">Lote / zona</th><th scope="col">Estado</th><th scope="col">Última conexión</th></tr></thead>
                   <tbody>{visibleDevices.map((device) => (
                     <tr className={device.active ? 'device-active-row' : 'device-revoked-row'} key={device.user_id}>
-                      <td><strong>{displayUnit(device.unit)}</strong><small>ID: {device.device_id}</small></td>
+                      <td>
+                        <div className="device-unit-action">
+                          <strong>{displayUnit(device.unit)}</strong>
+                          {device.active && <button className="danger" onClick={() => revokeAuthorizedDevice(device)} disabled={deviceManagerLoading} aria-label={`Revocar ${device.unit}, dispositivo ${device.device_id}`}>Revocar</button>}
+                        </div>
+                        <small>ID: {device.device_id}</small>
+                      </td>
                       <td>{deviceServiceLabel(device.unit, device.lot)}</td>
                       <td>{device.lot}<small>{managedDeviceZone(device, LOTS) || 'Sin zona identificada'}</small></td>
                       <td><strong>{device.active ? 'ACTIVO' : 'REVOCADO'}</strong></td>
                       <td title={`Activado: ${new Date(device.activated_at).toLocaleString('es-ES')}`}>{new Date(device.last_seen_at).toLocaleString('es-ES')}</td>
-                      <td>{device.active ? <button className="danger" onClick={() => revokeAuthorizedDevice(device)} disabled={deviceManagerLoading} aria-label={`Revocar ${device.unit}, dispositivo ${device.device_id}`}>Revocar</button> : '—'}</td>
                     </tr>
                   ))}</tbody>
                 </table>}
