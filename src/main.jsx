@@ -41,7 +41,9 @@ const KEY = {
 const DEVICE_AUTH_CACHE = "cma_device_authorization_v1";
 const MATERIAL_LABELS = {
   "Bolsas de residuos GII": "Bosses GII (paquete)",
-  "Pilas CR123": "Pila CR2032",
+  "Pilas AA": "Pilas AA (unidades)",
+  "Pilas AAA": "Pilas AAA (unidades)",
+  "Pilas CR123": "Pila CR2032 (unidades)",
   "Parches monitorización schiller": "Electrodos de monitorización (bolsas)",
   "Pañuelos de papel (caja)": "Pañuelos de papel (cajas)",
   "Bolsas de basura negras": "Bolsas de basura (paquete)",
@@ -2849,7 +2851,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v149</span></h1>
+          <h1>Control de material <span className="app-version">v150</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
