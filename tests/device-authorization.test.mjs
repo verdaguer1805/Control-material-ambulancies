@@ -28,6 +28,6 @@ test('activation UI never announces success before the second server confirmatio
     assert.equal(messages.includes('Dispositivo autorizado correctamente'),response===valid);
     assert.equal(authorized,response===valid);
   }
-  const save=source.split('  function saveUnit() {')[1].split('  const filtered')[0];
+  const save=source.split('  async function saveUnit() {')[1].split('  const filtered')[0];
   assert.match(save,/refreshDeviceAuthorization\(unit\)/);
 });

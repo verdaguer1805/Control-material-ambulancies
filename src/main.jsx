@@ -45,6 +45,7 @@ const MATERIAL_LABELS = {
   "Pilas AAA": "Pilas AAA (unidades)",
   "Pilas CR123": "Pila CR2032 (unidades)",
   "Parches monitorización schiller": "Electrodos de monitorización (bolsas)",
+  "Parches dea tsnu": "Parches DEA TSNU",
   "Pañuelos de papel (caja)": "Pañuelos de papel (cajas)",
   "Bolsas de basura negras": "Bolsas de basura (paquete)",
   "Bolsas de objetos personales SEM grandes": "Bolsas de objetos personales SEM grandes (unidad)",
@@ -61,6 +62,9 @@ const MATERIAL_LABELS = {
   "Tiras reactivas": "Tiras reactivas (botes)",
 };
 const materialLabel = (material) => MATERIAL_LABELS[material] || material;
+const isTsnuMaterial = (material) =>
+  !/^Parches schiller /i.test(material) &&
+  !/^Parches monitorización schiller$/i.test(material);
 const DEFAULT_MATERIAL_VISIBILITY = defaultMaterialVisibility(MATERIALS, SUPERVISOR_ONLY_MATERIALS);
 const storedWorkerMaterialScope = () => {
   const savedUnit = localStorage.getItem(KEY.unit) || "";
@@ -1093,7 +1097,7 @@ function App() {
         }
         return rows;
       },
-      [ambulanceData, supervisorData, submissionData] = await Promise.all([
+      [ambulanceData, supervisorData, submissionData, tsnuResult] = await Promise.all([
         fetchPages(() =>
           range(supabase.from("incidents").select(fields).in("unit", ambulances)),
         ),
@@ -1114,13 +1118,24 @@ function App() {
             .lte("submitted_at", exportTo + "T23:59:59.999")
             .order("submitted_at", { ascending: true }),
         ),
+        supabase.rpc("get_tsnu_report_data", {
+          p_lot: exportLot,
+          p_zone: exportZone,
+          p_from: exportFrom,
+          p_to: exportTo,
+        }),
       ]);
+    if (tsnuResult.error) throw tsnuResult.error;
     const merged = [
         ...ambulanceData,
         ...supervisorData,
       ],
       unique = [...new Map(merged.map((row) => [row.id, row])).values()];
-    return { records: mapAdminRecords(unique), submissions: submissionData };
+    return {
+      records: mapAdminRecords(unique),
+      submissions: submissionData,
+      tsnu: tsnuResult.data || { shifts: [], withdrawals: [] },
+    };
   }
   async function generateReport(type) {
     if (!exportZone) return flash("Selecciona una supervisión");
@@ -1134,7 +1149,7 @@ function App() {
       const selected = await loadSelectedAdminRecords();
       setAdminRecords([]);
       setAdminLoaded(false);
-      if (type === "excel") await exportExcel(selected.records, selected.submissions);
+      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu);
       else exportPdf(selected.records, selected.submissions);
     } catch (error) {
       flash("No se pueden cargar los datos seleccionados de Supabase");
@@ -2030,7 +2045,7 @@ function App() {
     doc.save(`lista_reposicion_${new Date().toISOString().slice(0, 10)}.pdf`);
     flash("Lista de reposición exportada en PDF");
   }
-  async function exportExcel(source = adminRecords, submissions = []) {
+  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
@@ -2072,7 +2087,12 @@ function App() {
       }),
       detail = [],
       critical = [],
-      servicesByDay = {};
+      servicesByDay = {},
+      tsnuShifts = Array.isArray(tsnuData?.shifts) ? tsnuData.shifts : [],
+      tsnuWithdrawals = Array.isArray(tsnuData?.withdrawals) ? tsnuData.withdrawals : [],
+      tsnuShiftById = new Map(tsnuShifts.map((shift) => [shift.id, shift])),
+      tsnuDetail = [],
+      tsnuCritical = [];
     selected.forEach((r) => {
       const a = aggregate(r),
         base = {
@@ -2102,6 +2122,25 @@ function App() {
       if (origin(r) === "Unidad") {
         servicesByDay[r.date] = (servicesByDay[r.date] || 0) + 1;
       }
+    });
+    tsnuWithdrawals.forEach((withdrawal) => {
+      const shift = tsnuShiftById.get(withdrawal.shift_id) || {},
+        when = new Date(withdrawal.created_at),
+        base = {
+          Fecha: when.toLocaleDateString("es-ES"),
+          Hora: when.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+          Servicio: "TSNU",
+          Unidad: withdrawal.unit || shift.unit || "",
+          Población: withdrawal.warehouse || shift.warehouse || "",
+          Almacén: withdrawal.warehouse || shift.warehouse || "",
+        };
+      Object.entries(withdrawal.materials || {})
+        .sort(([a], [b]) => materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true }))
+        .forEach(([material, quantity]) => {
+          const row = { ...base, Material: materialLabel(material), Cantidad: Number(quantity) };
+          tsnuDetail.push(row);
+          if (isCritical(material)) tsnuCritical.push(row);
+        });
     });
     const dailyRows = [],
       currentDay = new Date(`${exportFrom}T12:00:00`),
@@ -2154,6 +2193,59 @@ function App() {
       ws2 = XLSX.utils.json_to_sheet(detail),
       ws5 = XLSX.utils.json_to_sheet(dailyRows),
       ws6 = XLSX.utils.json_to_sheet(supervisorDeliveries),
+      tsuDetail = detail.map((row) => ({
+        Servicio: row["Tipo de registro"] === "Supervisor" ? "Supervisor" : "TSU",
+        Fecha: row["Fecha de guardia"],
+        Hora: row["Inicio de guardia"],
+        Unidad: row.Unidad,
+        Población: unitWarehouse(row.Unidad),
+        Almacén: row.Almacén,
+        Material: row.Material,
+        Cantidad: row.Cantidad,
+      })),
+      generalDetail = [...tsuDetail, ...tsnuDetail].sort((a, b) =>
+        String(a.Fecha || a["Fecha de guardia"] || "").localeCompare(String(b.Fecha || b["Fecha de guardia"] || "")) ||
+        String(a.Unidad || "").localeCompare(String(b.Unidad || ""), "es", { numeric: true }) ||
+        String(a.Material || "").localeCompare(String(b.Material || ""), "es", { sensitivity: "base", numeric: true })
+      ),
+      checklistTsnuRows = tsnuShifts.map((shift) => {
+        const answers = shift.checklist_answers || {},
+          issues = Object.entries(answers).filter(([, value]) => value === "issue").map(([item]) => item);
+        return {
+          Fecha: new Date(shift.started_at).toLocaleDateString("es-ES"),
+          "Inicio de guardia": new Date(shift.started_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+          Unidad: shift.unit,
+          Almacén: shift.warehouse,
+          "Checklist enviado": shift.checklist_submitted_at ? "Sí" : "No",
+          "Hora de checklist": shift.checklist_submitted_at ? new Date(shift.checklist_submitted_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "",
+          Estado: !shift.checklist_submitted_at ? "No realizado" : issues.length ? "Con incidencia" : "Correcto",
+          Incidencias: issues.join(" · "),
+          "Guardia finalizada": shift.ended_at ? "Sí" : "No",
+        };
+      }),
+      checklistTsuRows = [{ Estado: "Pendiente de activar las plantillas TSU" }],
+      allCritical = [
+        ...critical.map((row) => ({
+          Servicio: row["Tipo de registro"] === "Supervisor" ? "Supervisor" : "TSU",
+          Fecha: row["Fecha de guardia"],
+          Hora: row["Inicio de guardia"],
+          Unidad: row.Unidad,
+          Población: unitWarehouse(row.Unidad),
+          Almacén: row.Almacén,
+          Material: row.Material,
+          Cantidad: row.Cantidad,
+        })),
+        ...tsnuCritical,
+      ].sort((a, b) =>
+        String(a.Población || a.Almacén || "").localeCompare(String(b.Población || b.Almacén || ""), "es", { sensitivity: "base" }) ||
+        String(a.Unidad || "").localeCompare(String(b.Unidad || ""), "es", { numeric: true }) ||
+        String(a.Material || "").localeCompare(String(b.Material || ""), "es", { sensitivity: "base", numeric: true })
+      ),
+      wsGeneral = XLSX.utils.json_to_sheet(generalDetail),
+      wsTsu = XLSX.utils.json_to_sheet(tsuDetail),
+      wsTsnu = XLSX.utils.json_to_sheet(tsnuDetail),
+      wsChecklistTsnu = XLSX.utils.json_to_sheet(checklistTsnuRows),
+      wsChecklistTsu = XLSX.utils.json_to_sheet(checklistTsuRows),
       criticalHeaders = [
         "Fecha de guardia",
         "Inicio de guardia",
@@ -2163,11 +2255,12 @@ function App() {
         "Material",
         "Cantidad",
       ],
-      ws4 = XLSX.utils.aoa_to_sheet([criticalHeaders]);
-    if (critical.length)
-      XLSX.utils.sheet_add_json(ws4, critical, {
+      ws4 = XLSX.utils.aoa_to_sheet([["Servicio", "Fecha", "Hora", "Unidad", "Población", "Almacén", "Material", "Cantidad"]]);
+    if (allCritical.length)
+      XLSX.utils.sheet_add_json(ws4, allCritical, {
         origin: "A2",
         skipHeader: true,
+        header: ["Servicio", "Fecha", "Hora", "Unidad", "Población", "Almacén", "Material", "Cantidad"],
       });
     const configure = (ws, widths) => {
       if (ws["!ref"]) ws["!autofilter"] = { ref: ws["!ref"] };
@@ -2175,7 +2268,12 @@ function App() {
     };
     configure(ws1, [14, 12, 16, 18, 16, 24, 22, 55]);
     configure(ws2, [14, 12, 9, 18, 24, 22, 16, 42, 12]);
-    configure(ws4, [14, 12, 9, 18, 24, 22, 42, 12]);
+    configure(ws4, [14, 14, 10, 14, 24, 24, 42, 12]);
+    configure(wsGeneral, [14, 14, 12, 14, 18, 24, 24, 42, 12]);
+    configure(wsTsu, [14, 14, 12, 14, 18, 24, 24, 42, 12]);
+    configure(wsTsnu, [14, 10, 12, 14, 24, 24, 42, 12]);
+    configure(wsChecklistTsnu, [14, 16, 14, 24, 18, 18, 18, 60, 18]);
+    configure(wsChecklistTsu, [42]);
     configure(ws5, [16, 12, 28, 38, 18]);
     configure(ws6, [14, 10, 16, 28, 22, 42, 20, 14]);
     const dailyHeaderStyle = {
@@ -2204,11 +2302,16 @@ function App() {
         if (cell) cell.s = style;
       }
     });
-    XLSX.utils.book_append_sheet(wb, ws1, "Resumen guardias");
+    XLSX.utils.book_append_sheet(wb, wsGeneral, "Resumen general");
+    XLSX.utils.book_append_sheet(wb, wsTsu, "Consumo TSU");
+    XLSX.utils.book_append_sheet(wb, wsTsnu, "Consumo TSNU");
+    XLSX.utils.book_append_sheet(wb, ws1, "Resumen guardias TSU");
     XLSX.utils.book_append_sheet(wb, ws5, "Control diario unidades");
     XLSX.utils.book_append_sheet(wb, ws6, "Entregas supervisor");
     XLSX.utils.book_append_sheet(wb, ws2, "Detalle consumo");
     XLSX.utils.book_append_sheet(wb, ws4, "Material crítico");
+    XLSX.utils.book_append_sheet(wb, wsChecklistTsnu, "Checklist TSNU");
+    XLSX.utils.book_append_sheet(wb, wsChecklistTsu, "Checklist TSU");
     const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     saveAs(
       new Blob([out], { type: "application/octet-stream" }),
@@ -2867,7 +2970,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v153</span></h1>
+          <h1>Control de material <span className="app-version">v154</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3710,7 +3813,7 @@ function App() {
                   warehouse={currentChecklistConfig.warehouse || tsnuWarehouse(currentUnit, localStorage.getItem(KEY.lot) || lot, currentChecklistConfig.zone || unitZone(currentUnit))}
                   assignedChecklist="TSNU"
                   production
-                  materials={MATERIALS.filter(m=>materialVisibility[m]!==false).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}))}
+                  materials={MATERIALS.filter(m=>materialVisibility[m]!==false&&isTsnuMaterial(m)).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}))}
                 />
               </React.Suspense>
             )}
@@ -3854,9 +3957,6 @@ function App() {
           <>
             <div className="card">
               <h2>Panel de administración</h2>
-              {adminAccess?.role === "owner" && (
-                <React.Suspense fallback={null}><ChecklistDemo reportsOnly /></React.Suspense>
-              )}
               <div className="admin-access-summary">
                 <strong>
                   {adminAccess?.role === "owner"
