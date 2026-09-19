@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { DEMO_ITEMS, TSNU_CHECKLIST_GROUPS, VEHICLE_TYPES, demoKey, completeDemo, closeDemoShift, readDemo, saveDemo, filterDemo } from "./checklist-demo.mjs";
+import { ensureAnonymousSession, supabase } from "./supabase.js";
+import { newOperationId, queueTsnuOperation, readTsnuOutbox, removeTsnuOperation, readTsnuShift, saveTsnuShift, rpcForTsnuOperation } from "./tsnu-outbox.mjs";
 import "./checklist-demo.css";
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
@@ -10,18 +12,26 @@ function Modal({ title, children, close, footer }) {
     <div className="checklist-body">{children}</div><footer>{footer}<button className="secondary" onClick={close}>Cerrar</button></footer>
   </section></div>;
 }
-export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, reportsOnly = false, assignedChecklist = "" }) {
+export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, reportsOnly = false, assignedChecklist = "", production = false, materials = DEMO_ITEMS }) {
   const [date, setDate] = useState(today), [phase, setPhase] = useState("open"), [open,setOpen] = useState(false), [report,setReport] = useState(false);
   const [draft,setDraft] = useState(null), [notice,setNotice] = useState(""), [busy,setBusy] = useState(false), [rows,setRows] = useState([]);
   const [activeShift,setActiveShift] = useState(null), [material,setMaterial] = useState({}), [closeOpen,setCloseOpen] = useState(false);
-  const [vehicleType,setVehicleType] = useState("TSU");
+  const [vehicleType,setVehicleType] = useState("TSU"), [materialSearch,setMaterialSearch]=useState(""), [syncing,setSyncing]=useState(false);
+  const syncLock=useRef(false);
   const daily = (assignedChecklist || vehicleType) === "TSNU";
   const [from,setFrom] = useState(today), [to,setTo] = useState(today), [zoneFilter,setZoneFilter] = useState(""), [warehouseFilter,setWarehouseFilter] = useState(""), [lotFilter,setLotFilter] = useState("");
   useEffect(() => { if(!notice) return; const timer=setTimeout(()=>setNotice(""),4000); return ()=>clearTimeout(timer); },[notice]);
+  useEffect(()=>{if(!production||!daily)return;setActiveShift(readTsnuShift(localStorage,unit,lot));const online=()=>void syncProduction();window.addEventListener('online',online);void syncProduction();return()=>window.removeEventListener('online',online);},[production,daily,unit,lot]);
+  async function syncProduction(showResult=false){
+    if(!production||syncLock.current)return;syncLock.current=true;setSyncing(true);
+    try{await ensureAnonymousSession();let sent=0;for(const operation of readTsnuOutbox(localStorage)){const [name,args]=rpcForTsnuOperation(operation);const {error}=await supabase.rpc(name,args);if(error)throw error;removeTsnuOperation(localStorage,operation.localId);sent++;}if(showResult)setNotice(sent?"Pendientes sincronizados correctamente":"No hay registros pendientes");return true;}
+    catch{if(showResult)setNotice("Sin cobertura: los registros continúan guardados en este dispositivo");return false;}finally{syncLock.current=false;setSyncing(false);}
+  }
   function start() {
     try {
       const sessionId = daily ? `${Date.now()}-${Math.random().toString(36).slice(2)}` : undefined;
       const identity = { unit,lot,zone,warehouse,date,service: daily ? "TSNU" : "TSU",vehicleType: assignedChecklist || vehicleType,shift: daily ? "" : shift || "07:00",sessionId,startedAt:new Date().toISOString() };
+      if(production&&daily){const id=newOperationId(),next={...identity,sessionId:id,id,answers:{},completed:false};queueTsnuOperation(localStorage,{localId:`start:${id}`,type:'start',shiftId:id,at:next.startedAt});saveTsnuShift(localStorage,next);setDraft(next);setOpen(true);void syncProduction();return;}
       const existing = daily ? null : readDemo(localStorage).find((r) => demoKey(r) === demoKey(identity));
       const next = { answers: {}, notes: {}, completed:false, ...existing, ...identity, phase: daily ? "open" : phase };
       saveDemo(localStorage,next);
@@ -32,18 +42,19 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   function edit(item,field,value) {
     const next = {...draft, completed:false, [field]:{...draft[field],[item]:value}};
     setDraft(next);
-    try { saveDemo(localStorage,next); } catch { setNotice("No se ha podido guardar el borrador en este navegador."); }
+    try { if(production) saveTsnuShift(localStorage,next); else saveDemo(localStorage,next); } catch { setNotice("No se ha podido guardar el borrador en este navegador."); }
   }
   function finish() {
-    try { const result=completeDemo(draft); saveDemo(localStorage,result); setActiveShift(result); setMaterial({}); setOpen(false); setNotice("Checklist enviado correctamente"); }
+    try { const result=completeDemo(draft); if(production){queueTsnuOperation(localStorage,{localId:`checklist:${result.sessionId}`,type:'checklist',shiftId:result.sessionId,answers:result.answers});saveTsnuShift(localStorage,result);void syncProduction();}else saveDemo(localStorage,result); setActiveShift(result); setMaterial({}); setOpen(false); setNotice("Checklist enviado correctamente"); }
     catch(e) { setNotice(e.message || "No se ha podido guardar la prueba."); }
   }
   function sendMaterial() {
     if (!Object.values(material).some(Number)) return setNotice("Selecciona algún material antes de enviarlo");
+    if(production){const selected=Object.fromEntries(Object.entries(material).filter(([,n])=>Number(n)>0)),operationId=newOperationId();queueTsnuOperation(localStorage,{localId:`withdrawal:${operationId}`,type:'withdrawal',operationId,shiftId:activeShift.sessionId,materials:selected});setMaterial({});void syncProduction();setNotice("Consumo guardado. Se sincronizará automáticamente");return;}
     setMaterial({}); setNotice("Consumo enviado correctamente (simulación local)");
   }
   function finishShift() {
-    try { const result=closeDemoShift(activeShift,Object.values(material).some(Number)); saveDemo(localStorage,result); setActiveShift(null); setCloseOpen(false); setMaterial({}); setNotice("Guardia finalizada correctamente"); }
+    try { const result=closeDemoShift(activeShift,Object.values(material).some(Number)); if(production){queueTsnuOperation(localStorage,{localId:`finish:${result.sessionId}`,type:'finish',shiftId:result.sessionId,at:result.endedAt});saveTsnuShift(localStorage,null);void syncProduction();}else saveDemo(localStorage,result); setActiveShift(null); setCloseOpen(false); setMaterial({}); setNotice("Guardia finalizada correctamente"); }
     catch(e) { setCloseOpen(false); setNotice(e.message); }
   }
   function showReport() {
@@ -62,18 +73,18 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   const options = (field, records=rows) => [...new Set(records.map(r=>r[field]))].sort();
   return <div className="checklist-demo">
     {reportsOnly ? <button className="secondary" onClick={showReport}>Checklist · informes de prueba</button> : <div className="card checklist-demo-card">
-      {!daily || !activeShift ? <button className="checklist-yellow" onClick={start}>{daily ? "Iniciar guardia y realizar checklist · PRUEBA" : "Checklist de material · PRUEBA"}</button> : <div className="checklist-active-banner">✓ Checklist enviado · Guardia activa</div>}
-      <p>Solo simulación. Lista provisional, sin cantidades oficiales. No afecta al consumo ni al stock.</p>
+      {!daily || !activeShift ? <button className="checklist-yellow" onClick={start}>{daily ? `Iniciar guardia y realizar checklist${production?'':' · PRUEBA'}` : "Checklist de material · PRUEBA"}</button> : <div className="checklist-active-banner">✓ Checklist enviado · Guardia activa</div>}
+      <p>{production ? `Almacén asignado: ${warehouse}. Los consumos enviados actualizan el stock.` : "Solo simulación. No afecta al consumo ni al stock."}</p>
       {assignedChecklist ? <p><strong>Checklist asignado: {assignedChecklist === "TSU" ? "SVB" : assignedChecklist}</strong> · Solo la administración cambia la asignación.</p> : <label>Tipo de vehículo / checklist de prueba<select value={vehicleType} onChange={e=>setVehicleType(e.target.value)}>{VEHICLE_TYPES.map(v=><option key={v} value={v}>{v === "TSU" ? "SVB" : v}</option>)}</select></label>}
-      <small>Los cuatro tipos usan ejemplos provisionales hasta recibir sus listas oficiales. La asignación real quedará reservada a supervisión.</small>
-      <div className="checklist-controls"><label>{daily ? "Fecha del checklist de prueba" : "Fecha de guardia de prueba"}<input type="date" value={date} onChange={e=>setDate(e.target.value)} /></label>
-      {!daily && <label>Reloj de prueba<select value={phase} onChange={e=>setPhase(e.target.value)}><option value="open">Dentro de las dos primeras horas</option><option value="closed">Fuera de plazo (dos horas o más)</option></select></label>}</div>
+      {!production&&<small>Los cuatro tipos usan ejemplos provisionales. La asignación real queda reservada a supervisión.</small>}
+      {!production&&<div className="checklist-controls"><label>{daily ? "Fecha del checklist de prueba" : "Fecha de guardia de prueba"}<input type="date" value={date} onChange={e=>setDate(e.target.value)} /></label>
+      {!daily && <label>Reloj de prueba<select value={phase} onChange={e=>setPhase(e.target.value)}><option value="open">Dentro de las dos primeras horas</option><option value="closed">Fuera de plazo (dos horas o más)</option></select></label>}</div>}
       {daily ? <small>TSNU: cada nueva tripulación inicia una guardia y realiza su propio checklist, aunque sea el mismo día.</small> : <small>Inicio asignado: {shift || "07:00"}. Puedes probar cualquier horario sin cambiar la guardia real.</small>}
-      <button className="secondary" onClick={showReport}>Ver informes de prueba</button>
-      {daily && activeShift && <section className="checklist-material-demo"><h3>Material retirado</h3><p className="muted small">Disponible después de enviar el checklist. Esta prueba no modifica existencias.</p>{DEMO_ITEMS.map(item=><div className={`material${(material[item]||0)>0?' material-selected':''}`} key={item}><span>{item}</span><div className="counter"><button onClick={()=>setMaterial(v=>({...v,[item]:Math.max(0,(v[item]||0)-1)}))}>-</button><span className="qty">{material[item]||0}</span><button onClick={()=>setMaterial(v=>({...v,[item]:(v[item]||0)+1}))}>+</button></div></div>)}<div className="tsnu-shift-actions"><button className="primary full" onClick={sendMaterial}>Enviar consumo</button><button className="secondary full sync-button" disabled>Sincronizar pendientes (0)</button><button className="danger full" onClick={()=>setCloseOpen(true)}>Finalizar guardia</button></div></section>}
+      {!production&&<button className="secondary" onClick={showReport}>Ver informes de prueba</button>}
+      {daily && activeShift && <section className="checklist-material-demo"><h3>Material retirado</h3><p className="muted small">Disponible después de enviar el checklist.</p><label>Buscar material<input value={materialSearch} onChange={e=>setMaterialSearch(e.target.value)} placeholder="Escribe el nombre..."/></label>{materials.filter(item=>item.toLowerCase().includes(materialSearch.toLowerCase())).map(item=><div className={`material${(material[item]||0)>0?' material-selected':''}`} key={item}><span>{item}</span><div className="counter"><button onClick={()=>setMaterial(v=>({...v,[item]:Math.max(0,(v[item]||0)-1)}))}>-</button><span className="qty">{material[item]||0}</span><button onClick={()=>setMaterial(v=>({...v,[item]:(v[item]||0)+1}))}>+</button></div></div>)}<div className="tsnu-shift-actions"><button className="primary full" onClick={sendMaterial}>Enviar consumo</button><button className="secondary full sync-button" onClick={()=>syncProduction(true)} disabled={!production||syncing}>{syncing?'Sincronizando...':`Sincronizar pendientes (${production?readTsnuOutbox(localStorage).length:0})`}</button><button className="danger full" onClick={()=>setCloseOpen(true)}>Finalizar guardia</button></div></section>}
     </div>}
-    {open && draft && <Modal title="Checklist de material · PRUEBA" close={()=>setOpen(false)} footer={<button className="primary" onClick={finish}>Guardar checklist de prueba</button>}>
-      <p><strong>{unit} · {date} · {draft.vehicleType === "TSU" ? "SVB" : draft.vehicleType}</strong><br/>Lista provisional: comprueba cada elemento. No es una dotación oficial.</p>
+    {open && draft && <Modal title={`Checklist de material${production?'':' · PRUEBA'}`} close={()=>setOpen(false)} footer={<button className="primary" onClick={finish}>{production?'Enviar checklist':'Guardar checklist de prueba'}</button>}>
+      <p><strong>{unit} · {date} · {draft.vehicleType === "TSU" ? "SVB" : draft.vehicleType}</strong><br/>{production?'Comprueba todos los elementos antes de enviar.':'Lista provisional de prueba.'}</p>
       {(daily ? TSNU_CHECKLIST_GROUPS : [["Material",DEMO_ITEMS]]).map(([group,items])=><section key={group}><h3 className="checklist-group-title">{group}</h3>{items.map(item=><div className={`checklist-item ${draft.answers[item]==='ok'?'checklist-row-ok':draft.answers[item]==='issue'?'checklist-row-issue':''}`} key={item}><strong>{item}</strong><div className="checklist-choices">
         <button title="Correcto" aria-label={`${item}: correcto`} aria-pressed={draft.answers[item]==="ok"} className={draft.answers[item]==="ok"?"checklist-ok":"checklist-ok checklist-unselected"} onClick={()=>edit(item,"answers","ok")}>✓</button>
         <button title="Incidencia" aria-label={`${item}: incidencia`} aria-pressed={draft.answers[item]==="issue"} className={draft.answers[item]==="issue"?"checklist-issue":"checklist-issue checklist-unselected"} onClick={()=>edit(item,"answers","issue")}>✕</button>

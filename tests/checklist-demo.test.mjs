@@ -68,8 +68,8 @@ test("Excel roundtrip contains statuses, typed date, no formulas and separate wa
   assert.equal(restored.Sheets[restored.SheetNames[0]].C9.v,"Incidencia");
   assert.equal(restored.Sheets[restored.SheetNames[0]].H9.f,undefined);
 });
-test("demo implementation has no production data/network dependencies",()=>{
-  for(const file of ["checklist-demo.mjs","ChecklistDemo.jsx","checklist-demo-export.mjs"]) {
+test("demo storage and export have no production data/network dependencies",()=>{
+  for(const file of ["checklist-demo.mjs","checklist-demo-export.mjs"]) {
     const source=fs.readFileSync(new URL(`../src/${file}`,import.meta.url),"utf8");
     assert.doesNotMatch(source,/supabase\s*\.|fetch\s*\(|\.rpc\s*\(|cma_records|warehouse_inventory/);
   }

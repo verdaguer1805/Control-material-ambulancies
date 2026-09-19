@@ -258,6 +258,7 @@ function App() {
     [selectedService, setSelectedService] = useState(""),
     [selectedChecklist, setSelectedChecklist] = useState(""),
     [selectedWarehouse, setSelectedWarehouse] = useState(""),
+    [assignmentAdminPin, setAssignmentAdminPin] = useState(""),
     [changeService, setChangeService] = useState(""),
     [changeChecklist, setChangeChecklist] = useState(""),
     [changeWarehouse, setChangeWarehouse] = useState(""),
@@ -690,9 +691,10 @@ function App() {
     if (!selectedLot) return flash("Selecciona un lote");
     if (!Object.keys(LOTS[selectedLot] || {}).length)
       return flash("Este lote todavía no tiene supervisiones configuradas");
+    setAssignmentAdminPin(enteredPin);
     setZoneOpen(true);
   }
-  function saveUnit() {
+  async function saveUnit() {
     let config;
     try {
       const scope=getWarehouseScope(selectedLot,selectedZone), selected=scope?.warehouses.find(w=>w.id===selectedWarehouse);
@@ -704,6 +706,10 @@ function App() {
       !/^(07|08|09):00$/.test(selectedShiftStart)
     )
       return flash("Selecciona la hora de inicio de guardia");
+    if(selectedService==='TSNU'){
+      try{await ensureAnonymousSession();const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:assignmentAdminPin,p_lot:selectedLot,p_zone:selectedZone,p_unit:unit,p_warehouse_id:selectedWarehouse});if(error)throw error;}
+      catch{return flash('No se ha podido guardar la asignación TSNU en Supabase');}
+    }
     localStorage.setItem(UNIT_CHECKLIST_KEY, JSON.stringify(config));
     localStorage.setItem(KEY.unit, unit);
     localStorage.setItem(KEY.lot, selectedLot);
@@ -715,6 +721,7 @@ function App() {
     setDeviceAuth({ checked: false, enforcement: true, authorized: false, unit: "", version: 0 });
     setLot(selectedLot);
     setPinInput("");
+    setAssignmentAdminPin("");
     flash("Móvil asignado correctamente");
     // Selectors can already hold these values before localStorage is assigned.
     void refreshDeviceAuthorization(unit);
@@ -1315,6 +1322,10 @@ function App() {
       !/^(07|08|09):00$/.test(changeShiftStart)
     )
       return flash("Selecciona la hora de inicio de guardia");
+    if(changeService==='TSNU'){
+      try{const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:enteredPin,p_lot:changeLot,p_zone:changeZone,p_unit:nextUnit,p_warehouse_id:changeWarehouse});if(error)throw error;}
+      catch{return flash('No se ha podido guardar la asignación TSNU en Supabase');}
+    }
     localStorage.setItem(UNIT_CHECKLIST_KEY, JSON.stringify(config));
     localStorage.setItem(KEY.unit, nextUnit);
     localStorage.setItem(KEY.lot, changeLot);
@@ -2856,7 +2867,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v152</span></h1>
+          <h1>Control de material <span className="app-version">v153</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3698,6 +3709,8 @@ function App() {
                   zone={currentChecklistConfig.zone || unitZone(currentUnit)}
                   warehouse={currentChecklistConfig.warehouse || tsnuWarehouse(currentUnit, localStorage.getItem(KEY.lot) || lot, currentChecklistConfig.zone || unitZone(currentUnit))}
                   assignedChecklist="TSNU"
+                  production
+                  materials={MATERIALS.filter(m=>materialVisibility[m]!==false).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}))}
                 />
               </React.Suspense>
             )}
@@ -3710,7 +3723,7 @@ function App() {
                   <p className="small">
                     {currentChecklistConfig.service === 'TSNU'
                       ? deviceAuth.authorized
-                        ? "Dispositivo TSNU autorizado. El piloto de checklist está disponible; las pruebas todavía no modifican el stock."
+                        ? "Dispositivo TSNU autorizado. El checklist y los consumos están conectados con el almacén asignado."
                         : "Unidad TSNU asignada, pero dispositivo sin autorización vigente. La administración debe autorizarlo para registrarlo en Dispositivos oficiales. El checklist todavía no está activo."
                       : deviceAuth.authorized
                         ? "Los consumos se enviarán a Supabase y actualizarán el stock."
