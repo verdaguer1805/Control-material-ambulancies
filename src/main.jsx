@@ -1015,6 +1015,9 @@ function App() {
     } catch (error) {
       saveRecords(list);
       setRecords([...list]);
+      const currentUnit=localStorage.getItem(KEY.unit);
+      const hasUnitPending=list.some(record=>record.unit===currentUnit && !record.synced);
+      if(hasUnitPending && displayUnit(currentUnit)==='G451') setGuardRecoveryBlocked(true);
       flash(/RECOVERY|STALE_GUARD|MULTIPLE_ACTIVE|GUARD_START|CLIENT_UPGRADE|DEVICE_NOT_AUTHORIZED/.test(String(error?.message || '')) ? recoveryErrorMessage(error) : "No se han podido sincronizar: comprueba la cobertura",5000);
     } finally {
       consumptionOperationRef.current=false;
@@ -3143,7 +3146,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v162</span></h1>
+          <h1>Control de material <span className="app-version">v163</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>

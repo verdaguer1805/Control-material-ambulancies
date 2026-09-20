@@ -10,4 +10,5 @@ test('a blocked current guard offers an explicit local-only discard path',()=>{
   assert.match(source,/record\.unit===currentUnit && !record\.synced/);
   assert.match(source,/Lo ya guardado en Supabase se conservará/);
   assert.match(source,/await prepareDeviceGuard\(currentUnit\)/);
+  assert.match(source,/catch \(error\) \{\s+saveRecords\(list\);\s+setRecords\(\[\.\.\.list\]\);\s+const currentUnit=.*hasUnitPending=.*displayUnit\(currentUnit\)==='G451'.*setGuardRecoveryBlocked\(true\)/s);
 });
