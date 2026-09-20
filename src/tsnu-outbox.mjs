@@ -13,6 +13,14 @@ export function removeTsnuOperation(storage, localId) {
   const rows=readTsnuOutbox(storage).filter(row=>row.localId!==localId);
   storage.setItem(TSNU_OUTBOX_KEY,JSON.stringify(rows));return rows;
 }
+export function updateTsnuOperation(storage, localId, changes) {
+  const rows=readTsnuOutbox(storage).map(row=>row.localId===localId?{...row,...changes}:row);
+  storage.setItem(TSNU_OUTBOX_KEY,JSON.stringify(rows));return rows;
+}
+export function removeTsnuShiftOperations(storage, shiftId) {
+  const rows=readTsnuOutbox(storage).filter(row=>row.shiftId!==shiftId);
+  storage.setItem(TSNU_OUTBOX_KEY,JSON.stringify(rows));return rows;
+}
 export function readTsnuShift(storage, unit, lot) {
   try { const value=JSON.parse(storage.getItem(TSNU_SHIFT_KEY)||'null');return value?.unit===unit&&value?.lot===lot?value:null; }
   catch { return null; }
@@ -27,4 +35,51 @@ export function rpcForTsnuOperation(operation) {
   if(operation.type==='withdrawal') return ['append_tsnu_withdrawal',{p_operation_id:operation.operationId,p_shift_id:operation.shiftId,p_materials:operation.materials}];
   if(operation.type==='finish') return ['finish_tsnu_shift',{p_shift_id:operation.shiftId,p_ended_at:operation.at}];
   throw new Error('Operación TSNU desconocida');
+}
+
+const errorMessage = error => String(error?.message || error?.details || error || '');
+
+export const isTsnuAuthorizationError = error =>
+  /DEVICE_NOT_AUTHORIZED|MULTIPLE_ACTIVE_DEVICES|TSNU_UNIT_NOT_CONFIGURED|TSNU_ASSIGNMENT_REQUIRED/.test(errorMessage(error));
+
+export const isTsnuConnectivityError = error =>
+  /Failed to fetch|Load failed|NetworkError|network request|fetch failed|ERR_NETWORK|timeout/i.test(errorMessage(error));
+
+export const isTsnuSessionError = error =>
+  /INVALID_SHIFT|INVALID_OPEN_SHIFT|SHIFT_ID_CONFLICT|OPEN_SHIFT_EXISTS|INCOMPLETE_CHECKLIST|CHECKLIST_ALREADY_SUBMITTED|CHECKLIST_REQUIRED|INVALID_END_TIME|INVALID_WITHDRAWAL|INVALID_MATERIAL_QUANTITY|MATERIAL_NOT_IN_INVENTORY|OPERATION_ID_CONFLICT/.test(errorMessage(error));
+
+/**
+ * Synchronizes the TSNU outbox without allowing a damaged previous session to
+ * block later independent sessions. Ordering is still strict inside each
+ * session and an operation is removed only after Supabase confirms success.
+ */
+export async function syncTsnuOutbox(storage, sendOperation) {
+  const result={synced:[],failed:[],skipped:[],stopped:null};
+  const blockedShifts=new Set();
+
+  for(const operation of readTsnuOutbox(storage)) {
+    if(blockedShifts.has(operation.shiftId)) {
+      result.skipped.push(operation);
+      continue;
+    }
+    try {
+      await sendOperation(operation);
+      removeTsnuOperation(storage,operation.localId);
+      result.synced.push(operation);
+    } catch(error) {
+      const message=errorMessage(error)||'TSNU_SYNC_FAILED';
+      updateTsnuOperation(storage,operation.localId,{lastSyncError:message});
+      result.failed.push({operation,error});
+
+      if(isTsnuAuthorizationError(error)||isTsnuConnectivityError(error)||!isTsnuSessionError(error)) {
+        result.stopped=error;
+        break;
+      }
+
+      // The remaining dependent operations of this session stay untouched,
+      // while another session can still synchronize independently.
+      blockedShifts.add(operation.shiftId);
+    }
+  }
+  return result;
 }

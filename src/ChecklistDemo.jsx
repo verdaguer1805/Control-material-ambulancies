@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { DEMO_ITEMS, TSNU_CHECKLIST_GROUPS, VEHICLE_TYPES, demoKey, completeDemo, closeDemoShift, readDemo, saveDemo, filterDemo } from "./checklist-demo.mjs";
 import { ensureAnonymousSession, supabase } from "./supabase.js";
-import { newOperationId, queueTsnuOperation, readTsnuOutbox, removeTsnuOperation, readTsnuShift, saveTsnuShift, rpcForTsnuOperation } from "./tsnu-outbox.mjs";
+import { newOperationId, queueTsnuOperation, readTsnuOutbox, readTsnuShift, saveTsnuShift, rpcForTsnuOperation, syncTsnuOutbox, removeTsnuShiftOperations } from "./tsnu-outbox.mjs";
 import "./checklist-demo.css";
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
@@ -17,6 +17,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   const [draft,setDraft] = useState(null), [notice,setNotice] = useState(""), [busy,setBusy] = useState(false), [rows,setRows] = useState([]);
   const [activeShift,setActiveShift] = useState(null), [material,setMaterial] = useState({}), [closeOpen,setCloseOpen] = useState(false);
   const [vehicleType,setVehicleType] = useState("TSU"), [materialSearch,setMaterialSearch]=useState(""), [syncing,setSyncing]=useState(false);
+  const [recoveryShiftId,setRecoveryShiftId]=useState(""), [recoveryOpen,setRecoveryOpen]=useState(false), [recoveryPin,setRecoveryPin]=useState("");
   const syncLock=useRef(false);
   const daily = (assignedChecklist || vehicleType) === "TSNU";
   const [from,setFrom] = useState(today), [to,setTo] = useState(today), [zoneFilter,setZoneFilter] = useState(""), [warehouseFilter,setWarehouseFilter] = useState(""), [lotFilter,setLotFilter] = useState("");
@@ -24,7 +25,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   useEffect(()=>{if(!production||!daily)return;setActiveShift(readTsnuShift(localStorage,unit,lot));const online=()=>void syncProduction();window.addEventListener('online',online);void syncProduction();return()=>window.removeEventListener('online',online);},[production,daily,unit,lot]);
   async function syncProduction(showResult=false){
     if(!production||syncLock.current)return;syncLock.current=true;setSyncing(true);
-    try{await ensureAnonymousSession();let sent=0;for(const operation of readTsnuOutbox(localStorage)){const [name,args]=rpcForTsnuOperation(operation);const {error}=await supabase.rpc(name,args);if(error)throw error;removeTsnuOperation(localStorage,operation.localId);sent++;}if(showResult)setNotice(sent?"Pendientes sincronizados correctamente":"No hay registros pendientes");return true;}
+    try{await ensureAnonymousSession();const result=await syncTsnuOutbox(localStorage,async operation=>{const [name,args]=rpcForTsnuOperation(operation);const {error}=await supabase.rpc(name,args);if(error)throw error;});const failedShift=result.failed[0]?.operation?.shiftId||"";setRecoveryShiftId(failedShift);if(showResult)setNotice(result.synced.length?`Pendientes sincronizados correctamente (${result.synced.length})`:result.failed.length?"Hay una sesión pendiente de revisión. Las demás pueden continuar":"No hay registros pendientes");return !result.stopped;}
     catch{if(showResult)setNotice("Sin cobertura: los registros continúan guardados en este dispositivo");return false;}finally{syncLock.current=false;setSyncing(false);}
   }
   function start() {
@@ -57,6 +58,21 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     try { const result=closeDemoShift(activeShift,Object.values(material).some(Number)); if(production){queueTsnuOperation(localStorage,{localId:`finish:${result.sessionId}`,type:'finish',shiftId:result.sessionId,at:result.endedAt});saveTsnuShift(localStorage,null);void syncProduction();}else saveDemo(localStorage,result); setActiveShift(null); setCloseOpen(false); setMaterial({}); setNotice("Guardia finalizada correctamente"); }
     catch(e) { setCloseOpen(false); setNotice(e.message); }
   }
+  async function recoverTsnuShift() {
+    if(!recoveryShiftId||!recoveryPin)return;
+    setSyncing(true);
+    try{
+      await ensureAnonymousSession();
+      const {error}=await supabase.rpc('recover_my_tsnu_session',{p_admin_pin:recoveryPin,p_shift_id:recoveryShiftId});
+      if(error)throw error;
+      removeTsnuShiftOperations(localStorage,recoveryShiftId);
+      if(activeShift?.sessionId===recoveryShiftId){saveTsnuShift(localStorage,null);setActiveShift(null);setMaterial({});}
+      setRecoveryPin("");setRecoveryOpen(false);setRecoveryShiftId("");
+      setNotice("Sesión recuperada. Los movimientos ya confirmados se conservan y el dispositivo puede continuar.");
+      setTimeout(()=>void syncProduction(),0);
+    }catch(error){setNotice(/ADMIN_PIN_REQUIRED/.test(String(error?.message||error))?"PIN de supervisión incorrecto":"No se ha podido recuperar la sesión. No se ha borrado ningún pendiente.");}
+    finally{setSyncing(false);}
+  }
   function showReport() {
     try { setRows(readDemo(localStorage)); setReport(true); } catch(e) { setNotice(e.message); }
   }
@@ -82,6 +98,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
       {daily ? <small>TSNU: cada nueva tripulación inicia una guardia y realiza su propio checklist, aunque sea el mismo día.</small> : <small>Inicio asignado: {shift || "07:00"}. Puedes probar cualquier horario sin cambiar la guardia real.</small>}
       {!production&&<button className="secondary" onClick={showReport}>Ver informes de prueba</button>}
       {daily && activeShift && <section className="checklist-material-demo"><h3>Material retirado</h3><p className="muted small">Disponible después de enviar el checklist.</p><label>Buscar material<input value={materialSearch} onChange={e=>setMaterialSearch(e.target.value)} placeholder="Escribe el nombre..."/></label>{materials.filter(item=>item.toLowerCase().includes(materialSearch.toLowerCase())).map(item=><div className={`material${(material[item]||0)>0?' material-selected':''}`} key={item}><span>{item}</span><div className="counter"><button onClick={()=>setMaterial(v=>({...v,[item]:Math.max(0,(v[item]||0)-1)}))}>-</button><span className="qty">{material[item]||0}</span><button onClick={()=>setMaterial(v=>({...v,[item]:(v[item]||0)+1}))}>+</button></div></div>)}<div className="tsnu-shift-actions"><button className="primary full" onClick={sendMaterial}>Enviar consumo</button><button className="secondary full sync-button" onClick={()=>syncProduction(true)} disabled={!production||syncing}>{syncing?'Sincronizando...':`Sincronizar pendientes (${production?readTsnuOutbox(localStorage).length:0})`}</button><button className="danger full" onClick={()=>setCloseOpen(true)}>Finalizar guardia</button></div></section>}
+      {production&&daily&&recoveryShiftId&&<button className="danger full" onClick={()=>setRecoveryOpen(true)}>Recuperación supervisada de sesión</button>}
     </div>}
     {open && draft && <Modal title={`Checklist de material${production?'':' · PRUEBA'}`} close={()=>setOpen(false)} footer={<button className="primary" onClick={finish}>{production?'Enviar checklist':'Guardar checklist de prueba'}</button>}>
       <p><strong>{unit} · {date} · {draft.vehicleType === "TSU" ? "SVB" : draft.vehicleType}</strong><br/>{production?'Comprueba todos los elementos antes de enviar.':'Lista provisional de prueba.'}</p>
@@ -91,6 +108,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
       </div></div>)}</section>)}
     </Modal>}
     {closeOpen && <Modal title="Finalizar guardia" close={()=>setCloseOpen(false)} footer={<button className="danger" onClick={finishShift}>Finalizar guardia</button>}><p>¿Seguro que quieres finalizar la guardia? Después deberás iniciar una nueva guardia y realizar otro checklist.</p>{Object.values(material).some(Number)&&<p className="checklist-pending-warning">Hay material seleccionado pendiente de enviar.</p>}</Modal>}
+    {recoveryOpen&&<Modal title="Recuperación supervisada" close={()=>{setRecoveryOpen(false);setRecoveryPin("");}} footer={<button className="danger" disabled={syncing||!recoveryPin} onClick={recoverTsnuShift}>{syncing?"Recuperando...":"Confirmar recuperación"}</button>}><p>Solo se aislará la sesión TSNU con error. Los movimientos ya confirmados en Supabase, las demás sesiones y las demás unidades se conservarán.</p><label>PIN de supervisión<input type="password" inputMode="numeric" autoComplete="new-password" value={recoveryPin} onChange={e=>setRecoveryPin(e.target.value.replace(/\D/g,"").slice(0,12))}/></label></Modal>}
     {report && <Modal title="Informes de checklist · PRUEBA" close={()=>setReport(false)} footer={<button className="primary" disabled={busy} onClick={download}>{busy?"Preparando...":"Descargar Excel de prueba"}</button>}>
       <p>Solo pruebas guardadas en este navegador. No incluye las unidades reales ni sincroniza entre dispositivos.</p>
       <p>TSNU: una revisión por fecha, sin horario de guardia. Una fecha pasada sin completar figura como no realizada; durante el día sigue pendiente.</p>
