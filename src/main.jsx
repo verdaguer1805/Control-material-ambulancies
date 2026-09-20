@@ -2,7 +2,8 @@ import React, { useMemo, useState } from "react";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
 import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { classifyPendingRecords, pendingUnitsLabel } from "./device-pending-authorization.mjs";
-import { syncPendingIndependently } from "./pending-sync.mjs";
+import { isRecoverableGuardSyncError, syncPendingIndependently } from "./pending-sync.mjs";
+import { isolateGuardPending } from "./guard-pending-recovery.mjs";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, attachRecoveryToPendingRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
@@ -242,6 +243,8 @@ function App() {
     [coverageCheckingOpen, setCoverageCheckingOpen] = useState(false),
     [zeroGuardOpen, setZeroGuardOpen] = useState(false),
     [guardRecoveryBlocked, setGuardRecoveryBlocked] = useState(false),
+    [guardRecoveryPinOpen, setGuardRecoveryPinOpen] = useState(false),
+    [guardRecoveryPin, setGuardRecoveryPin] = useState(""),
     [message, setMessage] = useState(""),
     [status, setStatus] = useState("draft"),
     sentScrollRef = React.useRef(null),
@@ -982,7 +985,7 @@ function App() {
       try { await prepareDeviceGuard(currentUnit); setGuardRecoveryBlocked(false); }
       catch(error) {
         const hasUnitPending=getRecords().some(record=>record.unit===currentUnit && !record.synced);
-        if(hasUnitPending && displayUnit(currentUnit)==='G451') setGuardRecoveryBlocked(true);
+        if(hasUnitPending && isRecoverableGuardSyncError(error)) setGuardRecoveryBlocked(true);
         return flash(recoveryErrorMessage(error),7000);
       }
     }
@@ -1009,7 +1012,8 @@ function App() {
         const currentUnit=localStorage.getItem(KEY.unit);
         const currentGuard=guardState(currentUnit,localStorage.getItem(KEY.shift));
         const currentFailure=syncResult.failed.find(({record})=>record.unit===currentUnit && record.id===currentGuard.code);
-        if(currentFailure && displayUnit(currentUnit)==='G451') setGuardRecoveryBlocked(true);
+        if(currentFailure && isRecoverableGuardSyncError(currentFailure.error)) setGuardRecoveryBlocked(true);
+        if(!currentFailure && syncResult.synced.some(record=>record.unit===currentUnit && record.id===currentGuard.code)) setGuardRecoveryBlocked(false);
         const oldFailures=syncResult.failed.length-(currentFailure ? 1 : 0);
         const detail=syncResult.synced.length
           ? `${syncResult.synced.length} registro(s) sincronizado(s). ${syncResult.failed.length} pendiente(s) requieren revisión.`
@@ -1023,7 +1027,7 @@ function App() {
       setRecords([...list]);
       const currentUnit=localStorage.getItem(KEY.unit);
       const hasUnitPending=list.some(record=>record.unit===currentUnit && !record.synced);
-      if(hasUnitPending && displayUnit(currentUnit)==='G451') setGuardRecoveryBlocked(true);
+      if(hasUnitPending && isRecoverableGuardSyncError(error)) setGuardRecoveryBlocked(true);
       flash(/RECOVERY|STALE_GUARD|MULTIPLE_ACTIVE|GUARD_START|CLIENT_UPGRADE|DEVICE_NOT_AUTHORIZED/.test(String(error?.message || '')) ? recoveryErrorMessage(error) : "No se han podido sincronizar: comprueba la cobertura",5000);
     } finally {
       consumptionOperationRef.current=false;
@@ -1652,19 +1656,26 @@ function App() {
     const currentUnit=localStorage.getItem(KEY.unit), targetLot=localStorage.getItem(KEY.lot) || lot;
     const guard=guardState(currentUnit,localStorage.getItem(KEY.shift));
     if(!currentUnit || !guard.active) return flash('No hay una guardia activa para recuperar');
-    const matching=getRecords().filter(record=>record.unit===currentUnit && !record.synced);
-    if(!matching.length) {setGuardRecoveryBlocked(false);return flash('No hay consumos locales conflictivos');}
-    const accepted=window.confirm(`ATENCIÓN: se eliminarán ${matching.length} registro(s) pendiente(s) local(es) de ${displayUnit(currentUnit)}. Lo ya guardado en Supabase se conservará. ¿Continuar?`);
-    if(!accepted) return;
+    const pin=guardRecoveryPin;
+    setGuardRecoveryPin("");
+    const authorized=await verifyAdminPin(pin);
+    if(authorized!==true) return;
+    const original=getRecords();
+    const scope={unit:currentUnit,lot:targetLot,guardCode:guard.code};
+    const {affected,kept}=isolateGuardPending(original,scope);
+    if(!affected.length) {setGuardRecoveryBlocked(false);setGuardRecoveryPinOpen(false);return flash('No hay consumos conflictivos en la guardia actual');}
     setSyncing(true);
     try {
-      const kept=getRecords().filter(record=>!(record.unit===currentUnit && !record.synced));
       saveRecords(kept);setRecords(kept);
       localStorage.setItem(GUARD_HANDOFF_KEY,JSON.stringify({unit:currentUnit,lot:targetLot}));
       await prepareDeviceGuard(currentUnit);
       setGuardRecoveryBlocked(false);
-      flash('Guardia recuperada. Los datos ya guardados en Supabase se conservan.',5000);
+      setGuardRecoveryPinOpen(false);
+      flash(`Guardia recuperada. Se ha descartado solo el pendiente local de ${guard.code}; Supabase y las demás guardias se conservan.`,7000);
     } catch(error) {
+      // If the server baseline cannot be restored, restore the exact local
+      // state too. A failed recovery must never cause a second data loss.
+      saveRecords(original);setRecords(original);
       setGuardRecoveryBlocked(true);
       flash(recoveryErrorMessage(error),7000);
     } finally {setSyncing(false);}
@@ -3843,6 +3854,31 @@ function App() {
             </div>
           </div>
         )}
+        {guardRecoveryPinOpen && (
+          <div className="modal-backdrop">
+            <div className="card export-modal">
+              <h2 style={{ textAlign: "center" }}>Recuperación supervisada</h2>
+              <p style={{ textAlign: "center" }}>
+                Se descartará únicamente el consumo local pendiente de la guardia actual.
+                Lo guardado en Supabase y los pendientes de otras guardias no se modificarán.
+              </p>
+              <label>PIN de supervisión</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                value={guardRecoveryPin}
+                onChange={(event)=>setGuardRecoveryPin(event.target.value.replace(/\D/g, "").slice(0, 12))}
+              />
+              <div className="toolbar">
+                <button className="secondary" onClick={()=>{setGuardRecoveryPin("");setGuardRecoveryPinOpen(false);}}>Cancelar</button>
+                <button className="danger" onClick={discardConflictingPendingAndRecover} disabled={syncing || !guardRecoveryPin}>
+                  {syncing ? "Recuperando..." : "Confirmar recuperación"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {coverageEditOpen && (
           <div className="modal-backdrop">
             <div className="card export-modal">
@@ -4152,8 +4188,8 @@ function App() {
                   : `Sincronizar pendientes (${pending})`}
               </button>
               {guardRecoveryBlocked && (
-                <button className="danger full" onClick={discardConflictingPendingAndRecover} disabled={syncing}>
-                  Recuperar guardia y descartar solo el pendiente local
+                <button className="danger full" onClick={()=>{setGuardRecoveryPin("");setGuardRecoveryPinOpen(true);}} disabled={syncing}>
+                  Recuperar la guardia actual con supervisión
                 </button>
               )}
               {!isSupervisorMaterial(currentUnit) &&

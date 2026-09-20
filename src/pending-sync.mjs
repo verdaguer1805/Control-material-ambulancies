@@ -3,6 +3,11 @@ const messageOf = (error) => String(error?.message || error || "");
 export const isAuthorizationSyncError = (error) =>
   /DEVICE_NOT_AUTHORIZED|MULTIPLE_ACTIVE_DEVICES/.test(messageOf(error));
 
+export const isRecoverableGuardSyncError = (error) =>
+  /GUARD_RECOVERY_REQUIRED|STALE_GUARD_TOTAL|GUARD_START_MISMATCH|CLIENT_UPGRADE_REQUIRED|AMBIGUOUS_LOCAL_PENDING|LOCAL_PENDING_REQUIRES_REVIEW/.test(
+    messageOf(error),
+  );
+
 export async function syncPendingIndependently(records, sendRecord) {
   const result = { synced: [], failed: [], conflict: null, stopped: null };
 

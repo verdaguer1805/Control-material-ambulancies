@@ -65,6 +65,16 @@ Estat local (pendent de publicació):
 - Els errors d'autorització no poden deixar una pantalla en bucle.
 - Sempre hi ha d'haver una sortida segura supervisada.
 
+Estat local (pendent de publicació):
+
+- Els errors recuperables de la guàrdia actual ofereixen una recuperació
+  protegida pel PIN de supervisió.
+- La recuperació selecciona exclusivament lot, unitat i codi de guàrdia actual;
+  no elimina pendents antics, d'altres unitats ni d'altres lots.
+- Primer conserva l'estat local complet, després reconstrueix la base des de
+  Supabase i només confirma el canvi si la reconstrucció acaba correctament.
+- Si Supabase falla, es restaura automàticament l'estat local original.
+
 ### 6. Enviament repetit o doble pulsació
 
 - Bloquejar dobles pulsacions mentre una operació està en curs.
