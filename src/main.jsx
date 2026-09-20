@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
 import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { classifyPendingRecords, pendingUnitsLabel } from "./device-pending-authorization.mjs";
+import { syncPendingIndependently } from "./pending-sync.mjs";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, attachRecoveryToPendingRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
@@ -992,25 +993,30 @@ function App() {
     setSyncing(true);
     try {
       await ensureAnonymousSession();
-      let conflict = null;
-      for (const rec of todo) {
-        if (rec.conflict) {
-          conflict = conflict || rec;
-          continue;
-        }
+      const syncResult = await syncPendingIndependently(list, async (rec) => {
         const request=guardSaveRequest(rec,displayUnit(rec.unit),rec.warehouse || unitWarehouse(rec.unit));
         const { error } = await supabase.rpc(request.name,request.args);
         if (error) throw error;
-        rec.pendingUpdate = false;
-        rec.synced = true;
-      }
+      });
       saveRecords(list);
       setRecords([...list]);
-      if (conflict) {
-        setConflictRecordId(conflict.createdAt);
-        setConflictNewId(conflict.id);
+      if (syncResult.conflict) {
+        setConflictRecordId(syncResult.conflict.createdAt);
+        setConflictNewId(syncResult.conflict.id);
         setConflictOpen(true);
         flash("Hay un ID duplicado pendiente de corregir");
+      } else if (syncResult.failed.length) {
+        const currentUnit=localStorage.getItem(KEY.unit);
+        const currentGuard=guardState(currentUnit,localStorage.getItem(KEY.shift));
+        const currentFailure=syncResult.failed.find(({record})=>record.unit===currentUnit && record.id===currentGuard.code);
+        if(currentFailure && displayUnit(currentUnit)==='G451') setGuardRecoveryBlocked(true);
+        const oldFailures=syncResult.failed.length-(currentFailure ? 1 : 0);
+        const detail=syncResult.synced.length
+          ? `${syncResult.synced.length} registro(s) sincronizado(s). ${syncResult.failed.length} pendiente(s) requieren revisión.`
+          : `${syncResult.failed.length} registro(s) siguen pendientes y requieren revisión.`;
+        flash(oldFailures && !currentFailure
+          ? `${detail} La guardia actual no ha quedado bloqueada.`
+          : detail,7000);
       } else flash("Registros pendientes sincronizados");
     } catch (error) {
       saveRecords(list);
