@@ -18,6 +18,9 @@
 .device-management-table th:first-child,.device-management-table td:first-child{width:190px;min-width:180px;max-width:210px;white-space:normal;overflow-wrap:anywhere}
 .device-unit-action{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .device-management-table .device-unit-action button{min-height:34px;padding:5px 9px;font-size:12px;flex:0 0 auto}
+.device-audit-table th:first-child,.device-audit-table td:first-child{width:150px;min-width:150px;max-width:none;white-space:nowrap}
+.device-audit-table tbody tr:nth-child(odd) td{background:#f3f4f6}
+.device-audit-table tbody tr:nth-child(even) td{background:#fff}
 @media(max-width:600px){.device-table-filters{grid-template-columns:1fr 1fr}.device-table-filters label:first-child{grid-column:1/-1}.device-manager-modal{padding:12px}.device-manager-modal .device-manager-heading h2{font-size:19px}.device-manager-modal .device-manager-heading p{font-size:12px;margin:4px 0}}
 
 .container {

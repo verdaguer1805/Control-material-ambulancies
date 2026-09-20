@@ -218,6 +218,8 @@ function App() {
     [deviceManagerOpen, setDeviceManagerOpen] = useState(false),
     [deviceManagerLoading, setDeviceManagerLoading] = useState(false),
     [authorizedDevices, setAuthorizedDevices] = useState([]),
+    [deviceAudit, setDeviceAudit] = useState([]),
+    [deviceAuditOpen, setDeviceAuditOpen] = useState(false),
     [deviceServiceFilter, setDeviceServiceFilter] = useState('all'),
     [deviceLotFilter, setDeviceLotFilter] = useState(''),
     [deviceZoneFilter, setDeviceZoneFilter] = useState(''),
@@ -1359,9 +1361,22 @@ function App() {
       setDeviceManagerLoading(false);
     }
   }
+  async function loadDeviceAuthorizationAudit() {
+    setDeviceManagerLoading(true);
+    try {
+      const {data,error}=await supabase.rpc('list_device_authorization_audit_for_admin');
+      if(error) throw error;
+      setDeviceAudit(Array.isArray(data)?data:[]);
+      setDeviceAuditOpen(true);
+    } catch {
+      flash('No se ha podido cargar el historial de autorizaciones');
+    } finally { setDeviceManagerLoading(false); }
+  }
   function closeDeviceManager() {
     setDeviceManagerOpen(false);
     setAuthorizedDevices([]);
+    setDeviceAudit([]);
+    setDeviceAuditOpen(false);
   }
   async function changeAssignedUnit() {
     const enteredPin = changeUnitPin;
@@ -3102,7 +3117,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v158</span></h1>
+          <h1>Control de material <span className="app-version">v159</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3685,7 +3700,7 @@ function App() {
                   {visibleDevices.filter((device) => device.active).length} activos
                 </span>
               </div>
-              <div className="device-table-filters">
+              {!deviceAuditOpen && <div className="device-table-filters">
               <label>Lote
                 <select value={deviceLotFilter} onChange={e=>{setDeviceLotFilter(e.target.value);setDeviceZoneFilter('');}}>
                   <option value="">Todos los lotes</option>{Object.keys(LOTS).map(name=><option key={name}>{name}</option>)}
@@ -3701,10 +3716,22 @@ function App() {
                   <option value="all">Todos</option><option value="TSU">TSU / Material supervisor</option><option value="TSNU">TSNU</option>
                 </select>
               </label>
-              </div>
-              <label style={{display:'flex',alignItems:'center',gap:8}}><input style={{width:'auto'}} type="checkbox" checked={showRevokedDevices} onChange={e=>setShowRevokedDevices(e.target.checked)} />Mostrar revocados</label>
+              </div>}
+              {!deviceAuditOpen && <label style={{display:'flex',alignItems:'center',gap:8}}><input style={{width:'auto'}} type="checkbox" checked={showRevokedDevices} onChange={e=>setShowRevokedDevices(e.target.checked)} />Mostrar revocados</label>}
               <div className="device-table-scroll" tabIndex={0} aria-label="Lista de dispositivos; desplaza para ver todas las columnas">
-                {deviceManagerLoading && !authorizedDevices.length ? (
+                {deviceAuditOpen ? (
+                  !deviceAudit.length ? <p className="muted">Todavía no hay movimientos auditados.</p> :
+                  <table className="device-management-table device-audit-table">
+                    <thead><tr><th>Fecha</th><th>Unidad</th><th>Acción</th><th>Lote</th><th>Actor</th></tr></thead>
+                    <tbody>{deviceAudit.map((event,index)=><tr key={`${event.created_at}-${index}`}>
+                      <td>{new Date(event.created_at).toLocaleString('es-ES')}</td>
+                      <td><strong>{displayUnit(event.unit)}</strong></td>
+                      <td>{event.event_type==='manual_revocation'?'REVOCACIÓN MANUAL':event.event_type==='automatic_replacement'?'SUSTITUCIÓN AUTOMÁTICA':'ACTIVACIÓN'}</td>
+                      <td>{event.lot}</td>
+                      <td>{event.actor_role}{event.actor_zone?` · ${event.actor_zone}`:''}<small>ID: {event.actor_device}</small></td>
+                    </tr>)}</tbody>
+                  </table>
+                ) : deviceManagerLoading && !authorizedDevices.length ? (
                   <p className="muted">Cargando dispositivos...</p>
                 ) : !visibleDevices.length ? (
                   <p className="muted">No hay dispositivos con estos filtros.</p>
@@ -3728,9 +3755,10 @@ function App() {
                 </table>}
               </div>
               <div className="toolbar">
-                <button className="secondary" onClick={refreshAuthorizedDevices} disabled={deviceManagerLoading}>
-                  {deviceManagerLoading ? "Actualizando..." : "Actualizar"}
-                </button>
+                {deviceAuditOpen ? <button className="secondary" onClick={()=>setDeviceAuditOpen(false)}>Volver a dispositivos</button> : <>
+                  <button className="secondary" onClick={refreshAuthorizedDevices} disabled={deviceManagerLoading}>{deviceManagerLoading ? "Actualizando..." : "Actualizar"}</button>
+                  <button className="secondary" onClick={loadDeviceAuthorizationAudit} disabled={deviceManagerLoading}>Historial de autorizaciones</button>
+                </>}
                 <button className="primary" onClick={closeDeviceManager}>Cerrar</button>
               </div>
             </div>
