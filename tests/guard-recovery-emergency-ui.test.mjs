@@ -8,7 +8,7 @@ test('a blocked current guard offers an explicit local-only discard path',()=>{
   assert.match(source,/hasUnitPending && isRecoverableGuardSyncError\(error\).*setGuardRecoveryBlocked\(true\)/s);
   assert.match(source,/const authorized=await verifyAdminPin\(pin\)/);
   assert.match(source,/isolateGuardPending\(original,scope\)/);
-  assert.match(source,/saveRecords\(original\);setRecords\(original\)/);
+  assert.match(source,/recoverGuardPendingTransaction\(/);
   assert.match(source,/Lo guardado en Supabase y los pendientes de otras guardias no se modificarán/);
   assert.match(source,/await prepareDeviceGuard\(currentUnit\)/);
   assert.doesNotMatch(source,/displayUnit\(currentUnit\)==='G451'.*setGuardRecoveryBlocked\(true\)/s);

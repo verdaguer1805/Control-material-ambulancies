@@ -16,3 +16,18 @@ export function isolateGuardPending(records, scope) {
   }
   return { affected, kept };
 }
+
+export async function recoverGuardPendingTransaction({ records, scope, persist, recover }) {
+  const original = [...(records || [])];
+  const selection = isolateGuardPending(original, scope);
+  if (!selection.affected.length) return { ...selection, recovered: false };
+
+  persist(selection.kept);
+  try {
+    await recover();
+    return { ...selection, recovered: true };
+  } catch (error) {
+    persist(original);
+    throw error;
+  }
+}

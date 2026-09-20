@@ -3,7 +3,7 @@ import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
 import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { classifyPendingRecords, pendingUnitsLabel } from "./device-pending-authorization.mjs";
 import { isRecoverableGuardSyncError, syncPendingIndependently } from "./pending-sync.mjs";
-import { isolateGuardPending } from "./guard-pending-recovery.mjs";
+import { isolateGuardPending, recoverGuardPendingTransaction } from "./guard-pending-recovery.mjs";
 import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, attachRecoveryToPendingRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
@@ -1662,20 +1662,25 @@ function App() {
     if(authorized!==true) return;
     const original=getRecords();
     const scope={unit:currentUnit,lot:targetLot,guardCode:guard.code};
-    const {affected,kept}=isolateGuardPending(original,scope);
+    const {affected}=isolateGuardPending(original,scope);
     if(!affected.length) {setGuardRecoveryBlocked(false);setGuardRecoveryPinOpen(false);return flash('No hay consumos conflictivos en la guardia actual');}
     setSyncing(true);
     try {
-      saveRecords(kept);setRecords(kept);
-      localStorage.setItem(GUARD_HANDOFF_KEY,JSON.stringify({unit:currentUnit,lot:targetLot}));
-      await prepareDeviceGuard(currentUnit);
+      await recoverGuardPendingTransaction({
+        records:original,
+        scope,
+        persist:(next)=>{saveRecords(next);setRecords(next);},
+        recover:async()=>{
+          localStorage.setItem(GUARD_HANDOFF_KEY,JSON.stringify({unit:currentUnit,lot:targetLot}));
+          await prepareDeviceGuard(currentUnit);
+        },
+      });
       setGuardRecoveryBlocked(false);
       setGuardRecoveryPinOpen(false);
       flash(`Guardia recuperada. Se ha descartado solo el pendiente local de ${guard.code}; Supabase y las demás guardias se conservan.`,7000);
     } catch(error) {
       // If the server baseline cannot be restored, restore the exact local
       // state too. A failed recovery must never cause a second data loss.
-      saveRecords(original);setRecords(original);
       setGuardRecoveryBlocked(true);
       flash(recoveryErrorMessage(error),7000);
     } finally {setSyncing(false);}
