@@ -980,7 +980,9 @@ function App() {
       if(!authorized) return flash('Primero hay que autorizar este dispositivo. Los consumos pendientes se conservan.',5000);
       try { await prepareDeviceGuard(currentUnit); setGuardRecoveryBlocked(false); }
       catch(error) {
-        if(String(error?.message || '').includes('AMBIGUOUS_LOCAL_PENDING')) setGuardRecoveryBlocked(true);
+        const guard=guardState(currentUnit,localStorage.getItem(KEY.shift));
+        const hasCurrentPending=guard.active && getRecords().some(record=>record.unit===currentUnit && record.id===guard.code && !record.synced);
+        if(hasCurrentPending && displayUnit(currentUnit)==='G451') setGuardRecoveryBlocked(true);
         return flash(recoveryErrorMessage(error),7000);
       }
     }
@@ -3142,7 +3144,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v160</span></h1>
+          <h1>Control de material <span className="app-version">v161</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
