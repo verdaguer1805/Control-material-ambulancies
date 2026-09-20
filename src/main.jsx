@@ -980,9 +980,8 @@ function App() {
       if(!authorized) return flash('Primero hay que autorizar este dispositivo. Los consumos pendientes se conservan.',5000);
       try { await prepareDeviceGuard(currentUnit); setGuardRecoveryBlocked(false); }
       catch(error) {
-        const guard=guardState(currentUnit,localStorage.getItem(KEY.shift));
-        const hasCurrentPending=guard.active && getRecords().some(record=>record.unit===currentUnit && record.id===guard.code && !record.synced);
-        if(hasCurrentPending && displayUnit(currentUnit)==='G451') setGuardRecoveryBlocked(true);
+        const hasUnitPending=getRecords().some(record=>record.unit===currentUnit && !record.synced);
+        if(hasUnitPending && displayUnit(currentUnit)==='G451') setGuardRecoveryBlocked(true);
         return flash(recoveryErrorMessage(error),7000);
       }
     }
@@ -1644,13 +1643,13 @@ function App() {
     const currentUnit=localStorage.getItem(KEY.unit), targetLot=localStorage.getItem(KEY.lot) || lot;
     const guard=guardState(currentUnit,localStorage.getItem(KEY.shift));
     if(!currentUnit || !guard.active) return flash('No hay una guardia activa para recuperar');
-    const matching=getRecords().filter(record=>record.unit===currentUnit && record.id===guard.code && !record.synced);
+    const matching=getRecords().filter(record=>record.unit===currentUnit && !record.synced);
     if(!matching.length) {setGuardRecoveryBlocked(false);return flash('No hay consumos locales conflictivos');}
-    const accepted=window.confirm(`ATENCIÓN: se eliminarán únicamente los consumos pendientes de este móvil para ${displayUnit(currentUnit)} (${guard.code}). Lo ya guardado en Supabase se conservará. ¿Continuar?`);
+    const accepted=window.confirm(`ATENCIÓN: se eliminarán ${matching.length} registro(s) pendiente(s) local(es) de ${displayUnit(currentUnit)}. Lo ya guardado en Supabase se conservará. ¿Continuar?`);
     if(!accepted) return;
     setSyncing(true);
     try {
-      const kept=getRecords().filter(record=>!(record.unit===currentUnit && record.id===guard.code && !record.synced));
+      const kept=getRecords().filter(record=>!(record.unit===currentUnit && !record.synced));
       saveRecords(kept);setRecords(kept);
       localStorage.setItem(GUARD_HANDOFF_KEY,JSON.stringify({unit:currentUnit,lot:targetLot}));
       await prepareDeviceGuard(currentUnit);
@@ -3144,7 +3143,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v161</span></h1>
+          <h1>Control de material <span className="app-version">v162</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
