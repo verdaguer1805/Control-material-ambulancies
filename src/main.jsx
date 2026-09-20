@@ -240,6 +240,7 @@ function App() {
     [coverageEditOpen, setCoverageEditOpen] = useState(false),
     [coverageCheckingOpen, setCoverageCheckingOpen] = useState(false),
     [zeroGuardOpen, setZeroGuardOpen] = useState(false),
+    [guardRecoveryBlocked, setGuardRecoveryBlocked] = useState(false),
     [message, setMessage] = useState(""),
     [status, setStatus] = useState("draft"),
     sentScrollRef = React.useRef(null),
@@ -977,8 +978,11 @@ function App() {
       const currentUnit=localStorage.getItem(KEY.unit);
       const authorized=await refreshDeviceAuthorization(currentUnit);
       if(!authorized) return flash('Primero hay que autorizar este dispositivo. Los consumos pendientes se conservan.',5000);
-      try { await prepareDeviceGuard(currentUnit); }
-      catch(error) { return flash(recoveryErrorMessage(error),7000); }
+      try { await prepareDeviceGuard(currentUnit); setGuardRecoveryBlocked(false); }
+      catch(error) {
+        if(String(error?.message || '').includes('AMBIGUOUS_LOCAL_PENDING')) setGuardRecoveryBlocked(true);
+        return flash(recoveryErrorMessage(error),7000);
+      }
     }
     let list = getRecords(),
       todo = list.filter((r) => !r.synced);
@@ -1633,6 +1637,27 @@ function App() {
     } finally {
       setStockMaterialTypeSaving("");
     }
+  }
+  async function discardConflictingPendingAndRecover() {
+    const currentUnit=localStorage.getItem(KEY.unit), targetLot=localStorage.getItem(KEY.lot) || lot;
+    const guard=guardState(currentUnit,localStorage.getItem(KEY.shift));
+    if(!currentUnit || !guard.active) return flash('No hay una guardia activa para recuperar');
+    const matching=getRecords().filter(record=>record.unit===currentUnit && record.id===guard.code && !record.synced);
+    if(!matching.length) {setGuardRecoveryBlocked(false);return flash('No hay consumos locales conflictivos');}
+    const accepted=window.confirm(`ATENCIÓN: se eliminarán únicamente los consumos pendientes de este móvil para ${displayUnit(currentUnit)} (${guard.code}). Lo ya guardado en Supabase se conservará. ¿Continuar?`);
+    if(!accepted) return;
+    setSyncing(true);
+    try {
+      const kept=getRecords().filter(record=>!(record.unit===currentUnit && record.id===guard.code && !record.synced));
+      saveRecords(kept);setRecords(kept);
+      localStorage.setItem(GUARD_HANDOFF_KEY,JSON.stringify({unit:currentUnit,lot:targetLot}));
+      await prepareDeviceGuard(currentUnit);
+      setGuardRecoveryBlocked(false);
+      flash('Guardia recuperada. Los datos ya guardados en Supabase se conservan.',5000);
+    } catch(error) {
+      setGuardRecoveryBlocked(true);
+      flash(recoveryErrorMessage(error),7000);
+    } finally {setSyncing(false);}
   }
   async function changeMaterialUnitVisibility(material, visible) {
     if (!adminCanAccessAllZones) return;
@@ -3117,7 +3142,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v159</span></h1>
+          <h1>Control de material <span className="app-version">v160</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4116,6 +4141,11 @@ function App() {
                   ? "Sincronizando..."
                   : `Sincronizar pendientes (${pending})`}
               </button>
+              {guardRecoveryBlocked && (
+                <button className="danger full" onClick={discardConflictingPendingAndRecover} disabled={syncing}>
+                  Recuperar guardia y descartar solo el pendiente local
+                </button>
+              )}
               {!isSupervisorMaterial(currentUnit) &&
                 !currentGuardAlreadySubmitted &&
                 Object.values(quantities).every((quantity) => !quantity) && (
