@@ -9,7 +9,7 @@ export const TSNU_CHECKLIST_GROUPS = [
   ["Cajón n.º 3", ["Cuña de hombre", "Cuña de mujer"]],
   ["Cajón n.º 4", ["Bata EPI o mono de protección", "Bolsas de residuos GII", "Bolsas de basura negras", "Gafas de protección EPI", "Guantes de protección EPI"]],
   ["Parte trasera del vehículo", ["Oxígeno disponible y con carga suficiente"]],
-  ["Parte delantera del vehículo", ["Guantes de nitrilo de diferentes tallas", "Cadenas de nieve", "Cizallas", "Pata de cabra", "Tarjeta de gasóleo", "Tarjeta Trueta"]],
+  ["Parte delantera del vehículo", ["Guantes de nitrilo de diferentes tallas", "Cadenas de nieve", "Cizallas", "Pata de cabra", "Tarjeta de gasóleo", "Tarjeta Trueta", "Baliza V-16"]],
 ];
 export const TSNU_CHECKLIST_ITEMS = TSNU_CHECKLIST_GROUPS.flatMap(([, items]) => items);
 export const canDemoChecklist = (auth, unit) => Boolean(auth?.checked && auth?.enforcement && !auth?.authorized && unit && !/^Material supervisor/i.test(unit));
@@ -24,7 +24,10 @@ export function inChecklistWindow(start, now) {
 }
 export const isDailyChecklist = (record) => record.service === "TSNU" || record.vehicleType === "TSNU";
 export function checklistStatus(record, now = new Date()) {
-  const items = checklistItems(record);
+  // Completed checklists from before Baliza V-16 must keep their result.
+  const items = record.completed && isDailyChecklist(record) && !Object.hasOwn(record.answers || {}, "Baliza V-16")
+    ? TSNU_CHECKLIST_ITEMS.filter((item) => item !== "Baliza V-16")
+    : checklistItems(record);
   if (record.completed && items.every((m) => ["ok", "issue"].includes(record.answers?.[m])))
     return items.some((m) => record.answers[m] === "issue") ? "Incidencia" : "Correcto";
   if (isDailyChecklist(record)) {

@@ -766,7 +766,9 @@ function App() {
     setLot(selectedLot);
     setPinInput("");
     setAssignmentAdminPin("");
-    flash("Móvil asignado correctamente");
+    flash("Unidad asignada. Autoriza este dispositivo para enviar datos reales.");
+    setDeviceActivationCode("");
+    setDeviceActivationOpen(true);
     // Selectors can already hold these values before localStorage is assigned.
     void refreshDeviceAuthorization(unit);
   }
@@ -2239,7 +2241,7 @@ function App() {
       const shift = tsnuShiftById.get(withdrawal.shift_id) || {},
         when = new Date(withdrawal.created_at),
         base = {
-          Fecha: when.toLocaleDateString("es-ES"),
+          Fecha: when.toLocaleDateString("es-ES", {day:"2-digit",month:"2-digit",year:"numeric"}),
           Hora: when.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
           Servicio: "TSNU",
           Unidad: withdrawal.unit || shift.unit || "",
@@ -2307,7 +2309,9 @@ function App() {
       ws6 = XLSX.utils.json_to_sheet(supervisorDeliveries),
       tsuDetail = detail.map((row) => ({
         Servicio: row["Tipo de registro"] === "Supervisor" ? "Supervisor" : "TSU",
-        Fecha: row["Fecha de guardia"],
+        Fecha: /^\d{4}-\d{2}-\d{2}$/.test(row["Fecha de guardia"] || "")
+          ? row["Fecha de guardia"].split("-").reverse().join("/")
+          : row["Fecha de guardia"],
         Hora: row["Inicio de guardia"],
         Unidad: row.Unidad,
         Población: unitWarehouse(row.Unidad),
@@ -2316,7 +2320,7 @@ function App() {
         Cantidad: row.Cantidad,
       })),
       generalDetail = [...tsuDetail, ...tsnuDetail].sort((a, b) =>
-        String(a.Fecha || a["Fecha de guardia"] || "").localeCompare(String(b.Fecha || b["Fecha de guardia"] || "")) ||
+        String(a.Fecha || "").split("/").reverse().join("").localeCompare(String(b.Fecha || "").split("/").reverse().join("")) ||
         String(a.Unidad || "").localeCompare(String(b.Unidad || ""), "es", { numeric: true }) ||
         String(a.Material || "").localeCompare(String(b.Material || ""), "es", { sensitivity: "base", numeric: true })
       ),
@@ -2324,7 +2328,7 @@ function App() {
         const answers = shift.checklist_answers || {},
           issues = Object.entries(answers).filter(([, value]) => value === "issue").map(([item]) => item);
         return {
-          Fecha: new Date(shift.started_at).toLocaleDateString("es-ES"),
+          Fecha: new Date(shift.started_at).toLocaleDateString("es-ES", {day:"2-digit",month:"2-digit",year:"numeric"}),
           "Inicio de guardia": new Date(shift.started_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
           Unidad: shift.unit,
           Almacén: shift.warehouse,
@@ -2386,6 +2390,13 @@ function App() {
     configure(wsTsnu, [14, 10, 12, 14, 24, 24, 42, 12]);
     configure(wsChecklistTsnu, [14, 16, 14, 24, 18, 18, 18, 60, 18]);
     configure(wsChecklistTsu, [42]);
+    checklistTsnuRows.forEach((row, rowIndex) => {
+      const rgb = row.Estado === "Correcto" ? "D9EEDC" : "F8CDCD";
+      for (let column = 0; column < 9; column += 1) {
+        const cell = wsChecklistTsnu[XLSX.utils.encode_cell({r:rowIndex + 1,c:column})];
+        if (cell) cell.s = {fill:{fgColor:{rgb}}};
+      }
+    });
     configure(ws5, [16, 12, 28, 38, 18]);
     configure(ws6, [14, 10, 16, 28, 22, 42, 20, 14]);
     const dailyHeaderStyle = {
@@ -3168,7 +3179,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v165</span></h1>
+          <h1>Control de material <span className="app-version">v166</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3223,7 +3234,7 @@ function App() {
             <div className="card export-modal">
               <h2 style={{ textAlign: "center" }}>Autorizar dispositivo</h2>
               <p style={{ textAlign: "center" }}>
-                Introduce el código vigente. Solo la administración debe realizar esta acción.
+                La unidad ya está asignada, pero aún no puede enviar datos reales. Introduce el código de activación del dispositivo; es distinto del PIN de asignación.
               </p>
               <label>Código de activación</label>
               <input

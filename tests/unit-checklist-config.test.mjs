@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateUnitChecklist,readUnitChecklist,UNIT_CHECKLIST_KEY,TSU_CHECKLISTS,TSNU_UNITS,tsnuWarehouse} from '../src/unit-checklist-config.mjs';
+import {validateUnitChecklist,readUnitChecklist,UNIT_CHECKLIST_KEY,TSU_CHECKLISTS,TSNU_UNITS,tsnuWarehouse,filterManagedDevices} from '../src/unit-checklist-config.mjs';
 const base={service:'TSU', checklist:'SVB', unit:'G453', lot:'Lot 5', zone:'Olot', shift:'07:00'};
 test('only the three approved legacy mobiles default to SVB without writing settings',()=>{
  const lot='Lot 5 · Girona - Alt Maresme';
@@ -57,4 +57,10 @@ test('TSNU warehouse mapping is scoped and does not alter central minimum weight
  assert.equal(tsnuWarehouse('T1731',lot,'Olot'),'Campdevànol');
  assert.equal(tsnuWarehouse('T1744',lot,'Olot'),'Olot');
  assert.equal(tsnuWarehouse('T1731',lot,'Figueres'),'');
+});
+test('device manager orders units naturally and active devices first within a unit',()=>{
+ const lot='Lot 5 · Girona - Alt Maresme';
+ const devices=[{lot,unit:'T1741',active:true},{lot,unit:'T1739',active:true},{lot,unit:'T1739',active:false}];
+ const result=filterManagedDevices(devices,'all',true,{},{});
+ assert.deepEqual(result.map(d=>`${d.unit}:${d.active}`),['T1739:true','T1739:false','T1741:true']);
 });

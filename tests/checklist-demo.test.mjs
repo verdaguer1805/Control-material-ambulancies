@@ -14,6 +14,13 @@ test('TSNU daily checklist ignores two-hour phase and separates calendar dates',
  assert.equal(checklistStatus(completeDemo({...daily,answers:Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']))}),now),'Correcto');
  const store=memory();saveDemo(store,daily);saveDemo(store,{...daily,date:'2026-09-17'});assert.equal(readDemo(store).length,2);
 });
+test('Baliza V-16 is required for new TSNU checklists but completed legacy checks remain complete',()=>{
+ assert.ok(TSNU_CHECKLIST_ITEMS.includes('Baliza V-16'));
+ const daily={...base,service:'TSNU',vehicleType:'TSNU'};
+ const legacyAnswers=Object.fromEntries(TSNU_CHECKLIST_ITEMS.filter(m=>m!=='Baliza V-16').map(m=>[m,'ok']));
+ assert.throws(()=>completeDemo({...daily,answers:legacyAnswers}));
+ assert.equal(checklistStatus({...daily,answers:legacyAnswers,completed:true}),'Correcto');
+});
 test('TSNU supports several shift sessions on the same date and cannot close with pending material',()=>{
  const store=memory(), answers=Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']));
  const first=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'one',answers});
@@ -64,6 +71,7 @@ test("Excel roundtrip contains statuses, typed date, no formulas and separate wa
   assert.equal(wb.SheetNames.length,2);
   assert.equal(wb.Sheets[wb.SheetNames[0]].A6.t,"n");
   assert.equal(wb.Sheets[wb.SheetNames[0]].A7.s.fill.fgColor.rgb,"F8CDCD");
+  assert.equal(wb.Sheets[wb.SheetNames[0]].A9.s.fill.fgColor.rgb,"F8CDCD");
   const restored=XLSX.read(XLSX.write(wb,{type:"buffer",bookType:"xlsx"}),{type:"buffer"});
   assert.equal(restored.Sheets[restored.SheetNames[0]].C9.v,"Incidencia");
   assert.equal(restored.Sheets[restored.SheetNames[0]].H9.f,undefined);

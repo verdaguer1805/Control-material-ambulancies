@@ -8,7 +8,7 @@ export function buildChecklistWorkbook(XLSX, records) {
     if(!groups.has(key)) groups.set(key,[]);
     groups.get(key).push(r);
   }
-  const colors = {Correcto:"D9EEDC",Incidencia:"FFE0B2","No realizado":"F8CDCD",Pendiente:"EEEEEE"};
+  const colors = {Correcto:"D9EEDC",Incidencia:"F8CDCD","No realizado":"F8CDCD",Pendiente:"EEEEEE"};
   let index=0;
   for(const rows of groups.values()) {
     const first=rows[0];
@@ -16,7 +16,7 @@ export function buildChecklistWorkbook(XLSX, records) {
       [`CHECKLIST DE PRUEBA · ${first.zone} · ${first.warehouse}`],
       [first.lot],
       ["Datos locales de simulación. Lista provisional. No incluye guardias reales."],
-      ["Verde: correcto · Naranja: incidencia · Rojo: no realizado fuera de plazo · Gris: pendiente"],
+      ["Verde: correcto · Rojo: incidencia o no realizado fuera de plazo · Gris: pendiente"],
       ["Fecha de guardia","Unidad","Estado",...DEMO_ITEMS,"Observaciones","Tipo de vehículo"],
       ...rows.map(r=>[new Date(`${r.date}T12:00:00`),r.unit,checklistStatus(r),...DEMO_ITEMS.map(m=>r.answers?.[m]==="ok"?"Correcto":r.answers?.[m]==="issue"?"X - Incidencia":"Sin revisar"),DEMO_ITEMS.filter(m=>r.answers?.[m]==="issue" && r.notes?.[m]).map(m=>`${m}: ${r.notes[m]}`).join("\n"),r.vehicleType || "TSU"])
     ];

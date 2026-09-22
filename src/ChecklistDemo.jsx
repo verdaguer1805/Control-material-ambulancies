@@ -18,18 +18,25 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   const [activeShift,setActiveShift] = useState(null), [material,setMaterial] = useState({}), [closeOpen,setCloseOpen] = useState(false);
   const [vehicleType,setVehicleType] = useState("TSU"), [materialSearch,setMaterialSearch]=useState(""), [syncing,setSyncing]=useState(false);
   const [recoveryShiftId,setRecoveryShiftId]=useState(""), [recoveryOpen,setRecoveryOpen]=useState(false), [recoveryPin,setRecoveryPin]=useState("");
-  const syncLock=useRef(false);
+  const syncLock=useRef(false), resyncRequested=useRef(false);
   const daily = (assignedChecklist || vehicleType) === "TSNU";
   const [from,setFrom] = useState(today), [to,setTo] = useState(today), [zoneFilter,setZoneFilter] = useState(""), [warehouseFilter,setWarehouseFilter] = useState(""), [lotFilter,setLotFilter] = useState("");
   useEffect(() => { if(!notice) return; const timer=setTimeout(()=>setNotice(""),4000); return ()=>clearTimeout(timer); },[notice]);
   useEffect(()=>{if(!production||!daily)return;setActiveShift(readTsnuShift(localStorage,unit,lot));const online=()=>void syncProduction();window.addEventListener('online',online);void syncProduction();return()=>window.removeEventListener('online',online);},[production,daily,unit,lot]);
   async function syncProduction(showResult=false){
-    if(!production||syncLock.current)return;syncLock.current=true;setSyncing(true);
-    try{await ensureAnonymousSession();const result=await syncTsnuOutbox(localStorage,async operation=>{const [name,args]=rpcForTsnuOperation(operation);const {error}=await supabase.rpc(name,args);if(error)throw error;});const failedShift=result.failed[0]?.operation?.shiftId||"";setRecoveryShiftId(failedShift);if(showResult)setNotice(result.synced.length?`Pendientes sincronizados correctamente (${result.synced.length})`:result.failed.length?"Hay una sesión pendiente de revisión. Las demás pueden continuar":"No hay registros pendientes");return !result.stopped;}
-    catch{if(showResult)setNotice("Sin cobertura: los registros continúan guardados en este dispositivo");return false;}finally{syncLock.current=false;setSyncing(false);}
+    if(!production)return null;
+    if(syncLock.current){resyncRequested.current=true;return null;}
+    syncLock.current=true;setSyncing(true);
+    try{await ensureAnonymousSession();const result=await syncTsnuOutbox(localStorage,async operation=>{const [name,args]=rpcForTsnuOperation(operation);const {error}=await supabase.rpc(name,args);if(error)throw error;});const failedShift=result.failed[0]?.operation?.shiftId||"";setRecoveryShiftId(failedShift);if(showResult)setNotice(result.failed.length?"Hay una sesión pendiente de revisión. El checklist o la guardia no están confirmados en Supabase.":result.synced.length?`Pendientes sincronizados correctamente (${result.synced.length})`:"No hay registros pendientes");return result;}
+    catch{if(showResult)setNotice("Sin cobertura: los registros continúan guardados en este dispositivo");return null;}finally{syncLock.current=false;setSyncing(false);if(resyncRequested.current){resyncRequested.current=false;queueMicrotask(()=>void syncProduction());}}
   }
   function start() {
     try {
+      if (production && daily && activeShift && !activeShift.completed) {
+        setDraft(activeShift);
+        setOpen(true);
+        return;
+      }
       const sessionId = daily ? `${Date.now()}-${Math.random().toString(36).slice(2)}` : undefined;
       const identity = { unit,lot,zone,warehouse,date,service: daily ? "TSNU" : "TSU",vehicleType: assignedChecklist || vehicleType,shift: daily ? "" : shift || "07:00",sessionId,startedAt:new Date().toISOString() };
       if(production&&daily){const id=newOperationId(),next={...identity,sessionId:id,id,answers:{},completed:false};queueTsnuOperation(localStorage,{localId:`start:${id}`,type:'start',shiftId:id,at:next.startedAt});saveTsnuShift(localStorage,next);setDraft(next);setOpen(true);void syncProduction();return;}
@@ -45,8 +52,8 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     setDraft(next);
     try { if(production) saveTsnuShift(localStorage,next); else saveDemo(localStorage,next); } catch { setNotice("No se ha podido guardar el borrador en este navegador."); }
   }
-  function finish() {
-    try { const result=completeDemo(draft); if(production){queueTsnuOperation(localStorage,{localId:`checklist:${result.sessionId}`,type:'checklist',shiftId:result.sessionId,answers:result.answers});saveTsnuShift(localStorage,result);void syncProduction();}else saveDemo(localStorage,result); setActiveShift(result); setMaterial({}); setOpen(false); setNotice("Checklist enviado correctamente"); }
+  async function finish() {
+    try { const result=completeDemo(draft); if(production){queueTsnuOperation(localStorage,{localId:`checklist:${result.sessionId}`,type:'checklist',shiftId:result.sessionId,answers:result.answers});saveTsnuShift(localStorage,result);}else saveDemo(localStorage,result); setActiveShift(result); setMaterial({}); setOpen(false); if(production){setNotice("Checklist guardado en este dispositivo. Comprobando el envío...");await syncProduction();setNotice(readTsnuOutbox(localStorage).some(row=>row.shiftId===result.sessionId&&row.type==='checklist')?"Checklist pendiente de sincronizar. No está confirmado en Supabase.":"Checklist enviado y confirmado en Supabase.");}else setNotice("Checklist guardado correctamente"); }
     catch(e) { setNotice(e.message || "No se ha podido guardar la prueba."); }
   }
   function sendMaterial() {
@@ -54,8 +61,8 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     if(production){const selected=Object.fromEntries(Object.entries(material).filter(([,n])=>Number(n)>0)),operationId=newOperationId();queueTsnuOperation(localStorage,{localId:`withdrawal:${operationId}`,type:'withdrawal',operationId,shiftId:activeShift.sessionId,materials:selected});setMaterial({});void syncProduction();setNotice("Consumo guardado. Se sincronizará automáticamente");return;}
     setMaterial({}); setNotice("Consumo enviado correctamente (simulación local)");
   }
-  function finishShift() {
-    try { const result=closeDemoShift(activeShift,Object.values(material).some(Number)); if(production){queueTsnuOperation(localStorage,{localId:`finish:${result.sessionId}`,type:'finish',shiftId:result.sessionId,at:result.endedAt});saveTsnuShift(localStorage,null);void syncProduction();}else saveDemo(localStorage,result); setActiveShift(null); setCloseOpen(false); setMaterial({}); setNotice("Guardia finalizada correctamente"); }
+  async function finishShift() {
+    try { const result=closeDemoShift(activeShift,Object.values(material).some(Number)); if(production){queueTsnuOperation(localStorage,{localId:`finish:${result.sessionId}`,type:'finish',shiftId:result.sessionId,at:result.endedAt});saveTsnuShift(localStorage,null);}else saveDemo(localStorage,result); setActiveShift(null); setCloseOpen(false); setMaterial({}); if(production){setNotice("Guardia cerrada en este dispositivo. Comprobando el envío...");await syncProduction();setNotice(readTsnuOutbox(localStorage).some(row=>row.shiftId===result.sessionId)?"Guardia cerrada en este dispositivo, pendiente de sincronizar con Supabase.":"Guardia finalizada y confirmada en Supabase.");}else setNotice("Guardia finalizada correctamente"); }
     catch(e) { setCloseOpen(false); setNotice(e.message); }
   }
   async function recoverTsnuShift() {
@@ -87,9 +94,12 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     finally {setBusy(false);}
   }
   const options = (field, records=rows) => [...new Set(records.map(r=>r[field]))].sort();
+  const checklistQueued = production && activeShift?.completed && readTsnuOutbox(localStorage).some(row=>row.shiftId===activeShift.sessionId && row.type==='checklist');
+  const checklistSyncError = production && activeShift && readTsnuOutbox(localStorage).some(row=>row.shiftId===activeShift.sessionId && row.type==='checklist' && row.lastSyncError);
   return <div className="checklist-demo">
     {reportsOnly ? <button className="secondary" onClick={showReport}>Checklist · informes de prueba</button> : <div className="card checklist-demo-card">
-      {!daily || !activeShift ? <button className="checklist-yellow" onClick={start}>{daily ? `Iniciar guardia y realizar checklist${production?'':' · PRUEBA'}` : "Checklist de material · PRUEBA"}</button> : <div className="checklist-active-banner">✓ Checklist enviado · Guardia activa</div>}
+      {!daily || !activeShift || !activeShift.completed ? <button className="checklist-yellow" onClick={start}>{daily && activeShift ? "Continuar checklist pendiente" : daily ? `Iniciar guardia y realizar checklist${production?'':' · PRUEBA'}` : "Checklist de material · PRUEBA"}</button> : <div className="checklist-active-banner">{checklistQueued ? "Checklist guardado · Pendiente de sincronizar" : "✓ Checklist confirmado · Guardia activa"}</div>}
+      {checklistSyncError && <p className="checklist-pending-warning" role="alert">El checklist no ha llegado a Supabase. Pulsa «Sincronizar pendientes»; si continúa el error, avisa a supervisión. No borres los datos de la aplicación.</p>}
       <p>{production ? `Almacén asignado: ${warehouse}. Los consumos enviados actualizan el stock.` : "Solo simulación. No afecta al consumo ni al stock."}</p>
       {assignedChecklist ? <p><strong>Checklist asignado: {assignedChecklist === "TSU" ? "SVB" : assignedChecklist}</strong> · Solo la administración cambia la asignación.</p> : <label>Tipo de vehículo / checklist de prueba<select value={vehicleType} onChange={e=>setVehicleType(e.target.value)}>{VEHICLE_TYPES.map(v=><option key={v} value={v}>{v === "TSU" ? "SVB" : v}</option>)}</select></label>}
       {!production&&<small>Los cuatro tipos usan ejemplos provisionales. La asignación real queda reservada a supervisión.</small>}
@@ -97,7 +107,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
       {!daily && <label>Reloj de prueba<select value={phase} onChange={e=>setPhase(e.target.value)}><option value="open">Dentro de las dos primeras horas</option><option value="closed">Fuera de plazo (dos horas o más)</option></select></label>}</div>}
       {daily ? <small>TSNU: cada nueva tripulación inicia una guardia y realiza su propio checklist, aunque sea el mismo día.</small> : <small>Inicio asignado: {shift || "07:00"}. Puedes probar cualquier horario sin cambiar la guardia real.</small>}
       {!production&&<button className="secondary" onClick={showReport}>Ver informes de prueba</button>}
-      {daily && activeShift && <section className="checklist-material-demo"><h3>Material retirado</h3><p className="muted small">Disponible después de enviar el checklist.</p><label>Buscar material<input value={materialSearch} onChange={e=>setMaterialSearch(e.target.value)} placeholder="Escribe el nombre..."/></label>{materials.filter(item=>item.toLowerCase().includes(materialSearch.toLowerCase())).map(item=><div className={`material${(material[item]||0)>0?' material-selected':''}`} key={item}><span>{item}</span><div className="counter"><button onClick={()=>setMaterial(v=>({...v,[item]:Math.max(0,(v[item]||0)-1)}))}>-</button><span className="qty">{material[item]||0}</span><button onClick={()=>setMaterial(v=>({...v,[item]:(v[item]||0)+1}))}>+</button></div></div>)}<div className="tsnu-shift-actions"><button className="primary full" onClick={sendMaterial}>Enviar consumo</button><button className="secondary full sync-button" onClick={()=>syncProduction(true)} disabled={!production||syncing}>{syncing?'Sincronizando...':`Sincronizar pendientes (${production?readTsnuOutbox(localStorage).length:0})`}</button><button className="danger full" onClick={()=>setCloseOpen(true)}>Finalizar guardia</button></div></section>}
+      {daily && activeShift?.completed && <section className="checklist-material-demo"><h3>Material retirado</h3><p className="muted small">Disponible después de enviar el checklist.</p><label>Buscar material<input value={materialSearch} onChange={e=>setMaterialSearch(e.target.value)} placeholder="Escribe el nombre..."/></label>{materials.filter(item=>item.toLowerCase().includes(materialSearch.toLowerCase())).map(item=><div className={`material${(material[item]||0)>0?' material-selected':''}`} key={item}><span>{item}</span><div className="counter"><button onClick={()=>setMaterial(v=>({...v,[item]:Math.max(0,(v[item]||0)-1)}))}>-</button><span className="qty">{material[item]||0}</span><button onClick={()=>setMaterial(v=>({...v,[item]:(v[item]||0)+1}))}>+</button></div></div>)}<div className="tsnu-shift-actions"><button className="primary full" onClick={sendMaterial}>Enviar consumo</button><button className="secondary full sync-button" onClick={()=>syncProduction(true)} disabled={!production||syncing}>{syncing?'Sincronizando...':`Sincronizar pendientes (${production?readTsnuOutbox(localStorage).length:0})`}</button><button className="danger full" onClick={()=>setCloseOpen(true)}>Finalizar guardia</button></div></section>}
       {production&&daily&&recoveryShiftId&&<button className="danger full" onClick={()=>setRecoveryOpen(true)}>Recuperación supervisada de sesión</button>}
     </div>}
     {open && draft && <Modal title={`Checklist de material${production?'':' · PRUEBA'}`} close={()=>setOpen(false)} footer={<button className="primary" onClick={finish}>{production?'Enviar checklist':'Guardar checklist de prueba'}</button>}>
@@ -112,7 +122,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     {report && <Modal title="Informes de checklist · PRUEBA" close={()=>setReport(false)} footer={<button className="primary" disabled={busy} onClick={download}>{busy?"Preparando...":"Descargar Excel de prueba"}</button>}>
       <p>Solo pruebas guardadas en este navegador. No incluye las unidades reales ni sincroniza entre dispositivos.</p>
       <p>TSNU: una revisión por fecha, sin horario de guardia. Una fecha pasada sin completar figura como no realizada; durante el día sigue pendiente.</p>
-      <p>Verde: completo correcto. Naranja: completo con incidencia. Rojo: prueba fuera de plazo sin completar. Gris: pendiente. Solo se incluyen las guardias de prueba que hayas abierto.</p>
+      <p>Verde: completo correcto. Rojo: incidencia o prueba fuera de plazo sin completar. Gris: pendiente. Solo se incluyen las guardias de prueba que hayas abierto.</p>
       <label>Lote<select value={lotFilter} onChange={e=>{setLotFilter(e.target.value);setZoneFilter("");setWarehouseFilter("");}}><option value="">Todos los lotes de prueba</option>{options("lot").map(v=><option key={v}>{v}</option>)}</select></label>
       <label>Supervisión<select value={zoneFilter} onChange={e=>{setZoneFilter(e.target.value);setWarehouseFilter("");}}><option value="">Todas las zonas de prueba</option>{options("zone",rows.filter(r=>!lotFilter||r.lot===lotFilter)).map(v=><option key={v}>{v}</option>)}</select></label>
       <label>Almacén<select value={warehouseFilter} onChange={e=>setWarehouseFilter(e.target.value)}><option value="">Todos los almacenes de prueba</option>{options("warehouse",rows.filter(r=>(!lotFilter||r.lot===lotFilter)&&(!zoneFilter||r.zone===zoneFilter))).map(v=><option key={v}>{v}</option>)}</select></label>

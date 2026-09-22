@@ -45,7 +45,12 @@ export function filterManagedDevices(devices, service = 'all', includeRevoked = 
     if (!includeRevoked && !device.active) return false;
     const tsnu = deviceServiceLabel(device.unit, device.lot).startsWith('TSNU');
     return service === 'all' || (service === 'TSNU' ? tsnu : !tsnu);
-  });
+  }).sort((a, b) =>
+    String(a.lot || '').localeCompare(String(b.lot || ''), 'es', {numeric:true}) ||
+    managedDeviceZone(a, lots).localeCompare(managedDeviceZone(b, lots), 'es') ||
+    String(a.unit || '').localeCompare(String(b.unit || ''), 'es', {numeric:true}) ||
+    Number(b.active) - Number(a.active)
+  );
 }
 export function validateUnitChecklist({service, checklist, unit, lot, zone, shift, warehouse = '', warehouseId = '', supervisor = false}, units) {
   if (!lot || !zone || !unit || !Object.hasOwn(units || {}, unit)) throw new Error('Selecciona una unidad de esta zona');

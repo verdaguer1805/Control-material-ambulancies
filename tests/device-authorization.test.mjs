@@ -31,4 +31,6 @@ test('activation UI never announces success before the second server confirmatio
   }
   const save=source.split('  async function saveUnit() {')[1].split('  const filtered')[0];
   assert.match(save,/refreshDeviceAuthorization\(unit\)/);
+  assert.match(save,/setDeviceActivationOpen\(true\)/);
+  assert.ok(save.indexOf('localStorage.setItem(KEY.unit, unit)') < save.indexOf('setDeviceActivationOpen(true)'));
 });
