@@ -61,6 +61,7 @@ test('existing authorized device waits for explicit activation before creating a
   const env = {
     localStorage: knownStorage, readAuthorizedIdentity,
     priorAuthorizedDevice, recordAuthDiagnostic,
+    recoverPreviousIdentity: async () => null,
     supabase: {auth: {
       getSession: async () => ({data:{session:null},error:null}),
       signInAnonymously: async () => { signIns++; return {data:{session:{user:{id:'new-user'}}},error:null}; },
@@ -73,7 +74,19 @@ test('existing authorized device waits for explicit activation before creating a
   await ensure({allowNewIdentity:true});
   assert.equal(signIns, 1);
 
+  env.recoverPreviousIdentity = async () => ({user:{id:'original-user'}});
+  const restored = await ensure();
+  assert.equal(restored.user.id, 'original-user');
+  assert.equal(signIns, 1);
+
+  rememberAuthorizedIdentity(knownStorage,'original-user');
+  env.supabase.auth.getSession = async () => ({data:{session:{user:{id:'wrong-user'}}},error:null});
+  assert.equal((await ensure()).user.id,'original-user');
+  assert.equal(readAuthDiagnostic(knownStorage).reason,'identity_changed');
+  assert.equal(signIns,1);
+
   env.localStorage = storage();
+  env.supabase.auth.getSession = async () => ({data:{session:null},error:null});
   await ensure();
   assert.equal(signIns, 2);
 });

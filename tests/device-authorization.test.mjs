@@ -24,7 +24,7 @@ test('activation UI never announces success before the second server confirmatio
       classifyPendingRecords:()=>({matching:[],foreign:[]}),pendingUnitsLabel:()=>'',
       supabase:{rpc:async(name)=>({data:name==='get_device_activation_preview'?{replacement_required:false}:++calls===1?valid:response})},confirmedDeviceAuthorization:confirmed,
       prepareDeviceGuard:async()=>{},setDeviceAuth:s=>{authorized=s.authorized},DEVICE_AUTH_CACHE:'cache',
-      rememberAuthorizedIdentity:()=>{},resolveAuthDiagnostic:()=>{},
+      rememberAuthorizedIdentity:()=>{},rememberRecoverySession:async()=>true,resolveAuthDiagnostic:()=>{},
       setDeviceActivationCode:()=>{},setDeviceActivationOpen:()=>{},setDeviceReplacementOpen:()=>{},setDeviceReplacementUnitInput:()=>{}, recoveryErrorMessage:e=>String(e)};
     await factory(env)();
     assert.equal(messages.includes('Dispositivo autorizado correctamente'),response===valid);

@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
-import { authDiagnosticLabel, readAuthDiagnostic, recordAuthDiagnostic, rememberAuthorizedIdentity, resolveAuthDiagnostic } from "./auth-session-diagnostic.mjs";
+import { cachedDeviceCanQueue } from "./device-auth-continuity.mjs";
+import { AUTH_IDENTITY_KEY, authDiagnosticLabel, readAuthDiagnostic, recordAuthDiagnostic, rememberAuthorizedIdentity, resolveAuthDiagnostic } from "./auth-session-diagnostic.mjs";
+import { forgetRecoverySession, rememberRecoverySession } from "./device-session-recovery.mjs";
 import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { classifyPendingRecords, pendingUnitsLabel } from "./device-pending-authorization.mjs";
 import { isRecoverableGuardSyncError, syncPendingIndependently } from "./pending-sync.mjs";
@@ -425,6 +427,19 @@ function App() {
     refreshDeviceAuthorization(currentUnit);
   }, [unit, lot, mode]);
   React.useEffect(() => {
+    if (mode !== "worker" || !deviceAuth.verificationPending) return;
+    const retry = () => {
+      if (navigator.onLine && document.visibilityState === "visible")
+        void refreshDeviceAuthorization(localStorage.getItem(KEY.unit));
+    };
+    addEventListener("online", retry);
+    document.addEventListener("visibilitychange", retry);
+    return () => {
+      removeEventListener("online", retry);
+      document.removeEventListener("visibilitychange", retry);
+    };
+  }, [mode, deviceAuth.verificationPending]);
+  React.useEffect(() => {
     const currentUnit = localStorage.getItem(KEY.unit);
     if (!currentUnit || unitZone(currentUnit) !== "Olot" || !navigator.onLine) return;
     ensureAnonymousSession()
@@ -482,12 +497,14 @@ function App() {
         enforcement: true,
         authorized,
         unit: data?.unit || "",
+        lot: data?.lot || "",
         version: Number(data?.current_version || 0),
       };
       setDeviceAuth(next);
       if (authorized) {
         localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
         rememberAuthorizedIdentity(localStorage, session.user?.id);
+        void rememberRecoverySession(session).catch(() => {});
         resolveAuthDiagnostic(localStorage);
       } else {
         if (localStorage.getItem(DEVICE_AUTH_CACHE) &&
@@ -499,6 +516,14 @@ function App() {
     } catch (error) {
       if (request !== deviceAuthSequence.current) return false;
       if (error?.code === "LOCAL_AUTH_SESSION_MISSING") {
+        let cached;
+        try { cached = JSON.parse(localStorage.getItem(DEVICE_AUTH_CACHE) || "null"); }
+        catch { cached = null; }
+        const knownDevice = cachedDeviceCanQueue(cached, displayUnit(targetUnit), targetLot);
+        if (knownDevice) {
+          setDeviceAuth({ ...cached, checked: true, verificationPending: true });
+          return true;
+        }
         setDeviceAuth({ checked: true, enforcement: true, authorized: false, unit: "", version: 0 });
         return false;
       }
@@ -577,11 +602,13 @@ function App() {
         enforcement: Boolean(data?.enforcement_enabled),
         authorized: Boolean(data?.authorized),
         unit: data?.unit || displayUnit(currentUnit),
+        lot: targetLot,
         version: Number(data?.current_version || 0),
       };
       setDeviceAuth(next);
       localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
       rememberAuthorizedIdentity(localStorage, activationSession.user?.id);
+      void rememberRecoverySession(activationSession).catch(() => {});
       resolveAuthDiagnostic(localStorage);
       // Los registros previos se conservan; nunca borramos consumos pendientes.
       setDeviceActivationCode("");
@@ -769,6 +796,8 @@ function App() {
       try{await ensureAnonymousSession();const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:assignmentAdminPin,p_lot:selectedLot,p_zone:selectedZone,p_unit:unit,p_warehouse_id:selectedWarehouse});if(error)throw error;}
       catch{return flash('No se ha podido guardar la asignación TSNU en Supabase');}
     }
+    await forgetRecoverySession().catch(() => {});
+    localStorage.removeItem(AUTH_IDENTITY_KEY);
     localStorage.setItem(UNIT_CHECKLIST_KEY, JSON.stringify(config));
     localStorage.setItem(KEY.unit, unit);
     localStorage.setItem(KEY.lot, selectedLot);
@@ -1437,6 +1466,8 @@ function App() {
       try{const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:enteredPin,p_lot:changeLot,p_zone:changeZone,p_unit:nextUnit,p_warehouse_id:changeWarehouse});if(error)throw error;}
       catch{return flash('No se ha podido guardar la asignación TSNU en Supabase');}
     }
+    await forgetRecoverySession().catch(() => {});
+    localStorage.removeItem(AUTH_IDENTITY_KEY);
     localStorage.setItem(UNIT_CHECKLIST_KEY, JSON.stringify(config));
     localStorage.setItem(KEY.unit, nextUnit);
     localStorage.setItem(KEY.lot, changeLot);
@@ -1468,6 +1499,8 @@ function App() {
         "No se puede retirar la asignación: hay registros pendientes de sincronizar",
       );
     }
+    await forgetRecoverySession().catch(() => {});
+    localStorage.removeItem(AUTH_IDENTITY_KEY);
     localStorage.removeItem(KEY.unit);
     localStorage.removeItem(UNIT_CHECKLIST_KEY);
     localStorage.removeItem(KEY.lot);
@@ -3194,7 +3227,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v167</span></h1>
+          <h1>Control de material <span className="app-version">v168</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4123,10 +4156,12 @@ function App() {
               <div className={`card device-auth-card ${deviceAuth.authorized ? "device-authorized" : "device-demo"}`}>
                 <div>
                   <strong>
-                    {deviceAuth.authorized ? "Dispositivo autorizado" : "Modo demostración"}
+                    {deviceAuth.verificationPending ? "Acceso pendiente de verificar" : deviceAuth.authorized ? "Dispositivo autorizado" : "Modo demostración"}
                   </strong>
                   <p className="small">
-                    {currentChecklistConfig.service === 'TSNU'
+                    {deviceAuth.verificationPending
+                      ? "Puedes seguir registrando el trabajo en este móvil. Los envíos quedarán pendientes hasta recuperar la sesión y confirmar la autorización con Supabase."
+                      : currentChecklistConfig.service === 'TSNU'
                       ? deviceAuth.authorized
                         ? "Dispositivo TSNU autorizado. El checklist y los consumos están conectados con el almacén asignado."
                         : "Unidad TSNU asignada, pero dispositivo sin autorización vigente. La administración debe autorizarlo para registrarlo en Dispositivos oficiales. El checklist todavía no está activo."
@@ -4855,7 +4890,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=167", {
+    navigator.serviceWorker.register("./sw.js?v=168", {
       updateViaCache: "none",
     }),
   );

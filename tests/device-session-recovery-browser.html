@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ca">
+<meta charset="utf-8">
+<title>Prova local de recuperació de sessió</title>
+<pre id="result">Executant proves...</pre>
+<script type="module">
+import { AUTH_IDENTITY_KEY } from '../src/auth-session-diagnostic.mjs';
+import { rememberRecoverySession, recoverAuthorizedSession, forgetRecoverySession } from '../src/device-session-recovery.mjs';
+import { confirmedDeviceAuthorization } from '../src/device-authorization.mjs';
+import { ensureAnonymousSession, supabase } from '../src/supabase.js';
+
+const output = document.getElementById('result');
+const checks = [];
+function check(name, condition) {
+  checks.push({name, passed: Boolean(condition)});
+  if (!condition) throw new Error(name);
+}
+try {
+  await forgetRecoverySession();
+  localStorage.setItem('cma_unit', 'G450');
+  localStorage.setItem('cma_lot', 'Lot 5');
+  localStorage.setItem(AUTH_IDENTITY_KEY, JSON.stringify({unit:'G450',userId:'original'}));
+  const session={user:{id:'original'},access_token:'access-one',refresh_token:'refresh-one'};
+  check('Còpia inicial desada a IndexedDB', await rememberRecoverySession(session));
+  let usedToken='';
+  const auth={setSession: async ({refresh_token})=>{
+    usedToken=refresh_token;
+    return {data:{session},error:null};
+  }};
+  check('Recupera la mateixa identitat', (await recoverAuthorizedSession(auth))?.user.id==='original');
+  check('Utilitza el token de recuperació', usedToken==='refresh-one');
+
+  const oldGetSession=supabase.auth.getSession;
+  const oldSetSession=supabase.auth.setSession;
+  const oldSignIn=supabase.auth.signInAnonymously;
+  let anonymousSignIns=0;
+  try {
+    supabase.auth.getSession=async()=>({data:{session:null},error:null});
+    supabase.auth.setSession=auth.setSession;
+    supabase.auth.signInAnonymously=async()=>{anonymousSignIns++;throw new Error('unexpected new identity');};
+    check('El flux complet recupera la identitat antiga',
+      (await ensureAnonymousSession()).user.id==='original');
+    check('No crea una altra identitat anònima',anonymousSignIns===0);
+  } finally {
+    supabase.auth.getSession=oldGetSession;
+    supabase.auth.setSession=oldSetSession;
+    supabase.auth.signInAnonymously=oldSignIn;
+  }
+
+  const refreshed={...session,access_token:'access-two',refresh_token:'refresh-two'};
+  await rememberRecoverySession(refreshed);
+  usedToken='';
+  await recoverAuthorizedSession(auth);
+  check('Actualitza el token renovat', usedToken==='refresh-two');
+
+  localStorage.setItem('cma_unit','G451');
+  usedToken='';
+  check('No recupera per a una altra unitat', await recoverAuthorizedSession(auth)===null && !usedToken);
+  localStorage.setItem('cma_unit','G450');
+  localStorage.setItem('cma_lot','Lot 7');
+  check('No recupera per a un altre lot', await recoverAuthorizedSession(auth)===null);
+  localStorage.setItem('cma_lot','Lot 5');
+  check('La revocació del servidor continua denegant accés',
+    !confirmedDeviceAuthorization({authorized:false,enforcement_enabled:true,unit:'G450',lot:'Lot 5',current_version:1,device_version:1},'G450','Lot 5'));
+  const invalid={setSession:async()=>({data:{session:null},error:new Error('expired')})};
+  check('Token invàlid no recupera accés', await recoverAuthorizedSession(invalid)===null);
+  await forgetRecoverySession();
+  check('Desassignar elimina la còpia de recuperació', await recoverAuthorizedSession(auth)===null);
+  output.textContent=`RESULTAT: ${checks.length} proves correctes\n`+checks.map(c=>`✓ ${c.name}`).join('\n');
+} catch (error) {
+  output.textContent=`ERROR: ${error.message}\n`+checks.map(c=>`${c.passed?'✓':'✕'} ${c.name}`).join('\n');
+} finally {
+  await forgetRecoverySession().catch(()=>{});
+  localStorage.removeItem('cma_unit');
+  localStorage.removeItem('cma_lot');
+  localStorage.removeItem(AUTH_IDENTITY_KEY);
+}
+</script>
+</html>
