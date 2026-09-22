@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
+import { authDiagnosticLabel, readAuthDiagnostic, recordAuthDiagnostic, rememberAuthorizedIdentity, resolveAuthDiagnostic } from "./auth-session-diagnostic.mjs";
 import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { classifyPendingRecords, pendingUnitsLabel } from "./device-pending-authorization.mjs";
 import { isRecoverableGuardSyncError, syncPendingIndependently } from "./pending-sync.mjs";
@@ -471,7 +472,7 @@ function App() {
     const request = ++deviceAuthSequence.current;
     const targetLot = localStorage.getItem(KEY.lot) || lot;
     try {
-      await ensureAnonymousSession();
+      const session = await ensureAnonymousSession();
       const { data, error } = await supabase.rpc("get_device_authorization");
       if (error) throw error;
       if (request !== deviceAuthSequence.current) return false;
@@ -484,11 +485,23 @@ function App() {
         version: Number(data?.current_version || 0),
       };
       setDeviceAuth(next);
-      if (authorized) localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
-      else localStorage.removeItem(DEVICE_AUTH_CACHE);
+      if (authorized) {
+        localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
+        rememberAuthorizedIdentity(localStorage, session.user?.id);
+        resolveAuthDiagnostic(localStorage);
+      } else {
+        if (localStorage.getItem(DEVICE_AUTH_CACHE) &&
+            (readAuthDiagnostic(localStorage)?.reason !== "identity_changed" || readAuthDiagnostic(localStorage)?.resolvedAt))
+          recordAuthDiagnostic(localStorage, "server_denied");
+        localStorage.removeItem(DEVICE_AUTH_CACHE);
+      }
       return next.authorized;
-    } catch {
+    } catch (error) {
       if (request !== deviceAuthSequence.current) return false;
+      if (error?.code === "LOCAL_AUTH_SESSION_MISSING") {
+        setDeviceAuth({ checked: true, enforcement: true, authorized: false, unit: "", version: 0 });
+        return false;
+      }
       try {
         const cached = JSON.parse(localStorage.getItem(DEVICE_AUTH_CACHE) || "null");
         const cachedMatches = cached?.authorized &&
@@ -523,7 +536,7 @@ function App() {
     setDeviceAuthLoading(true);
     const request = ++deviceAuthSequence.current;
     try {
-      await ensureAnonymousSession();
+      const activationSession = await ensureAnonymousSession({ allowNewIdentity: true });
       if (!replacementConfirmed) {
         const preview = await supabase.rpc("get_device_activation_preview", {
           p_unit: displayUnit(currentUnit),
@@ -568,6 +581,8 @@ function App() {
       };
       setDeviceAuth(next);
       localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
+      rememberAuthorizedIdentity(localStorage, activationSession.user?.id);
+      resolveAuthDiagnostic(localStorage);
       // Los registros previos se conservan; nunca borramos consumos pendientes.
       setDeviceActivationCode("");
       setDeviceActivationOpen(false);
@@ -3179,7 +3194,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v166</span></h1>
+          <h1>Control de material <span className="app-version">v167</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4121,9 +4136,17 @@ function App() {
                   </p>
                 </div>
                 {!deviceAuth.authorized && (
-                  <button className="primary" onClick={() => setDeviceActivationOpen(true)}>
-                    Autorizar dispositivo
-                  </button>
+                  <>
+                    {readAuthDiagnostic(localStorage)?.unit === currentUnit && !readAuthDiagnostic(localStorage)?.resolvedAt && (
+                      <p className="small" role="status">
+                        Diagnóstico de sesión: {authDiagnosticLabel(readAuthDiagnostic(localStorage)?.reason)}
+                        {" "}Detectado el {new Date(readAuthDiagnostic(localStorage).detectedAt).toLocaleString("es-ES")} ({readAuthDiagnostic(localStorage).version}).
+                      </p>
+                    )}
+                    <button className="primary" onClick={() => setDeviceActivationOpen(true)}>
+                      Autorizar dispositivo
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -4832,7 +4855,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=82", {
+    navigator.serviceWorker.register("./sw.js?v=167", {
       updateViaCache: "none",
     }),
   );

@@ -20,10 +20,11 @@ test('activation UI never announces success before the second server confirmatio
     let calls=0, authorized=false;
     const env={localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},KEY:{unit:'unit',lot:'lot'},
       lot:'lot5',flash:m=>messages.push(m), getRecords:()=>[], deviceActivationCode:'12345678',setDeviceAuthLoading:()=>{},
-      deviceAuthSequence:{current:0}, ensureAnonymousSession:async()=>{},GUARD_HANDOFF_KEY:'handoff',displayUnit:u=>u,
+      deviceAuthSequence:{current:0}, ensureAnonymousSession:async()=>({user:{id:'test-device'}}),GUARD_HANDOFF_KEY:'handoff',displayUnit:u=>u,
       classifyPendingRecords:()=>({matching:[],foreign:[]}),pendingUnitsLabel:()=>'',
       supabase:{rpc:async(name)=>({data:name==='get_device_activation_preview'?{replacement_required:false}:++calls===1?valid:response})},confirmedDeviceAuthorization:confirmed,
       prepareDeviceGuard:async()=>{},setDeviceAuth:s=>{authorized=s.authorized},DEVICE_AUTH_CACHE:'cache',
+      rememberAuthorizedIdentity:()=>{},resolveAuthDiagnostic:()=>{},
       setDeviceActivationCode:()=>{},setDeviceActivationOpen:()=>{},setDeviceReplacementOpen:()=>{},setDeviceReplacementUnitInput:()=>{}, recoveryErrorMessage:e=>String(e)};
     await factory(env)();
     assert.equal(messages.includes('Dispositivo autorizado correctamente'),response===valid);
