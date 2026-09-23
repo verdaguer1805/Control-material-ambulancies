@@ -58,6 +58,7 @@ const MATERIAL_LABELS = {
   "Bolsas de objetos personales SEM grandes": "Bolsas de objetos personales SEM grandes (unidad)",
   "Bolsas de objetos personales SEM pequeñas": "Bolsas de objetos personales SEM pequeñas (unidad)",
   "Empapador": "Empapador (unidad)",
+  "Lancetas (caja)": "Lancetas (unidades)",
   "Malla capelina para cabeza": "Malla capelina para cabeza (Tubigrip)",
   "Mantas de un solo uso": "Mantas de un solo uso (unidad)",
   "Sábanas de un solo uso": "Sabanas de un solo uso (unidad)",
@@ -65,7 +66,7 @@ const MATERIAL_LABELS = {
   "Guantes M (caja)": "Guantes M (cajas)",
   "Guantes L (caja)": "Guantes L (cajas)",
   "Guantes XL (caja)": "Guantes XL (cajas)",
-  "Celulosa cortada": "Celulosa precortada (rollo)",
+  "Celulosa cortada": "Celulosa precortada (unidades)",
   "Tiras reactivas": "Tiras reactivas (botes)",
 };
 const materialLabel = (material) => MATERIAL_LABELS[material] || material;
@@ -1193,52 +1194,13 @@ function App() {
       };
     });
   async function loadSelectedAdminRecords() {
-    const units = Object.keys(SUPERVISIONS[exportZone] || {}),
-      ambulances = units
-        .filter((u) => !isSupervisorMaterial(u))
-        .map(displayUnit),
-      reportUnits = [
-        ...ambulances,
-        `Material Supervisor · ${exportZone}`,
-      ],
-      fields =
-        "id,incident_code,unit,warehouse,occurred_at,created_at,updated_at,materials",
-      range = (query) =>
-        query
-          .gte("occurred_at", exportFrom + "T00:00:00")
-          .lte("occurred_at", exportTo + "T23:59:59.999")
-          .order("occurred_at", { ascending: false }),
-      fetchPages = async (makeQuery) => {
-        const rows = [];
-        for (let from = 0; ; from += 1000) {
-          const result = await makeQuery().range(from, from + 999);
-          if (result.error) throw result.error;
-          rows.push(...(result.data || []));
-          if ((result.data || []).length < 1000) break;
-        }
-        return rows;
-      },
-      [ambulanceData, supervisorData, submissionData, tsnuResult] = await Promise.all([
-        fetchPages(() =>
-          range(supabase.from("incidents").select(fields).in("unit", ambulances)),
-        ),
-        fetchPages(() =>
-          range(
-            supabase
-              .from("incidents")
-              .select(fields)
-              .ilike("unit", `Material supervisor · ${exportZone}`),
-          ),
-        ),
-        fetchPages(() =>
-          supabase
-            .from("guard_submissions")
-            .select("id,guard_code,unit,warehouse,submitted_at,materials,material_delta")
-            .in("unit", reportUnits)
-            .gte("submitted_at", exportFrom + "T00:00:00")
-            .lte("submitted_at", exportTo + "T23:59:59.999")
-            .order("submitted_at", { ascending: true }),
-        ),
+    const [reportResult, tsnuResult] = await Promise.all([
+        supabase.rpc("get_admin_report_data", {
+          p_lot: exportLot,
+          p_zone: exportZone,
+          p_from: exportFrom,
+          p_to: exportTo,
+        }),
         supabase.rpc("get_tsnu_report_data", {
           p_lot: exportLot,
           p_zone: exportZone,
@@ -1246,15 +1208,14 @@ function App() {
           p_to: exportTo,
         }),
       ]);
+    if (reportResult.error) throw reportResult.error;
     if (tsnuResult.error) throw tsnuResult.error;
-    const merged = [
-        ...ambulanceData,
-        ...supervisorData,
-      ],
-      unique = [...new Map(merged.map((row) => [row.id, row])).values()];
+    const reportData = reportResult.data || {},
+      incidents = Array.isArray(reportData.incidents) ? reportData.incidents : [],
+      unique = [...new Map(incidents.map((row) => [row.id, row])).values()];
     return {
       records: mapAdminRecords(unique),
-      submissions: submissionData,
+      submissions: Array.isArray(reportData.submissions) ? reportData.submissions : [],
       tsnu: tsnuResult.data || { shifts: [], withdrawals: [] },
     };
   }
@@ -1304,6 +1265,8 @@ function App() {
       return flash("La cantidad correcta debe ser un número entero igual o superior a cero");
     if (correctionReason.trim().length < 5)
       return flash("Indica el motivo de la corrección");
+    if (!window.confirm(`Se cambiará ${materialLabel(correctionMaterial)} de ${selectedCorrectionPrevious} a ${corrected}. ¿Confirmar corrección?`))
+      return;
     setCorrectionLoading(true);
     try {
       await ensureAnonymousSession();
@@ -3255,9 +3218,12 @@ function App() {
     adminCanManageDevices = adminAccess?.role === "owner",
     adminCanManageMinimums = ["owner", "logistics"].includes(adminAccess?.role),
     selectedCorrectionRecord = correctionRows.find((row) => row.id === correctionIncidentId) || null,
-    selectedCorrectionMaterials = Object.entries(selectedCorrectionRecord?.materials || {})
-      .filter(([, quantity]) => Number(quantity) > 0)
-      .sort(([a], [b]) => materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true })),
+    selectedCorrectionMaterials = [...new Set([
+      ...Object.keys(selectedCorrectionRecord?.materials || {}),
+      ...MATERIALS,
+    ])]
+      .sort((a, b) => materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true }))
+      .map((material) => [material, Number(selectedCorrectionRecord?.materials?.[material] || 0)]),
     selectedCorrectionPrevious = Number(selectedCorrectionRecord?.materials?.[correctionMaterial] || 0),
     adminZones = Object.keys(SUPERVISIONS)
       .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
@@ -3321,7 +3287,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v169</span></h1>
+          <h1>Control de material <span className="app-version">v170</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5096,7 +5062,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=169", {
+    navigator.serviceWorker.register("./sw.js?v=170", {
       updateViaCache: "none",
     }),
   );
