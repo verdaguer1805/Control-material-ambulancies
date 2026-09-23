@@ -1,0 +1,33 @@
+.consumption-correction-modal {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.consumption-correction-modal > button.full {
+  margin-top: 10px;
+}
+
+.correction-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #e0b04b;
+  border-radius: 12px;
+  background: #fff7dc;
+}
+
+.correction-summary strong {
+  grid-column: 1 / -1;
+}
+
+.correction-summary span {
+  font-size: 13px;
+}
+
+.consumption-correction-modal .danger {
+  background: #b42318;
+  color: #fff;
+}

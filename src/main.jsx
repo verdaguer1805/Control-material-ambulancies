@@ -38,6 +38,7 @@ import "./material-selection.css";
 import "./stock-demo.css";
 import "./guard.css";
 import "./device-security.css";
+import "./consumption-corrections.css";
 const KEY = {
   unit: "cma_unit",
   lot: "cma_lot",
@@ -264,6 +265,16 @@ function App() {
     [exportZone, setExportZone] = useState(""),
     [exportFrom, setExportFrom] = useState(""),
     [exportTo, setExportTo] = useState(""),
+    [correctionOpen, setCorrectionOpen] = useState(false),
+    [correctionLoading, setCorrectionLoading] = useState(false),
+    [correctionLot, setCorrectionLot] = useState("Lot 5 · Girona - Alt Maresme"),
+    [correctionZone, setCorrectionZone] = useState(""),
+    [correctionDate, setCorrectionDate] = useState(nowParts().date),
+    [correctionRows, setCorrectionRows] = useState([]),
+    [correctionIncidentId, setCorrectionIncidentId] = useState(""),
+    [correctionMaterial, setCorrectionMaterial] = useState(""),
+    [correctionQuantity, setCorrectionQuantity] = useState(""),
+    [correctionReason, setCorrectionReason] = useState("Error humano de marcaje"),
     [changeUnitOpen, setChangeUnitOpen] = useState(false),
     [changeUnitPin, setChangeUnitPin] = useState(""),
     [nextUnit, setNextUnit] = useState(""),
@@ -459,9 +470,13 @@ function App() {
       setQuantities({});
       return;
     }
-    // Cada envio representa una retirada nueva del almacen. El formulario
-    // siempre empieza a cero, aunque ya existan retiradas en esta guardia.
-    setQuantities({});
+    // Durante toda la guardia se muestra el total acumulado que consta para la
+    // unidad. El técnico puede revisarlo, aumentarlo o reducirlo; el siguiente
+    // envío sustituye el total anterior y Supabase aplica solo la diferencia.
+    const activeRecord = getRecords().find(
+      (record) => record.unit === currentUnit && record.id === guard.code,
+    );
+    setQuantities(activeRecord ? aggregate(activeRecord) : {});
     setIncident(guard.code);
     setIncidentConfirmed(true);
     setEditingRecord(null);
@@ -960,7 +975,7 @@ function App() {
     const savedAt = new Date().toISOString(),
       entry = { createdAt: savedAt, materials: used };
     if (rec) {
-      rec.entries = [...(rec.entries || []), entry];
+      rec.entries = [entry];
       rec.recoveredBaseline = false;
       rec.updatedAt = savedAt;
       rec.synced = false;
@@ -983,9 +998,9 @@ function App() {
     }
     saveRecords(list);
     setRecords([...list]);
-    // La retirada ya queda guardada localmente (tambien sin cobertura), por lo
-    // que el formulario queda preparado inmediatamente para la siguiente.
-    setQuantities({});
+    // El total queda visible y editable durante toda la guardia. No se suma de
+    // nuevo al reenviar: sustituye el total anterior.
+    setQuantities({ ...used });
     setSearch("");
     if (!navigator.onLine) {
       setStatus("queued");
@@ -1242,6 +1257,80 @@ function App() {
       submissions: submissionData,
       tsnu: tsnuResult.data || { shifts: [], withdrawals: [] },
     };
+  }
+  function openConsumptionCorrection() {
+    const zone = adminAccess?.role === "supervisor" ? adminAccess.zone || "" : correctionZone;
+    setCorrectionZone(zone);
+    setCorrectionRows([]);
+    setCorrectionIncidentId("");
+    setCorrectionMaterial("");
+    setCorrectionQuantity("");
+    setCorrectionReason("Error humano de marcaje");
+    setCorrectionOpen(true);
+  }
+  async function loadCorrectableConsumptions() {
+    if (!correctionLot || !correctionZone || !correctionDate)
+      return flash("Selecciona lote, supervisión y fecha");
+    const units = Object.keys(LOTS[correctionLot]?.[correctionZone] || {}).map(displayUnit),
+      supervisorUnit = `Material Supervisor · ${correctionZone}`,
+      [year, month, day] = correctionDate.split("-"),
+      guardCode = `${day}${month}${year.slice(-2)}`;
+    setCorrectionLoading(true);
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase
+        .from("incidents")
+        .select("id,incident_code,unit,warehouse,occurred_at,materials,updated_at")
+        .in("unit", [...units, supervisorUnit])
+        .eq("incident_code", guardCode)
+        .order("unit", { ascending: true });
+      if (error) throw error;
+      setCorrectionRows(data || []);
+      setCorrectionIncidentId("");
+      setCorrectionMaterial("");
+      setCorrectionQuantity("");
+      if (!(data || []).length) flash("No hay consumos registrados para esta fecha");
+    } catch (error) {
+      flash(error?.message || "No se han podido cargar los consumos");
+    } finally {
+      setCorrectionLoading(false);
+    }
+  }
+  async function applyConsumptionCorrection() {
+    const corrected = Number(correctionQuantity);
+    if (!correctionIncidentId || !correctionMaterial)
+      return flash("Selecciona el registro y el material");
+    if (!Number.isInteger(corrected) || corrected < 0)
+      return flash("La cantidad correcta debe ser un número entero igual o superior a cero");
+    if (correctionReason.trim().length < 5)
+      return flash("Indica el motivo de la corrección");
+    setCorrectionLoading(true);
+    try {
+      await ensureAnonymousSession();
+      const { error } = await supabase.rpc("correct_guard_consumption", {
+        p_incident_id: correctionIncidentId,
+        p_lot: correctionLot,
+        p_material: correctionMaterial,
+        p_corrected_quantity: corrected,
+        p_reason: correctionReason.trim(),
+      });
+      if (error) throw error;
+      flash("Consumo corregido. Stock, reposición e historial actualizados");
+      await loadCorrectableConsumptions();
+    } catch (error) {
+      const message = String(error?.message || error || "");
+      flash(
+        message.includes("CORRECTION_WITHOUT_CHANGES")
+          ? "La cantidad indicada ya es la registrada"
+          : message.includes("GUARD_STILL_ACTIVE")
+            ? "La guardia todavía está activa. Corrígelo desde la unidad y vuelve a enviar el total."
+          : message.includes("ADMIN_ZONE_ACCESS_DENIED")
+            ? "No tienes permiso para corregir consumos de esta zona"
+            : "No se ha podido aplicar la corrección",
+      );
+    } finally {
+      setCorrectionLoading(false);
+    }
   }
   async function generateReport(type) {
     if (!exportZone) return flash("Selecciona una supervisión");
@@ -3165,6 +3254,11 @@ function App() {
     adminCanManageCodes = adminAccess?.role === "owner",
     adminCanManageDevices = adminAccess?.role === "owner",
     adminCanManageMinimums = ["owner", "logistics"].includes(adminAccess?.role),
+    selectedCorrectionRecord = correctionRows.find((row) => row.id === correctionIncidentId) || null,
+    selectedCorrectionMaterials = Object.entries(selectedCorrectionRecord?.materials || {})
+      .filter(([, quantity]) => Number(quantity) > 0)
+      .sort(([a], [b]) => materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true })),
+    selectedCorrectionPrevious = Number(selectedCorrectionRecord?.materials?.[correctionMaterial] || 0),
     adminZones = Object.keys(SUPERVISIONS)
       .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
       .sort((a, b) => a.localeCompare(b)),
@@ -3227,7 +3321,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v168</span></h1>
+          <h1>Control de material <span className="app-version">v169</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3661,6 +3755,115 @@ function App() {
                   disabled={reportLoading}
                 >
                   {reportLoading ? "Cargando datos..." : "Descargar PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {correctionOpen && (
+          <div className="modal-backdrop">
+            <div className="card export-modal consumption-correction-modal">
+              <h2>Corregir un consumo</h2>
+              <p className="muted">
+                Para guardias ya finalizadas. Rectifica un error humano sin borrar el envío original: se ajustarán el stock y la reposición y quedará registrado quién hizo el cambio.
+              </p>
+              <label>Lote</label>
+              <select
+                value={correctionLot}
+                disabled={correctionLoading}
+                onChange={(e) => {
+                  setCorrectionLot(e.target.value);
+                  setCorrectionZone("");
+                  setCorrectionRows([]);
+                }}
+              >
+                {Object.keys(LOTS).map((name) => <option key={name}>{name}</option>)}
+              </select>
+              <label>Supervisión</label>
+              <select
+                value={correctionZone}
+                disabled={correctionLoading || adminAccess?.role === "supervisor"}
+                onChange={(e) => { setCorrectionZone(e.target.value); setCorrectionRows([]); }}
+              >
+                <option value="">Selecciona...</option>
+                {Object.keys(LOTS[correctionLot] || {})
+                  .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((zone) => <option key={zone}>{zone}</option>)}
+              </select>
+              <label>Fecha de guardia</label>
+              <input
+                type="date"
+                value={correctionDate}
+                disabled={correctionLoading}
+                onChange={(e) => { setCorrectionDate(e.target.value); setCorrectionRows([]); }}
+              />
+              <button className="secondary full" onClick={loadCorrectableConsumptions} disabled={correctionLoading}>
+                {correctionLoading ? "Consultando..." : "Buscar consumos"}
+              </button>
+              {!!correctionRows.length && <>
+                <label>Unidad y registro</label>
+                <select
+                  value={correctionIncidentId}
+                  onChange={(e) => {
+                    setCorrectionIncidentId(e.target.value);
+                    setCorrectionMaterial("");
+                    setCorrectionQuantity("");
+                  }}
+                >
+                  <option value="">Selecciona...</option>
+                  {correctionRows.map((row) => (
+                    <option key={row.id} value={row.id}>{row.unit} · {row.incident_code} · {row.warehouse}</option>
+                  ))}
+                </select>
+              </>}
+              {selectedCorrectionRecord && <>
+                <label>Material registrado</label>
+                <select
+                  value={correctionMaterial}
+                  onChange={(e) => {
+                    const material = e.target.value;
+                    setCorrectionMaterial(material);
+                    setCorrectionQuantity(material ? String(selectedCorrectionRecord.materials?.[material] || 0) : "");
+                  }}
+                >
+                  <option value="">Selecciona...</option>
+                  {selectedCorrectionMaterials.map(([material, quantity]) => (
+                    <option key={material} value={material}>{materialLabel(material)} · registrado: {quantity}</option>
+                  ))}
+                </select>
+              </>}
+              {correctionMaterial && <>
+                <label>Cantidad correcta</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={correctionQuantity}
+                  onChange={(e) => setCorrectionQuantity(e.target.value.replace(/[^0-9]/g, ""))}
+                />
+                <label>Motivo</label>
+                <input
+                  value={correctionReason}
+                  maxLength={160}
+                  onChange={(e) => setCorrectionReason(e.target.value)}
+                />
+                <div className="correction-summary">
+                  <strong>{materialLabel(correctionMaterial)}</strong>
+                  <span>Registrado: {selectedCorrectionPrevious}</span>
+                  <span>Correcto: {correctionQuantity === "" ? "—" : correctionQuantity}</span>
+                  <span>Ajuste de stock: {correctionQuantity === "" ? "—" : selectedCorrectionPrevious - Number(correctionQuantity)}</span>
+                </div>
+              </>}
+              <div className="toolbar">
+                <button className="secondary" onClick={() => setCorrectionOpen(false)} disabled={correctionLoading}>Cerrar</button>
+                <button
+                  className="danger"
+                  onClick={applyConsumptionCorrection}
+                  disabled={correctionLoading || !correctionMaterial || correctionQuantity === ""}
+                >
+                  {correctionLoading ? "Aplicando..." : "Aplicar corrección"}
                 </button>
               </div>
             </div>
@@ -4326,6 +4529,9 @@ function App() {
                 >
                   Descargar informe
                 </button>
+                <button className="secondary" onClick={openConsumptionCorrection}>
+                  Corregir consumo
+                </button>
                 {adminCanManageCodes && (
                   <button className="secondary" onClick={changePin}>Cambiar PIN de unidades</button>
                 )}
@@ -4890,7 +5096,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=168", {
+    navigator.serviceWorker.register("./sw.js?v=169", {
       updateViaCache: "none",
     }),
   );
