@@ -21,6 +21,9 @@ test('Baliza V-16 is required for new TSNU checklists but completed legacy check
  assert.throws(()=>completeDemo({...daily,answers:legacyAnswers}));
  assert.equal(checklistStatus({...daily,answers:legacyAnswers,completed:true}),'Correcto');
 });
+test('TSNU checklist no longer requires single-use sheets',()=>{
+ assert.equal(TSNU_CHECKLIST_ITEMS.includes('Sabanas de un solo uso'),false);
+});
 test('TSNU supports several shift sessions on the same date and cannot close with pending material',()=>{
  const store=memory(), answers=Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']));
  const first=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'one',answers});

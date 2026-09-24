@@ -2431,7 +2431,7 @@ function App() {
           "Hora de checklist": shift.checklist_submitted_at ? new Date(shift.checklist_submitted_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "",
           Estado: !shift.checklist_submitted_at ? "No realizado" : issues.length ? "Con incidencia" : "Correcto",
           Incidencias: issues.join(" · "),
-          "Guardia finalizada": shift.ended_at ? "Sí" : "No",
+          "Guardia finalizada": shift.ended_at ? shift.close_source === "automatic" ? "Sí · Automática" : "Sí · Manual" : "No",
         };
       }),
       checklistTsuRows = [{ Estado: "Pendiente de activar las plantillas TSU" }],
@@ -3077,6 +3077,7 @@ function App() {
             warehouse: shift.warehouse || "",
             submitted: submitted ? submitted.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "—",
             status: !submitted ? "NO REALIZADO" : issues.length ? "INCIDENCIA" : "CORRECTO",
+            closure: shift.ended_at ? shift.close_source === "automatic" ? "AUTOMÁTICA" : "MANUAL" : "NO",
             issues: issues.join(" · ") || "—",
           };
         }),
@@ -3104,7 +3105,8 @@ function App() {
         doc.text("Almacén", 96, 57);
         doc.text("Enviado", 148, 57);
         doc.text("Estado", 174, 57);
-        doc.text("Incidencias", 211, 57);
+        doc.text("Cierre", 207, 57);
+        doc.text("Incidencias", 235, 57);
         doc.setFont("helvetica", "normal");
         chunk.forEach((row, rowIndex) => {
           const y = 66 + rowIndex * 9;
@@ -3124,7 +3126,8 @@ function App() {
           doc.setFont("helvetica", "bold");
           doc.text(row.status, 174, y);
           doc.setFont("helvetica", "normal");
-          doc.text(row.issues, 211, y, { maxWidth: 68 });
+          doc.text(row.closure, 207, y);
+          doc.text(row.issues, 235, y, { maxWidth: 45 });
         });
       });
     };
@@ -3282,7 +3285,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v172</span></h1>
+          <h1>Control de material <span className="app-version">v173</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5057,7 +5060,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=172", {
+    navigator.serviceWorker.register("./sw.js?v=173", {
       updateViaCache: "none",
     }),
   );

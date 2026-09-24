@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
 const sql = readFileSync(new URL('../sql/admin-tsnu-reports-v1.sql', import.meta.url), 'utf8');
+const closeSql = readFileSync(new URL('../sql/tsnu-close-source-v1.sql', import.meta.url), 'utf8');
 
 test('TSNU report read is protected and globally scoped by lot, zone and dates', () => {
   assert.match(sql, /admin_can_access_zone\(p_zone\)/);
@@ -12,6 +13,13 @@ test('TSNU report read is protected and globally scoped by lot, zone and dates',
   assert.match(sql, /p_to date/);
   assert.doesNotMatch(sql, /Lot 5|Olot|Figueres|Girona|Blanes/);
   assert.match(sql, /revoke all.+from public, anon/is);
+});
+test('TSNU closing source is persisted and exposed in reports', () => {
+  assert.match(closeSql, /close_source text/);
+  assert.match(closeSql, /finish_tsnu_shift_v2/);
+  assert.match(closeSql, /'close_source',s\.close_source/);
+  assert.match(source, /Sí · Automática/);
+  assert.match(source, /Sí · Manual/);
 });
 
 test('the general Excel separates TSU, TSNU and both checklist types', () => {

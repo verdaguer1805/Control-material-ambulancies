@@ -33,7 +33,7 @@ export function rpcForTsnuOperation(operation) {
   if(operation.type==='start') return ['start_tsnu_shift',{p_shift_id:operation.shiftId,p_started_at:operation.at}];
   if(operation.type==='checklist') return ['submit_tsnu_checklist',{p_shift_id:operation.shiftId,p_answers:operation.answers}];
   if(operation.type==='withdrawal') return ['append_tsnu_withdrawal',{p_operation_id:operation.operationId,p_shift_id:operation.shiftId,p_materials:operation.materials}];
-  if(operation.type==='finish') return ['finish_tsnu_shift',{p_shift_id:operation.shiftId,p_ended_at:operation.at}];
+  if(operation.type==='finish') return ['finish_tsnu_shift_v2',{p_shift_id:operation.shiftId,p_ended_at:operation.at,p_close_source:operation.closeSource==='automatic'?'automatic':'manual'}];
   throw new Error('Operación TSNU desconocida');
 }
 

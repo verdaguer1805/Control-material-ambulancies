@@ -27,7 +27,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     const stored=readTsnuShift(localStorage,unit,lot);
     if(shouldAutoCloseTsnuShift(stored)){
       const closed=closeDemoShift(stored,false);
-      queueTsnuOperation(localStorage,{localId:`finish:auto:${closed.sessionId}`,type:'finish',shiftId:closed.sessionId,at:closed.endedAt});
+      queueTsnuOperation(localStorage,{localId:`finish:auto:${closed.sessionId}`,type:'finish',shiftId:closed.sessionId,at:closed.endedAt,closeSource:'automatic'});
       saveTsnuShift(localStorage,null);
       setActiveShift(null);
       setNotice("La guardia anterior se ha cerrado automáticamente. Ya puedes iniciar el checklist de la nueva guardia.");
@@ -79,7 +79,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     setMaterial({}); setNotice("Consumo enviado correctamente (simulación local)");
   }
   async function finishShift() {
-    try { const result=closeDemoShift(activeShift,Object.values(material).some(Number)); if(production){queueTsnuOperation(localStorage,{localId:`finish:${result.sessionId}`,type:'finish',shiftId:result.sessionId,at:result.endedAt});saveTsnuShift(localStorage,null);}else saveDemo(localStorage,result); setActiveShift(null); setCloseOpen(false); setMaterial({}); if(production){setNotice("Guardia cerrada en este dispositivo. Comprobando el envío...");await syncProduction();setNotice(readTsnuOutbox(localStorage).some(row=>row.shiftId===result.sessionId)?"Guardia cerrada en este dispositivo, pendiente de sincronizar con Supabase.":"Guardia finalizada y confirmada en Supabase.");}else setNotice("Guardia finalizada correctamente"); }
+    try { const result=closeDemoShift(activeShift,Object.values(material).some(Number)); if(production){queueTsnuOperation(localStorage,{localId:`finish:${result.sessionId}`,type:'finish',shiftId:result.sessionId,at:result.endedAt,closeSource:'manual'});saveTsnuShift(localStorage,null);}else saveDemo(localStorage,result); setActiveShift(null); setCloseOpen(false); setMaterial({}); if(production){setNotice("Guardia cerrada en este dispositivo. Comprobando el envío...");await syncProduction();setNotice(readTsnuOutbox(localStorage).some(row=>row.shiftId===result.sessionId)?"Guardia cerrada en este dispositivo, pendiente de sincronizar con Supabase.":"Guardia finalizada y confirmada en Supabase.");}else setNotice("Guardia finalizada correctamente"); }
     catch(e) { setCloseOpen(false); setNotice(e.message); }
   }
   async function recoverTsnuShift() {

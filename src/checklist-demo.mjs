@@ -4,7 +4,7 @@ export const VEHICLE_TYPES = ["TSU", "TSNU", "Polivalente", "Logística"];
 export const DEMO_ITEMS = ["Gasas (ejemplo)", "Guantes (ejemplo)", "Suero fisiológico (ejemplo)", "Vendas (ejemplo)"];
 export const TSNU_CHECKLIST_GROUPS = [
   ["Maleta de intervención", ["Maleta de intervención precintada"]],
-  ["Cajón n.º 1", ["DEA", "Mantas de un solo uso", "Sabanas de un solo uso"]],
+  ["Cajón n.º 1", ["DEA", "Mantas de un solo uso"]],
   ["Cajón n.º 2", ["Contenedor de agujas grande", "Bolsas de vómito", "Sonda de aspiración", "Aspirador manual", "Empapadores"]],
   ["Cajón n.º 3", ["Cuña de hombre", "Cuña de mujer"]],
   ["Cajón n.º 4", ["Bata EPI o mono de protección", "Bolsas de residuos GII", "Bolsas de basura negras", "Gafas de protección EPI", "Guantes de protección EPI"]],
