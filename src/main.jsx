@@ -1638,9 +1638,11 @@ function App() {
       const scopedVisibility = materialVisibilityFromRows(MATERIALS, DEFAULT_MATERIAL_VISIBILITY, materialSettings);
       setMaterialVisibility(scopedVisibility);
       saveMaterialVisibility(localStorage, scopedVisibility, stockDemoLot, stockDemoZone);
+      return { levels, minimums, minimumBases, safetyPercentages, pendingReplenishment };
     } catch (error) {
       if (request !== stockLoadSequence.current) return;
       flash("No se ha podido cargar el inventario de Supabase");
+      return null;
     } finally {
       if (request === stockLoadSequence.current) setStockRemoteLoading(false);
     }
@@ -1905,13 +1907,17 @@ function App() {
       setStockHistoryLoading(false);
     }
   }
-  function openStockInventoryEditor() {
+  async function openStockInventoryEditor() {
     if (stockRemoteLoading || !stockRemoteLoaded || !stockDemoReady || !STOCK_REMOTE_IDS[stockDemoLocation]) return;
-    setStockInventoryTarget({ location: stockDemoLocation, id: STOCK_REMOTE_IDS[stockDemoLocation] });
+    const target = { location: stockDemoLocation, id: STOCK_REMOTE_IDS[stockDemoLocation] };
+    const fresh = await loadRemoteStock();
+    if (!fresh || target.location !== stockDemoLocation || target.id !== STOCK_REMOTE_IDS[stockDemoLocation])
+      return flash("El almacén seleccionado ha cambiado. Vuelve a abrir Editar inventario.");
+    setStockInventoryTarget(target);
     const values = Object.fromEntries(
       STOCK_DEMO_MATERIALS.map((material) => [
         material,
-        String(stockDemo.levels[stockDemoLocation]?.[material] || 0),
+        String(fresh.levels[target.location]?.[material] || 0),
       ]),
     );
     setStockInventoryEditSearch("");
@@ -1950,9 +1956,10 @@ function App() {
       ]);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 6000);
-      const { error } = await supabase.rpc("set_inventory_quantities", {
+      const { error } = await supabase.rpc("set_inventory_quantities_optimistic", {
         p_warehouse_id: target.id,
         p_items: changes,
+        p_expected: Object.fromEntries(Object.keys(changes).map((material) => [material, Number(stockInventoryOriginals[material])])),
       }).abortSignal(controller.signal);
       clearTimeout(timeout);
       if (error) throw error;
@@ -1968,50 +1975,33 @@ function App() {
       }));
       setStockInventoryEditOpen(false);
       flash(`${Object.keys(changes).length} existencias actualizadas en Supabase`);
-    } catch (bulkError) {
-      try {
-        // Respaldo compatible con instalaciones donde la edición conjunta no responde.
-        // Son cantidades absolutas: repetir una petición nunca suma ni duplica stock.
-        for (const [material, quantity] of Object.entries(changes)) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000);
-          const { error } = await supabase.rpc("set_inventory_quantity", {
-            p_warehouse_id: target.id,
-            p_material: material,
-            p_quantity: quantity,
-          }).abortSignal(controller.signal);
-          clearTimeout(timeout);
-          if (error) throw error;
-        }
-        setStockDemo((current) => ({
-          ...current,
-          levels: {
-            ...current.levels,
-            [target.location]: {
-              ...current.levels[target.location],
-              ...changes,
-            },
-          },
-        }));
+    } catch (error) {
+      console.error("No se ha podido guardar el inventario", error);
+      if (String(error?.message || error).includes("INVENTORY_CONFLICT")) {
         setStockInventoryEditOpen(false);
-        flash(`${Object.keys(changes).length} existencias actualizadas en Supabase`);
-      } catch (fallbackError) {
-        console.error("No se ha podido guardar el inventario", { bulkError, fallbackError });
+        await loadRemoteStock();
+        flash("El inventario ha cambiado desde otro dispositivo. Datos actualizados: revisa antes de guardar.", 5000);
+      } else {
         flash("No se ha podido guardar. Comprueba la conexión y vuelve a intentarlo");
       }
     } finally {
       setStockInventorySaving(false);
     }
   }
-  function openStockMinimumEditor() {
+  async function openStockMinimumEditor() {
     if (!stockScopeAllowed || !stockRemoteLoaded || stockRemoteLoading || !STOCK_REMOTE_IDS[stockDemoLocation]) return;
-    const editingSafety = stockDemoLocation === STOCK_DEMO_CENTRAL;
+    const targetLocation = stockDemoLocation,
+      targetId = STOCK_REMOTE_IDS[targetLocation],
+      editingSafety = targetLocation === STOCK_DEMO_CENTRAL,
+      fresh = await loadRemoteStock();
+    if (!fresh || targetLocation !== stockDemoLocation || targetId !== STOCK_REMOTE_IDS[stockDemoLocation])
+      return flash("El almacén seleccionado ha cambiado. Vuelve a abrir Editar mínimos.");
     const values = Object.fromEntries(
       STOCK_DEMO_MATERIALS.map((material) => [
         material,
         String(editingSafety
-          ? (stockSafetyPercentages[stockDemoLocation]?.[material] ?? 30)
-          : (stockMinimums[stockDemoLocation]?.[material] || 0)),
+          ? (fresh.safetyPercentages[targetLocation]?.[material] ?? 30)
+          : (fresh.minimums[targetLocation]?.[material] || 0)),
       ]),
     );
     setStockMinimumSearch("");
@@ -2040,9 +2030,10 @@ function App() {
     }
     try {
       await ensureAnonymousSession();
-      const { error } = await supabase.rpc(editingSafety ? stockScope.safetyRpc : "set_inventory_minimums", {
+      const { error } = await supabase.rpc(editingSafety ? "set_safety_percentages_optimistic" : "set_inventory_minimums_optimistic", {
         p_warehouse_id: STOCK_REMOTE_IDS[stockDemoLocation],
         p_items: changes,
+        p_expected: Object.fromEntries(Object.keys(changes).map((material) => [material, Number(stockMinimumOriginals[material])])),
       });
       if (error) throw error;
       // Supabase puede recalcular también el mínimo del almacén central.
@@ -2053,7 +2044,11 @@ function App() {
         ? `${Object.keys(changes).length} márgenes de seguridad actualizados`
         : `${Object.keys(changes).length} mínimos actualizados en Supabase`);
     } catch (error) {
-      flash("No se han podido guardar los mínimos");
+      if (String(error?.message || error).includes("INVENTORY_CONFLICT")) {
+        setStockMinimumOpen(false);
+        await loadRemoteStock();
+        flash("Los mínimos han cambiado desde otro dispositivo. Datos actualizados: revisa antes de guardar.", 5000);
+      } else flash("No se han podido guardar los mínimos");
     }
   }
   async function exportStockInventory() {
@@ -3287,7 +3282,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v170</span></h1>
+          <h1>Control de material <span className="app-version">v171</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5062,7 +5057,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=170", {
+    navigator.serviceWorker.register("./sw.js?v=171", {
       updateViaCache: "none",
     }),
   );

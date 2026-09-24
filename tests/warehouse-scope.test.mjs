@@ -132,7 +132,7 @@ test("history is restricted to selected warehouse IDs and retains receipt/transf
   const rows = [{ id: 1, warehouse_id: figueres.central.id, movement_type: "central_receipt", delta: 25, material: "Test", created_at: "2026-09-16T10:00:00Z" },
     { id: 2, warehouse_id: figueres.warehouseIds[1], movement_type: "transfer_in", delta: 3, material: "Test", created_at: "2026-09-16T11:00:00Z", performed_role: "logistics" }];
   const h = harness(figueres, { queryResult: () => ({ data: rows, error: null }) });
-  h.load("  async function exportStockHistoryExcel()", "  function openStockInventoryEditor()");
+  h.load("  async function exportStockHistoryExcel()", "  async function openStockInventoryEditor()");
   await h.context.exportStockHistoryExcel();
   const filter = h.filters.find((f) => f.method === "in" && f.args[0] === "warehouse_id");
   assert.deepEqual(filter.args[1], figueres.warehouseIds);
@@ -161,7 +161,7 @@ test("inventory editor cannot save a draft into a different selected warehouse",
   h.context.supabase.rpc = (name, args) => {
     h.calls.push({ name, args }); return { abortSignal: async () => ({ error: null }) };
   };
-  h.load("  async function saveStockInventory()", "  function openStockMinimumEditor()");
+  h.load("  async function saveStockInventory()", "  async function openStockMinimumEditor()");
   await h.context.saveStockInventory();
   assert.equal(h.calls.length, 0);
   h.context.stockDemoLocation = figueres.locations[1];
@@ -169,6 +169,7 @@ test("inventory editor cannot save a draft into a different selected warehouse",
   assert.equal(h.calls.length, 1);
   assert.equal(h.calls[0].args.p_warehouse_id, figueres.warehouseIds[1]);
   assert.equal(h.calls[0].args.p_items.Test, 40);
+  assert.equal(h.calls[0].args.p_expected.Test, 2);
 });
 
 test("minimum quantities and central safety keep separate RPCs in selected scope", async () => {
@@ -180,10 +181,10 @@ test("minimum quantities and central safety keep separate RPCs in selected scope
   });
   h.load("  async function saveStockMinimums()", "  async function exportStockInventory()");
   await h.context.saveStockMinimums();
-  assert.equal(h.calls[0].name, "test_safety");
+  assert.equal(h.calls[0].name, "set_safety_percentages_optimistic");
   assert.equal(h.calls[0].args.p_warehouse_id, figueres.central.id);
   h.context.stockDemoLocation = figueres.locations[1];
   await h.context.saveStockMinimums();
-  assert.equal(h.calls[1].name, "set_inventory_minimums");
+  assert.equal(h.calls[1].name, "set_inventory_minimums_optimistic");
   assert.equal(h.calls[1].args.p_warehouse_id, figueres.warehouseIds[1]);
 });
