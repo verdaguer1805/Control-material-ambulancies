@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import XLSX from "xlsx-js-style";
-import {DEMO_KEY,DEMO_ITEMS,TSNU_CHECKLIST_ITEMS,canDemoChecklist,inChecklistWindow,checklistStatus,saveDemo,readDemo,completeDemo,closeDemoShift,filterDemo} from "../src/checklist-demo.mjs";
+import {DEMO_KEY,DEMO_ITEMS,TSNU_CHECKLIST_ITEMS,canDemoChecklist,inChecklistWindow,checklistStatus,saveDemo,readDemo,completeDemo,closeDemoShift,filterDemo,localCalendarDate,shouldAutoCloseTsnuShift} from "../src/checklist-demo.mjs";
 import {buildChecklistWorkbook} from "../src/checklist-demo-export.mjs";
 const base={lot:"Lot 5",zone:"Olot",warehouse:"Camprodon",unit:"G453",date:"2026-09-16",phase:"open",answers:{},notes:{}};
 const memory=()=>{const map=new Map();return {getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v),map};};
@@ -28,6 +28,15 @@ test('TSNU supports several shift sessions on the same date and cannot close wit
  saveDemo(store,closeDemoShift(first));saveDemo(store,second);
  assert.equal(readDemo(store).length,2);assert.ok(readDemo(store).find(r=>r.sessionId==='one').endedAt);
  assert.throws(()=>closeDemoShift(second,true),/cantidades a cero/);
+});
+test('a completed TSNU shift auto-closes only after its local calendar day',()=>{
+ const answers=Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']));
+ const completed=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'old',date:'2026-09-23',answers});
+ assert.equal(localCalendarDate(new Date(2026,8,24,9,0)),'2026-09-24');
+ assert.equal(shouldAutoCloseTsnuShift(completed,new Date(2026,8,23,23,59)),false);
+ assert.equal(shouldAutoCloseTsnuShift(completed,new Date(2026,8,24,0,1)),true);
+ assert.equal(shouldAutoCloseTsnuShift({...completed,completed:false},new Date(2026,8,24,9)),false);
+ assert.equal(shouldAutoCloseTsnuShift({...completed,endedAt:new Date().toISOString()},new Date(2026,8,24,9)),false);
 });
 test("authorized, unchecked, supervisor and enforcement-off devices cannot access demo",()=>{
   const demo={checked:true,enforcement:true,authorized:false};

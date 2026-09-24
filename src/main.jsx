@@ -3282,7 +3282,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v171</span></h1>
+          <h1>Control de material <span className="app-version">v172</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5057,7 +5057,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=171", {
+    navigator.serviceWorker.register("./sw.js?v=172", {
       updateViaCache: "none",
     }),
   );

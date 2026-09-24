@@ -23,6 +23,14 @@ export function inChecklistWindow(start, now) {
   return elapsed >= 0 && elapsed < 2 * 60 * 60 * 1000;
 }
 export const isDailyChecklist = (record) => record.service === "TSNU" || record.vehicleType === "TSNU";
+export function localCalendarDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+}
+export function shouldAutoCloseTsnuShift(record, now = new Date()) {
+  return Boolean(record?.completed && !record?.endedAt && validDemoDate(record.date) && record.date < localCalendarDate(now));
+}
 export function checklistStatus(record, now = new Date()) {
   // Completed checklists from before Baliza V-16 must keep their result.
   const items = record.completed && isDailyChecklist(record) && !Object.hasOwn(record.answers || {}, "Baliza V-16")
@@ -31,7 +39,7 @@ export function checklistStatus(record, now = new Date()) {
   if (record.completed && items.every((m) => ["ok", "issue"].includes(record.answers?.[m])))
     return items.some((m) => record.answers[m] === "issue") ? "Incidencia" : "Correcto";
   if (isDailyChecklist(record)) {
-    const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+    const today = localCalendarDate(now);
     return record.date < today ? "No realizado" : "Pendiente";
   }
   return record.phase === "closed" ? "No realizado" : "Pendiente";

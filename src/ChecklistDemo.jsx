@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { DEMO_ITEMS, TSNU_CHECKLIST_GROUPS, VEHICLE_TYPES, demoKey, completeDemo, closeDemoShift, readDemo, saveDemo, filterDemo } from "./checklist-demo.mjs";
+import { DEMO_ITEMS, TSNU_CHECKLIST_GROUPS, VEHICLE_TYPES, demoKey, completeDemo, closeDemoShift, readDemo, saveDemo, filterDemo, shouldAutoCloseTsnuShift } from "./checklist-demo.mjs";
 import { ensureAnonymousSession, supabase } from "./supabase.js";
 import { newOperationId, queueTsnuOperation, readTsnuOutbox, readTsnuShift, saveTsnuShift, rpcForTsnuOperation, syncTsnuOutbox, removeTsnuShiftOperations } from "./tsnu-outbox.mjs";
 import "./checklist-demo.css";
@@ -22,7 +22,24 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   const daily = (assignedChecklist || vehicleType) === "TSNU";
   const [from,setFrom] = useState(today), [to,setTo] = useState(today), [zoneFilter,setZoneFilter] = useState(""), [warehouseFilter,setWarehouseFilter] = useState(""), [lotFilter,setLotFilter] = useState("");
   useEffect(() => { if(!notice) return; const timer=setTimeout(()=>setNotice(""),4000); return ()=>clearTimeout(timer); },[notice]);
-  useEffect(()=>{if(!production||!daily)return;setActiveShift(readTsnuShift(localStorage,unit,lot));const online=()=>void syncProduction();window.addEventListener('online',online);void syncProduction();return()=>window.removeEventListener('online',online);},[production,daily,unit,lot]);
+  useEffect(()=>{
+    if(!production||!daily)return;
+    const stored=readTsnuShift(localStorage,unit,lot);
+    if(shouldAutoCloseTsnuShift(stored)){
+      const closed=closeDemoShift(stored,false);
+      queueTsnuOperation(localStorage,{localId:`finish:auto:${closed.sessionId}`,type:'finish',shiftId:closed.sessionId,at:closed.endedAt});
+      saveTsnuShift(localStorage,null);
+      setActiveShift(null);
+      setNotice("La guardia anterior se ha cerrado automáticamente. Ya puedes iniciar el checklist de la nueva guardia.");
+    }else{
+      setActiveShift(stored);
+      if(stored && !stored.completed && stored.date < today()) setNotice("Hay un checklist de una guardia anterior sin completar. Revísalo o avisa a supervisión.");
+    }
+    const online=()=>void syncProduction();
+    window.addEventListener('online',online);
+    void syncProduction();
+    return()=>window.removeEventListener('online',online);
+  },[production,daily,unit,lot]);
   async function syncProduction(showResult=false){
     if(!production)return null;
     if(syncLock.current){resyncRequested.current=true;return null;}
@@ -107,7 +124,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
       {!daily && <label>Reloj de prueba<select value={phase} onChange={e=>setPhase(e.target.value)}><option value="open">Dentro de las dos primeras horas</option><option value="closed">Fuera de plazo (dos horas o más)</option></select></label>}</div>}
       {daily ? <small>TSNU: cada nueva tripulación inicia una guardia y realiza su propio checklist, aunque sea el mismo día.</small> : <small>Inicio asignado: {shift || "07:00"}. Puedes probar cualquier horario sin cambiar la guardia real.</small>}
       {!production&&<button className="secondary" onClick={showReport}>Ver informes de prueba</button>}
-      {daily && activeShift?.completed && <section className="checklist-material-demo"><h3>Material retirado</h3><p className="muted small">Disponible después de enviar el checklist.</p><label>Buscar material<input value={materialSearch} onChange={e=>setMaterialSearch(e.target.value)} placeholder="Escribe el nombre..."/></label>{materials.filter(item=>item.toLowerCase().includes(materialSearch.toLowerCase())).map(item=><div className={`material${(material[item]||0)>0?' material-selected':''}`} key={item}><span>{item}</span><div className="counter"><button onClick={()=>setMaterial(v=>({...v,[item]:Math.max(0,(v[item]||0)-1)}))}>-</button><span className="qty">{material[item]||0}</span><button onClick={()=>setMaterial(v=>({...v,[item]:(v[item]||0)+1}))}>+</button></div></div>)}<div className="tsnu-shift-actions"><button className="primary full" onClick={sendMaterial}>Enviar consumo</button><button className="secondary full sync-button" onClick={()=>syncProduction(true)} disabled={!production||syncing}>{syncing?'Sincronizando...':`Sincronizar pendientes (${production?readTsnuOutbox(localStorage).length:0})`}</button><button className="danger full" onClick={()=>setCloseOpen(true)}>Finalizar guardia</button></div></section>}
+      {daily && activeShift?.completed && <section className="checklist-material-demo"><h3>Material retirado</h3><p className="muted small">Disponible después de enviar el checklist.</p><p className="tsnu-finish-reminder" role="status">Al terminar el turno, pulsa «Finalizar guardia» para dejar la unidad preparada para la siguiente tripulación.</p><label>Buscar material<input value={materialSearch} onChange={e=>setMaterialSearch(e.target.value)} placeholder="Escribe el nombre..."/></label>{materials.filter(item=>item.toLowerCase().includes(materialSearch.toLowerCase())).map(item=><div className={`material${(material[item]||0)>0?' material-selected':''}`} key={item}><span>{item}</span><div className="counter"><button onClick={()=>setMaterial(v=>({...v,[item]:Math.max(0,(v[item]||0)-1)}))}>-</button><span className="qty">{material[item]||0}</span><button onClick={()=>setMaterial(v=>({...v,[item]:(v[item]||0)+1}))}>+</button></div></div>)}<div className="tsnu-shift-actions"><button className="primary full" onClick={sendMaterial}>Enviar consumo</button><button className="secondary full sync-button" onClick={()=>syncProduction(true)} disabled={!production||syncing}>{syncing?'Sincronizando...':`Sincronizar pendientes (${production?readTsnuOutbox(localStorage).length:0})`}</button><button className="danger full" onClick={()=>setCloseOpen(true)}>Finalizar guardia</button></div></section>}
       {production&&daily&&recoveryShiftId&&<button className="danger full" onClick={()=>setRecoveryOpen(true)}>Recuperación supervisada de sesión</button>}
     </div>}
     {open && draft && <Modal title={`Checklist de material${production?'':' · PRUEBA'}`} close={()=>setOpen(false)} footer={<button className="primary" onClick={finish}>{production?'Enviar checklist':'Guardar checklist de prueba'}</button>}>
