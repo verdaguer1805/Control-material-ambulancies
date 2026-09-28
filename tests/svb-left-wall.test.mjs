@@ -7,11 +7,20 @@ test("the real left wall defines its eight independent compartments",()=>{
   assert.ok(SVB_LEFT_WALL_SECTIONS.every(({items})=>items.length>0));
 });
 
-test("the physical fifth drawer contains the former fifth and sixth lists",()=>{
+test("the physical fifth drawer keeps loose material and hides only the IMA bag contents",()=>{
   const drawer=SVB_LEFT_WALL_SECTIONS.find(({id})=>id===5);
-  assert.ok(drawer.items.includes("Cadenas de nieve"));
-  assert.ok(drawer.items.includes("Esparadrapo verde"));
+  assert.ok(drawer.items.some(item=>item.startsWith("Cadenas de nieve")));
+  assert.ok(drawer.items.some(item=>item.startsWith("Spray verde")));
+  assert.ok(drawer.items.includes("Bolsa IMA"));
+  assert.equal(drawer.items.includes("Torniquete"),false);
+  assert.equal(drawer.items.some(item=>item.includes("Lanyards")),false);
   assert.equal(SVB_LEFT_WALL_SECTIONS.some(({id})=>id===6),false);
+});
+
+test("every controlled aspiration probe in compartment nine requires two units",()=>{
+  const probes=SVB_LEFT_WALL_SECTIONS.find(({id})=>id===9).items.filter(item=>item.startsWith("Sonda de aspiracion"));
+  assert.equal(probes.length,7);
+  assert.ok(probes.every(item=>item.endsWith("2 unidades")));
 });
 
 test("a compartment becomes green only when every item is correct",()=>{

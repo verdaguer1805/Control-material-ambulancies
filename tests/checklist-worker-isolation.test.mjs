@@ -9,14 +9,14 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist === "SVB"/);
-  assert.match(source, /svb-preview\.html\?from=pwa-v175/);
+  assert.match(source, /svb-preview\.html\?from=pwa-v176/);
   assert.match(source, /: flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v175 caches the isolated SVB preview for company mobiles', () => {
+test('v176 caches the isolated SVB preview for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v175"/);
+  assert.match(worker, /const CACHE = "cma-v176"/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /svb-paret-lateral-esquerre-real\.png/);
 });

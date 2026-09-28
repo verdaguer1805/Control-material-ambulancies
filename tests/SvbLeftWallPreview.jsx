@@ -4,7 +4,7 @@ import "./svb-left-wall-preview.css";
 
 const STORAGE_KEY = "cma_svb_left_wall_preview_v1";
 const positions = {
-  1:[17,17], 2:[18,34], 3:[19,52], 4:[20,70], 5:[21,89],
+  1:[17,17], 2:[18,34], 3:[19,55], 4:[20,73], 5:[21,92],
   7:[49,17], 8:[70,17], 9:[90,17]
 };
 
