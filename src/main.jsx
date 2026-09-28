@@ -196,6 +196,10 @@ function App() {
     [adminOk, setAdminOk] = useState(false),
     [adminAccess, setAdminAccess] = useState(null),
     [accessCodesOpen, setAccessCodesOpen] = useState(false),
+    [svbVehicleChangeOpen, setSvbVehicleChangeOpen] = useState(false),
+    [svbVehicleAccessCode, setSvbVehicleAccessCode] = useState(""),
+    [svbVehicleNewLabel, setSvbVehicleNewLabel] = useState(""),
+    [svbVehicleChangeLoading, setSvbVehicleChangeLoading] = useState(false),
     [accessCodesOwnerKey, setAccessCodesOwnerKey] = useState(""),
     [accessCodesVisible, setAccessCodesVisible] = useState(false),
     [accessCodesLoading, setAccessCodesLoading] = useState(false),
@@ -1131,35 +1135,45 @@ function App() {
         : "Código de acceso incorrecto");
     }
   }
-  async function changeSvbVehicle() {
+  function changeSvbVehicle() {
     const currentUnit = localStorage.getItem(KEY.unit);
     const currentLot = localStorage.getItem(KEY.lot) || lot;
     const config = readUnitChecklist(localStorage, currentUnit, currentLot);
     if (!currentUnit || config.service !== "TSU" || config.checklist !== "SVB")
       return flash("Esta unidad no tiene asignado el checklist SVB");
-    const accessCode = prompt("Código de propietario o supervisor para cambiar el vehículo SVB");
-    if (accessCode === null) return;
+    setSvbVehicleAccessCode("");
+    setSvbVehicleNewLabel("");
+    setSvbVehicleChangeOpen(true);
+  }
+  async function confirmSvbVehicleChange() {
+    const currentUnit = localStorage.getItem(KEY.unit);
+    const currentLot = localStorage.getItem(KEY.lot) || lot;
+    const config = readUnitChecklist(localStorage, currentUnit, currentLot);
+    const normalized = svbVehicleNewLabel.replace(/\D/g, "").slice(0, 4);
+    if (!/^\d{4}$/.test(normalized)) return flash("La rotulación debe tener exactamente 4 cifras");
+    setSvbVehicleChangeLoading(true);
     try {
       await ensureAnonymousSession();
       const { data, error } = await supabase.rpc("open_admin_access_session", {
-        input_code: accessCode,
+        input_code: svbVehicleAccessCode,
       });
       if (error) throw error;
       const allowedRole = data?.authorized === true && ["owner", "supervisor"].includes(data.role);
       const allowedZone = data?.role !== "supervisor" || data.zone === (config.zone || unitZone(currentUnit));
       if (!allowedRole || !allowedZone)
         return flash("Solo propietario o supervisor de esta zona pueden cambiar el vehículo", 5000);
-      const nextVehicle = prompt("Nueva rotulación del vehículo TSU (4 cifras)");
-      if (nextVehicle === null) return;
-      const normalized = nextVehicle.replace(/\D/g, "").slice(0, 4);
-      if (!/^\d{4}$/.test(normalized)) return flash("La rotulación debe tener exactamente 4 cifras");
       const guard = guardState(currentUnit, localStorage.getItem(KEY.shift));
       const scope = `${displayUnit(currentUnit)}:${guard?.code || "prueba"}`;
       localStorage.setItem(`cma_svb_vehicle_label_v1:${scope}`, normalized);
       localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: guard?.code || "", lot: currentLot, zone: config.zone || unitZone(currentUnit), checklist: "SVB" }));
+      setSvbVehicleChangeOpen(false);
+      setSvbVehicleAccessCode("");
+      setSvbVehicleNewLabel("");
       flash(`Vehículo ${normalized} seleccionado. Su checklist queda separado del anterior.`, 5000);
     } catch {
       flash("No se ha podido verificar el permiso para cambiar el vehículo", 5000);
+    } finally {
+      setSvbVehicleChangeLoading(false);
     }
   }
   async function loadSystemStatus() {
@@ -3337,7 +3351,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v182</span></h1>
+          <h1>Control de material <span className="app-version">v183</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4269,6 +4283,58 @@ function App() {
             </div>
           </div>
         )}
+        {svbVehicleChangeOpen && (
+          <div className="modal-backdrop">
+            <form
+              className="card export-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="svb-vehicle-change-title"
+              onSubmit={(event) => {
+                event.preventDefault();
+                confirmSvbVehicleChange();
+              }}
+            >
+              <h2 id="svb-vehicle-change-title">Cambiar vehículo SVB</h2>
+              <label>Código de propietario o supervisor</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                value={svbVehicleAccessCode}
+                onChange={(event) => setSvbVehicleAccessCode(event.target.value.replace(/\D/g, ""))}
+                autoFocus
+              />
+              <label>Nueva rotulación del vehículo TSU</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="4 cifras"
+                maxLength={4}
+                value={svbVehicleNewLabel}
+                onChange={(event) => setSvbVehicleNewLabel(event.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={svbVehicleChangeLoading}
+                  onClick={() => setSvbVehicleChangeOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={svbVehicleChangeLoading || !svbVehicleAccessCode || svbVehicleNewLabel.length !== 4}
+                >
+                  {svbVehicleChangeLoading ? "Comprobando..." : "Guardar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
         {message && (
           <div className="modal-backdrop app-notice-backdrop" role="alert">
             <div className="card export-modal">
@@ -4358,7 +4424,7 @@ function App() {
                 <button type="button" className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v182", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v183", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -5123,7 +5189,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=182", {
+    navigator.serviceWorker.register("./sw.js?v=183", {
       updateViaCache: "none",
     }),
   );

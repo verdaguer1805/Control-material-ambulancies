@@ -9,19 +9,22 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v182/);
-  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=182"/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v183/);
+  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=183"/);
   assert.match(source, /cma_svb_checklist_context_v1/);
   assert.match(source, /return flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v182 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v183 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v182"/);
+  assert.match(worker, /const CACHE = "cma-v183"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
+  assert.match(worker, /\.\/svb-right-preview\.html/);
+  assert.match(worker, /svb-zona-derecha-mobile\.jpg/);
+  assert.match(worker, /svb-right-zone-data\.js/);
   assert.match(worker, /svb-paret-lateral-esquerre-mobile\.jpg/);
   assert.match(worker, /svb-paret-frontal-mobile\.jpg/);
 });
@@ -30,6 +33,9 @@ test('SVB zones require a four-digit vehicle label and scope drafts by unit, gua
   const menu = fs.readFileSync(new URL('../public/svb-zones.html', import.meta.url), 'utf8');
   const left = fs.readFileSync(new URL('../public/svb-preview.html', import.meta.url), 'utf8');
   const front = fs.readFileSync(new URL('../public/svb-front-preview.html', import.meta.url), 'utf8');
+  const right = fs.readFileSync(new URL('../public/svb-right-preview.html', import.meta.url), 'utf8');
+  assert.match(menu, /href="\.\/svb-right-preview\.html"/);
+  assert.match(right, /cma_svb_right_zone_mobile_test_v1/);
   const source = fs.readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
   assert.match(menu, /Rotulación asignada por administración/);
   assert.match(menu, /\^\\d\{4\}\$/);
