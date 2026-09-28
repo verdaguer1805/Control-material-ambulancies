@@ -287,10 +287,12 @@ function App() {
     [selectedShiftStart, setSelectedShiftStart] = useState(""),
     [selectedService, setSelectedService] = useState(""),
     [selectedChecklist, setSelectedChecklist] = useState(""),
+    [selectedVehicle, setSelectedVehicle] = useState(""),
     [selectedWarehouse, setSelectedWarehouse] = useState(""),
     [assignmentAdminPin, setAssignmentAdminPin] = useState(""),
     [changeService, setChangeService] = useState(""),
     [changeChecklist, setChangeChecklist] = useState(""),
+    [changeVehicle, setChangeVehicle] = useState(""),
     [changeWarehouse, setChangeWarehouse] = useState(""),
     [changeShiftStart, setChangeShiftStart] = useState(""),
     [shiftPickerOpen, setShiftPickerOpen] = useState(false),
@@ -808,6 +810,9 @@ function App() {
       !/^(07|08|09):00$/.test(selectedShiftStart)
     )
       return flash("Selecciona la hora de inicio de guardia");
+    const normalizedVehicle = selectedVehicle.replace(/\D/g, "").slice(0, 4);
+    if (selectedService === "TSU" && selectedChecklist === "SVB" && !/^\d{4}$/.test(normalizedVehicle))
+      return flash("Introduce las 4 cifras de la rotulación del vehículo");
     if(selectedService==='TSNU'){
       try{await ensureAnonymousSession();const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:assignmentAdminPin,p_lot:selectedLot,p_zone:selectedZone,p_unit:unit,p_warehouse_id:selectedWarehouse});if(error)throw error;}
       catch{return flash('No se ha podido guardar la asignación TSNU en Supabase');}
@@ -821,11 +826,17 @@ function App() {
       KEY.shift,
       config.shift,
     );
+    if (config.service === "TSU" && config.checklist === "SVB") {
+      const guard = guardState(unit, config.shift);
+      localStorage.setItem(`cma_svb_vehicle_label_v1:${displayUnit(unit)}:${guard?.code || "prueba"}`, normalizedVehicle);
+    }
+    localStorage.removeItem("cma_svb_checklist_context_v1");
     localStorage.removeItem(DEVICE_AUTH_CACHE);
     setDeviceAuth({ checked: false, enforcement: true, authorized: false, unit: "", version: 0 });
     setLot(selectedLot);
     setPinInput("");
     setAssignmentAdminPin("");
+    setSelectedVehicle("");
     flash("Unidad asignada. Autoriza este dispositivo para enviar datos reales.");
     setDeviceActivationCode("");
     setDeviceActivationOpen(true);
@@ -1118,6 +1129,37 @@ function App() {
       flash(String(error?.message || "").includes("LOCKED")
         ? "Demasiados intentos. Espera 15 minutos"
         : "Código de acceso incorrecto");
+    }
+  }
+  async function changeSvbVehicle() {
+    const currentUnit = localStorage.getItem(KEY.unit);
+    const currentLot = localStorage.getItem(KEY.lot) || lot;
+    const config = readUnitChecklist(localStorage, currentUnit, currentLot);
+    if (!currentUnit || config.service !== "TSU" || config.checklist !== "SVB")
+      return flash("Esta unidad no tiene asignado el checklist SVB");
+    const accessCode = prompt("Código de propietario o supervisor para cambiar el vehículo SVB");
+    if (accessCode === null) return;
+    try {
+      await ensureAnonymousSession();
+      const { data, error } = await supabase.rpc("open_admin_access_session", {
+        input_code: accessCode,
+      });
+      if (error) throw error;
+      const allowedRole = data?.authorized === true && ["owner", "supervisor"].includes(data.role);
+      const allowedZone = data?.role !== "supervisor" || data.zone === (config.zone || unitZone(currentUnit));
+      if (!allowedRole || !allowedZone)
+        return flash("Solo propietario o supervisor de esta zona pueden cambiar el vehículo", 5000);
+      const nextVehicle = prompt("Nueva rotulación del vehículo TSU (4 cifras)");
+      if (nextVehicle === null) return;
+      const normalized = nextVehicle.replace(/\D/g, "").slice(0, 4);
+      if (!/^\d{4}$/.test(normalized)) return flash("La rotulación debe tener exactamente 4 cifras");
+      const guard = guardState(currentUnit, localStorage.getItem(KEY.shift));
+      const scope = `${displayUnit(currentUnit)}:${guard?.code || "prueba"}`;
+      localStorage.setItem(`cma_svb_vehicle_label_v1:${scope}`, normalized);
+      localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: guard?.code || "", lot: currentLot, zone: config.zone || unitZone(currentUnit), checklist: "SVB" }));
+      flash(`Vehículo ${normalized} seleccionado. Su checklist queda separado del anterior.`, 5000);
+    } catch {
+      flash("No se ha podido verificar el permiso para cambiar el vehículo", 5000);
     }
   }
   async function loadSystemStatus() {
@@ -1514,6 +1556,9 @@ function App() {
       !/^(07|08|09):00$/.test(changeShiftStart)
     )
       return flash("Selecciona la hora de inicio de guardia");
+    const normalizedVehicle = changeVehicle.replace(/\D/g, "").slice(0, 4);
+    if (changeService === "TSU" && changeChecklist === "SVB" && !/^\d{4}$/.test(normalizedVehicle))
+      return flash("Introduce las 4 cifras de la rotulación del vehículo");
     if(changeService==='TSNU'){
       try{const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:enteredPin,p_lot:changeLot,p_zone:changeZone,p_unit:nextUnit,p_warehouse_id:changeWarehouse});if(error)throw error;}
       catch{return flash('No se ha podido guardar la asignación TSNU en Supabase');}
@@ -1527,6 +1572,11 @@ function App() {
       KEY.shift,
       config.shift,
     );
+    if (config.service === "TSU" && config.checklist === "SVB") {
+      const guard = guardState(nextUnit, config.shift);
+      localStorage.setItem(`cma_svb_vehicle_label_v1:${displayUnit(nextUnit)}:${guard?.code || "prueba"}`, normalizedVehicle);
+    }
+    localStorage.removeItem("cma_svb_checklist_context_v1");
     localStorage.removeItem(DEVICE_AUTH_CACHE);
     setDeviceAuth({ checked: false, enforcement: true, authorized: false, unit: "", version: 0 });
     setUnit(nextUnit);
@@ -1535,6 +1585,7 @@ function App() {
     setNextUnit("");
     setChangeWarehouse("");
     setChangeShiftStart("");
+    setChangeVehicle("");
     setChangeUnitOpen(false);
     flash("Unidad cambiada correctamente", 2000);
   }
@@ -1558,6 +1609,7 @@ function App() {
     localStorage.removeItem(KEY.lot);
     localStorage.removeItem(KEY.shift);
     localStorage.removeItem(DEVICE_AUTH_CACHE);
+    localStorage.removeItem("cma_svb_checklist_context_v1");
     setDeviceAuth({ checked: true, enforcement: true, authorized: false, unit: "", version: 0 });
     setUnit("");
     setLot("");
@@ -3285,7 +3337,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v180</span></h1>
+          <h1>Control de material <span className="app-version">v181</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3498,20 +3550,21 @@ function App() {
               {changeZone && (
                 <>
                   <label>Tipo de servicio</label>
-                  <select value={changeService} onChange={e=>{setChangeService(e.target.value);setChangeChecklist('');setChangeWarehouse('');setNextUnit('');setChangeShiftStart('');}}>
+                  <select value={changeService} onChange={e=>{setChangeService(e.target.value);setChangeChecklist('');setChangeVehicle('');setChangeWarehouse('');setNextUnit('');setChangeShiftStart('');}}>
                     <option value="">Selecciona TSU o TSNU</option><option>TSU</option><option>TSNU</option>
                   </select>
                   {changeService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[changeLot]?.[changeZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                   <label>Nueva unidad</label>
-                  <UnitSelector value={nextUnit} units={changeService === 'TSU' ? LOTS[changeLot]?.[changeZone] || {} : changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] || {} : {}} onChange={u=>{setNextUnit(u);setChangeWarehouse('');setChangeShiftStart('');setChangeChecklist('');setShiftPickerOpen(false);}} />
+                  <UnitSelector value={nextUnit} units={changeService === 'TSU' ? LOTS[changeLot]?.[changeZone] || {} : changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] || {} : {}} onChange={u=>{setNextUnit(u);setChangeWarehouse('');setChangeShiftStart('');setChangeChecklist('');setChangeVehicle('');setShiftPickerOpen(false);}} />
                 </>
               )}
               {nextUnit && changeService === 'TSNU' && <><label>Almacén asignado</label><select value={changeWarehouse} onChange={e=>setChangeWarehouse(e.target.value)}><option value="">Selecciona el almacén</option>{(getWarehouseScope(changeLot,changeZone)?.warehouses||[]).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Almacén central':'Subalmacén'} · {w.name}</option>)}</select>{changeWarehouse&&<p className="selected-zone">Los consumos futuros se descontarán de este almacén.</p>}</>}
               {nextUnit && !isSupervisorMaterial(nextUnit) && changeService === 'TSU' && <>
                 <label>Checklist asignado</label>
-                <select value={changeChecklist} onChange={e=>{setChangeChecklist(e.target.value);if(e.target.value){setShiftPickerTarget('change');setShiftPickerOpen(true);}}}>
+                <select value={changeChecklist} onChange={e=>{setChangeChecklist(e.target.value);setChangeVehicle('');if(e.target.value){setShiftPickerTarget('change');setShiftPickerOpen(true);}}}>
                   <option value="">Selecciona checklist</option>{TSU_CHECKLISTS.map(v=><option key={v}>{v}</option>)}
                 </select>
+                {changeChecklist === "SVB" && <><label>Rotulación del vehículo TSU</label><input inputMode="numeric" maxLength="4" placeholder="Ej. 5439" value={changeVehicle} onChange={e=>setChangeVehicle(e.target.value.replace(/\D/g,'').slice(0,4))}/><p className="muted">Quedará bloqueada para los técnicos.</p></>}
               </>}
               {nextUnit && !isSupervisorMaterial(nextUnit) && changeService === 'TSU' && (
                 <p className="selected-zone">
@@ -4268,18 +4321,19 @@ function App() {
                   {selectedLot} · Supervisión {selectedZone}
                 </p>
                 <label>Tipo de servicio</label>
-                <select value={selectedService} onChange={e=>{setSelectedService(e.target.value);setSelectedChecklist('');setSelectedWarehouse('');setUnit('');setSelectedShiftStart('');}}>
+                <select value={selectedService} onChange={e=>{setSelectedService(e.target.value);setSelectedChecklist('');setSelectedVehicle('');setSelectedWarehouse('');setUnit('');setSelectedShiftStart('');}}>
                   <option value="">Selecciona TSU o TSNU</option><option>TSU</option><option>TSNU</option>
                 </select>
                 {selectedService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[selectedLot]?.[selectedZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                 <label>Unidad</label>
-                <UnitSelector value={unit} units={selectedService === 'TSU' ? LOTS[selectedLot][selectedZone] : selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] || {} : {}} onChange={u=>{setUnit(u);setSelectedWarehouse('');setSelectedShiftStart('');setSelectedChecklist('');setShiftPickerOpen(false);}} />
+                <UnitSelector value={unit} units={selectedService === 'TSU' ? LOTS[selectedLot][selectedZone] : selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] || {} : {}} onChange={u=>{setUnit(u);setSelectedWarehouse('');setSelectedShiftStart('');setSelectedChecklist('');setSelectedVehicle('');setShiftPickerOpen(false);}} />
                 {unit && selectedService === 'TSNU' && <><label>Almacén asignado</label><select value={selectedWarehouse} onChange={e=>setSelectedWarehouse(e.target.value)}><option value="">Selecciona el almacén</option>{(getWarehouseScope(selectedLot,selectedZone)?.warehouses||[]).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Almacén central':'Subalmacén'} · {w.name}</option>)}</select>{selectedWarehouse&&<p className="selected-zone">Los consumos futuros se descontarán de este almacén.</p>}</>}
                 {unit && !isSupervisorMaterial(unit) && selectedService === 'TSU' && <>
                   <label>Checklist asignado</label>
-                  <select value={selectedChecklist} onChange={e=>{setSelectedChecklist(e.target.value);if(e.target.value){setShiftPickerTarget('initial');setShiftPickerOpen(true);}}}>
+                  <select value={selectedChecklist} onChange={e=>{setSelectedChecklist(e.target.value);setSelectedVehicle('');if(e.target.value){setShiftPickerTarget('initial');setShiftPickerOpen(true);}}}>
                     <option value="">Selecciona checklist</option>{TSU_CHECKLISTS.map(v=><option key={v}>{v}</option>)}
                   </select>
+                  {selectedChecklist === "SVB" && <><label>Rotulación del vehículo TSU</label><input inputMode="numeric" maxLength="4" placeholder="Ej. 5439" value={selectedVehicle} onChange={e=>setSelectedVehicle(e.target.value.replace(/\D/g,'').slice(0,4))}/><p className="muted">Quedará bloqueada para los técnicos. Solo propietario o supervisor podrán cambiarla después.</p></>}
                 </>}
                 {unit && !isSupervisorMaterial(unit) && selectedService === 'TSU' && (
                   <p className="selected-zone">
@@ -4303,11 +4357,16 @@ function App() {
               <div className="card">
                 <button type="button" className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
-                  localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", lot: localStorage.getItem(KEY.lot) || lot }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v180", window.location.href).href);
+                  localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v181", window.location.href).href);
                 }}>
                   Checklist
                 </button>
+                {currentChecklistConfig.checklist === "SVB" && (
+                  <button type="button" className="secondary full" style={{ marginTop: 10 }} onClick={changeSvbVehicle}>
+                    Cambiar vehículo SVB · propietario/supervisor
+                  </button>
+                )}
               </div>
             )}
             {currentChecklistConfig.service === 'TSNU' && deviceAuth.authorized && (
