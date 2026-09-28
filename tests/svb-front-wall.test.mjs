@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {SVB_FRONT_WALL_SECTIONS,frontSectionItems,frontSectionStatus} from "../src/svb-front-wall-data.mjs";
+test("the front wall defines every visual zone",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.map(({id})=>id),[1,2,3,4,5,6,7,8,9,10,11,12,13]));
+test("undefined drawers cannot be completed accidentally",()=>{for(const id of[3,7,8])assert.equal(frontSectionStatus(SVB_FRONT_WALL_SECTIONS.find((row)=>row.id===id),{}),"undefined")});
+test("the first intervention bag keeps its internal groups",()=>{const section=SVB_FRONT_WALL_SECTIONS.find(({id})=>id===10);assert.ok(section.groups.length>=9);assert.ok(frontSectionItems(section).some((item)=>item.includes("Glucómetro")))});
+test("Schiller includes the daily user test",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===13).items,["Prueba diaria de usuario realizada"]));
+test("compartment nine includes the vacuum pump",()=>assert.ok(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===9).items.includes("Bomba de vacío manual · 1 unidad")));
+test("zone twelve contains immobilization material and two oxygen bottles",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===12).items,["Tabla espinal","Camilla de cuchara","Botella de oxígeno · 2 unidades"]));
+test("cervical material belongs to the bag behind Schiller",()=>{assert.equal(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===3).items.length,0);assert.ok(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===11).items.some((item)=>item.startsWith("Collarines multitalla de adulto")))});
