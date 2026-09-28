@@ -9,15 +9,15 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v179/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v180/);
   assert.match(source, /cma_svb_checklist_context_v1/);
   assert.match(source, /return flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v179 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v180 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v179"/);
+  assert.match(worker, /const CACHE = "cma-v180"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
@@ -35,6 +35,8 @@ test('SVB zones require a four-digit vehicle label and scope drafts by unit, gua
   assert.match(menu, /Vehículo \$\{vehicle\} seleccionado/);
   assert.match(menu, /card\.classList\.toggle\("confirmed",valid\)/);
   assert.match(menu, /Número modificado: pulsa Confirmar/);
+  assert.match(menu, /class="zones hidden" id="zonesPanel"/);
+  assert.match(menu, /showZones\(valid\)/);
   assert.match(left, /cma_svb_left_wall_mobile_test_v1:\$\{scope\}:\$\{vehicle\}/);
   assert.match(front, /cma_svb_front_wall_mobile_test_v1:\$\{scope\}:\$\{vehicle\}/);
 });
