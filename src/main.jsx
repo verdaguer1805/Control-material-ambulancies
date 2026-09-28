@@ -3337,7 +3337,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v181</span></h1>
+          <h1>Control de material <span className="app-version">v182</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4358,7 +4358,7 @@ function App() {
                 <button type="button" className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v181", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v182", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -5123,7 +5123,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=174", {
+    navigator.serviceWorker.register("./sw.js?v=182", {
       updateViaCache: "none",
     }),
   );

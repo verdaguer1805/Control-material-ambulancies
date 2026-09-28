@@ -9,15 +9,16 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v181/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v182/);
+  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=182"/);
   assert.match(source, /cma_svb_checklist_context_v1/);
   assert.match(source, /return flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v181 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v182 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v181"/);
+  assert.match(worker, /const CACHE = "cma-v182"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
