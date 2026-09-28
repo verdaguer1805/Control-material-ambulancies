@@ -3285,7 +3285,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v174</span></h1>
+          <h1>Control de material <span className="app-version">v175</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4301,7 +4301,7 @@ function App() {
           <>
             {!isSupervisorMaterial(currentUnit) && currentChecklistConfig.service !== 'TSNU' && (
               <div className="card">
-                <button type="button" className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => flash("Próximamente")}>
+                <button type="button" className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => currentChecklistConfig.checklist === "SVB" ? window.location.assign(new URL("./svb-preview.html?from=pwa-v175", window.location.href).href) : flash("Próximamente")}>
                   Checklist
                 </button>
               </div>
