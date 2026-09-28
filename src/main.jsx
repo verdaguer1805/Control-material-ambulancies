@@ -3285,7 +3285,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v178</span></h1>
+          <h1>Control de material <span className="app-version">v179</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4304,7 +4304,7 @@ function App() {
                 <button type="button" className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", lot: localStorage.getItem(KEY.lot) || lot }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v178", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v179", window.location.href).href);
                 }}>
                   Checklist
                 </button>
