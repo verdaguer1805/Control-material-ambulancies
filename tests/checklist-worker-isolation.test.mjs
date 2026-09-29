@@ -9,16 +9,16 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v186/);
-  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=186"/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v187/);
+  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=187"/);
   assert.match(source, /cma_svb_checklist_context_v1/);
   assert.match(source, /return flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v186 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v187 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v186"/);
+  assert.match(worker, /const CACHE = "cma-v187"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
@@ -40,12 +40,12 @@ test('SVB vehicle assignment persists by unit while drafts remain scoped by guar
   assert.match(menu, /href="\.\/svb-right-preview\.html"/);
   assert.match(right, /cma_svb_right_zone_mobile_test_v1/);
   const source = fs.readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
-  assert.match(menu, /Rotulación del vehículo/);
+  assert.match(menu, /Unidad/);
   assert.match(production, /\^\\d\{4\}\$/);
   assert.match(production, /readSvbVehicleAssignment/);
   assert.match(source, /writeSvbVehicleAssignment/);
   assert.match(source, /guardStartedAt/);
-  assert.match(production, /Vehículo \$\{vehicle\} asignado/);
+  assert.match(menu, /Cambiar vehículo/);
   assert.match(production, /classList\.toggle\("confirmed",valid\)/);
   assert.match(production, /saveVehicle/);
   assert.match(menu, /class="zones hidden" id="zonesPanel"/);
