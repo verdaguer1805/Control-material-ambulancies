@@ -18,6 +18,7 @@ declare
   v_until timestamptz;
   v_incidents jsonb;
   v_submissions jsonb;
+  v_svb_checklists jsonb;
 begin
   if auth.uid() is null then raise exception 'AUTHENTICATION_REQUIRED'; end if;
   if nullif(trim(p_lot), '') is null or nullif(trim(p_zone), '') is null
@@ -60,9 +61,16 @@ begin
       or lower(trim(s.unit)) = lower('Material Supervisor · ' || p_zone)
     );
 
+  select coalesce(jsonb_agg(to_jsonb(c) order by c.guard_started_at, c.unit), '[]'::jsonb)
+    into v_svb_checklists
+  from public.svb_checklist_submissions c
+  where c.lot = p_lot and c.zone = p_zone
+    and c.guard_started_at >= v_from and c.guard_started_at < v_until;
+
   return jsonb_build_object(
     'incidents', v_incidents,
-    'submissions', v_submissions
+    'submissions', v_submissions,
+    'svb_checklists', v_svb_checklists
   );
 end;
 $$;

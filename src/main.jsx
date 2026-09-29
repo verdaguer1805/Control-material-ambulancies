@@ -1251,6 +1251,7 @@ function App() {
     return {
       records: mapAdminRecords(unique),
       submissions: Array.isArray(reportData.submissions) ? reportData.submissions : [],
+      svbChecklists: Array.isArray(reportData.svb_checklists) ? reportData.svb_checklists : [],
       tsnu: tsnuResult.data || { shifts: [], withdrawals: [] },
     };
   }
@@ -1342,7 +1343,7 @@ function App() {
       const selected = await loadSelectedAdminRecords();
       setAdminRecords([]);
       setAdminLoaded(false);
-      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu);
+      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu, selected.svbChecklists);
       else exportPdf(selected.records, selected.submissions, selected.tsnu);
     } catch (error) {
       flash("No se pueden cargar los datos seleccionados de Supabase");
@@ -2298,7 +2299,7 @@ function App() {
     doc.save(`lista_reposicion_${new Date().toISOString().slice(0, 10)}.pdf`);
     flash("Lista de reposición exportada en PDF");
   }
-  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}) {
+  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}, svbChecklists = []) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
@@ -2478,7 +2479,34 @@ function App() {
           "Guardia finalizada": shift.ended_at ? shift.close_source === "automatic" ? "Sí · Automática" : "Sí · Manual" : "No",
         };
       }),
-      checklistTsuRows = [{ Estado: "Pendiente de activar las plantillas TSU" }],
+      checklistTsuRows = svbChecklists.map((checklist) => {
+        const answers = checklist.answers || {},
+          zoneNames = { left: "Zona izquierda", front: "Zona frontal", right: "Zona derecha" },
+          issues = [];
+        Object.entries(answers).forEach(([zone, sections]) =>
+          Object.entries(sections || {}).forEach(([section, items]) =>
+            Object.entries(items || {}).forEach(([item, value]) => {
+              if (value === "issue") issues.push(`${zoneNames[zone] || zone} · ${section} · ${item}`);
+            }),
+          ),
+        );
+        const zoneState = (zone) => {
+          const values = Object.values(answers[zone] || {}).flatMap((items) => Object.values(items || {}));
+          return values.includes("issue") ? "Con incidencia" : values.length ? "Correcta" : "Sin revisar";
+        };
+        return {
+          Fecha: new Date(checklist.guard_started_at).toLocaleDateString("es-ES", {day:"2-digit",month:"2-digit",year:"numeric"}),
+          "Inicio de guardia": new Date(checklist.guard_started_at).toLocaleTimeString("es-ES", {hour:"2-digit",minute:"2-digit"}),
+          Unidad: checklist.unit,
+          Vehículo: checklist.vehicle_label,
+          "Hora de checklist": new Date(checklist.submitted_at).toLocaleTimeString("es-ES", {hour:"2-digit",minute:"2-digit"}),
+          Estado: issues.length ? "Con incidencia" : "Correcto",
+          "Zona izquierda": zoneState("left"),
+          "Zona frontal": zoneState("front"),
+          "Zona derecha": zoneState("right"),
+          Incidencias: issues.join(" · ") || "—",
+        };
+      }),
       allCritical = [
         ...critical.map((row) => ({
           Servicio: row["Tipo de registro"] === "Supervisor" ? "Supervisor" : "TSU",
@@ -2528,11 +2556,18 @@ function App() {
     configure(wsTsu, [14, 14, 12, 14, 18, 24, 24, 42, 12]);
     configure(wsTsnu, [14, 10, 12, 14, 24, 24, 42, 12]);
     configure(wsChecklistTsnu, [14, 16, 14, 24, 18, 18, 18, 60, 18]);
-    configure(wsChecklistTsu, [42]);
+    configure(wsChecklistTsu, [14, 16, 14, 12, 18, 18, 18, 18, 18, 80]);
     checklistTsnuRows.forEach((row, rowIndex) => {
       const rgb = row.Estado === "Correcto" ? "D9EEDC" : "F8CDCD";
       for (let column = 0; column < 9; column += 1) {
         const cell = wsChecklistTsnu[XLSX.utils.encode_cell({r:rowIndex + 1,c:column})];
+        if (cell) cell.s = {fill:{fgColor:{rgb}}};
+      }
+    });
+    checklistTsuRows.forEach((row, rowIndex) => {
+      const rgb = row.Estado === "Correcto" ? "D9EEDC" : "F8CDCD";
+      for (let column = 0; column < 10; column += 1) {
+        const cell = wsChecklistTsu[XLSX.utils.encode_cell({r:rowIndex + 1,c:column})];
         if (cell) cell.s = {fill:{fgColor:{rgb}}};
       }
     });
@@ -3329,7 +3364,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v191</span></h1>
+          <h1>Control de material <span className="app-version">v192</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4393,7 +4428,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v191", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v192", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -5158,7 +5193,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=191", {
+    navigator.serviceWorker.register("./sw.js?v=192", {
       updateViaCache: "none",
     }),
   );

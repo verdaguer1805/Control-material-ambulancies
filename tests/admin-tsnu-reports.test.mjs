@@ -27,6 +27,10 @@ test('the general Excel separates TSU, TSNU and both checklist types', () => {
     assert.match(source, new RegExp(`book_append_sheet\\(wb, [^,]+, "${sheet}"\\)`));
   }
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
+  assert.match(source, /reportData\.svb_checklists/);
+  assert.match(source, /svbChecklists\.map/);
+  assert.match(source, /Vehículo: checklist\.vehicle_label/);
+  assert.match(source, /Zona izquierda/);
 });
 
 test('the PDF receives TSNU data and renders consumption, critical material and checklist status', () => {
