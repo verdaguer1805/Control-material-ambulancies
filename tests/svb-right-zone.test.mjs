@@ -27,5 +27,5 @@ test("la pantalla derecha usa foto móvil, borrador aislado y textos en castella
   assert.match(html, /svb-zona-derecha-mobile\.jpg/);
   assert.match(html, /cma_svb_right_zone_mobile_test_v1/);
   assert.match(html, /Zona derecha/);
-  assert.match(html, /NO ENVÍA DATOS/);
+  assert.match(html, /CHECKLIST OPERATIVO/);
 });
