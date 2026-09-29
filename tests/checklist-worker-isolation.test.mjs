@@ -9,16 +9,16 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v187/);
-  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=187"/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v188/);
+  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=188"/);
   assert.match(source, /cma_svb_checklist_context_v1/);
   assert.match(source, /return flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v187 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v188 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v187"/);
+  assert.match(worker, /const CACHE = "cma-v188"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
@@ -47,6 +47,7 @@ test('SVB vehicle assignment persists by unit while drafts remain scoped by guar
   assert.match(source, /guardStartedAt/);
   assert.match(menu, /Cambiar vehículo/);
   assert.match(production, /classList\.toggle\("confirmed",valid\)/);
+  assert.match(production, /style\.display=valid\?"none":"grid"/);
   assert.match(production, /saveVehicle/);
   assert.match(menu, /class="zones hidden" id="zonesPanel"/);
   assert.match(production, /zonesPanel/);
