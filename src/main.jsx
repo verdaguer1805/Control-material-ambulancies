@@ -2600,6 +2600,7 @@ function App() {
       }
     });
     XLSX.utils.book_append_sheet(wb, wsGeneral, "Resumen general");
+    XLSX.utils.book_append_sheet(wb, wsChecklistTsu, "Checklist SVB");
     XLSX.utils.book_append_sheet(wb, wsTsu, "Consumo TSU");
     XLSX.utils.book_append_sheet(wb, wsTsnu, "Consumo TSNU");
     XLSX.utils.book_append_sheet(wb, ws1, "Resumen guardias TSU");
@@ -2608,7 +2609,6 @@ function App() {
     XLSX.utils.book_append_sheet(wb, ws2, "Detalle consumo");
     XLSX.utils.book_append_sheet(wb, ws4, "Material crítico");
     XLSX.utils.book_append_sheet(wb, wsChecklistTsnu, "Checklist TSNU");
-    XLSX.utils.book_append_sheet(wb, wsChecklistTsu, "Checklist TSU");
     const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     saveAs(
       new Blob([out], { type: "application/octet-stream" }),
@@ -3364,7 +3364,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v193</span></h1>
+          <h1>Control de material <span className="app-version">v194</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4428,7 +4428,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v193", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v194", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -5193,7 +5193,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=193", {
+    navigator.serviceWorker.register("./sw.js?v=194", {
       updateViaCache: "none",
     }),
   );

@@ -23,7 +23,7 @@ test('TSNU closing source is persisted and exposed in reports', () => {
 });
 
 test('the general Excel separates TSU, TSNU and both checklist types', () => {
-  for (const sheet of ['Resumen general', 'Consumo TSU', 'Consumo TSNU', 'Material crítico', 'Checklist TSNU', 'Checklist TSU']) {
+  for (const sheet of ['Resumen general', 'Consumo TSU', 'Consumo TSNU', 'Material crítico', 'Checklist TSNU', 'Checklist SVB']) {
     assert.match(source, new RegExp(`book_append_sheet\\(wb, [^,]+, "${sheet}"\\)`));
   }
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
