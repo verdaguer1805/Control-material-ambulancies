@@ -10,8 +10,8 @@ export const SVB_FRONT_WALL_SECTIONS = [
   { id: 4, title: "Compartimento 4", items: ["Cánula Guedel nº 00 · 4 unidades", "Cánula Guedel nº 0 · 4 unidades", "Cánula Guedel nº 1 · 4 unidades", "Cánula Guedel nº 1,5 · 4 unidades", "Cánula Guedel nº 2 · 6 unidades", "Cánula Guedel nº 3 · 6 unidades", "Cánula Guedel nº 4 · 6 unidades", "Cánula Guedel nº 5 · 6 unidades", "Filtro respiratorio · 2 unidades"] },
   { id: 5, title: "Compartimento 5", items: ["Mascarilla de oxígeno de adulto · 6 unidades", "Mascarilla de oxígeno de adulto con reservorio · 6 unidades", "Gafas nasales · 4 unidades"] },
   { id: 6, title: "Compartimento 6", items: ["Mascarilla de oxígeno pediátrica · 4 unidades", "Mascarilla de oxígeno pediátrica con reservorio · 2 unidades", "Alargadera de oxígeno · 5 unidades"] },
-  { id: 7, title: "Compartimento 7", pendingDefinition: true, items: [] },
-  { id: 8, title: "Compartimento 8", pendingDefinition: true, items: [] },
+  { id: 7, title: "Compartimento 7", items: ["Bolsa para vómito · 10 unidades", "Kit de vías · 1 unidad"] },
+  { id: 8, title: "Compartimento 8", items: ["Suero fisiológico 500 ml · 4 unidades"] },
   { id: 9, title: "Compartimento 9", items: ["Productos de limpieza", "Bomba de vacío manual · 1 unidad"] },
   { id: 10, title: "Maleta de primera intervención", groups: [
     { title: "Ubicación exterior superior", items: ["Contenedor de agujas · 1 unidad", "Gel hidroalcohólico de 100 ml · 1 unidad", "Bolsa para vómito · 1 unidad", "Bolsa de escombros negra · 1 unidad", "Bolsa de residuos GII · 1 unidad", "Manta térmica · 2 unidades"] },

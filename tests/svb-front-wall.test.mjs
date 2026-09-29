@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {SVB_FRONT_WALL_SECTIONS,frontSectionItems,frontSectionStatus} from "../src/svb-front-wall-data.mjs";
 test("the front wall defines every visual zone",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.map(({id})=>id),[1,2,3,4,5,6,7,8,9,10,11,12,13]));
-test("undefined drawers cannot be completed accidentally",()=>{for(const id of[3,7,8])assert.equal(frontSectionStatus(SVB_FRONT_WALL_SECTIONS.find((row)=>row.id===id),{}),"undefined")});
+test("the only undefined drawer cannot be completed accidentally",()=>assert.equal(frontSectionStatus(SVB_FRONT_WALL_SECTIONS.find((row)=>row.id===3),{}),"undefined"));
+test("front drawers seven and eight contain their assigned material",()=>{
+  assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===7).items,["Bolsa para vómito · 10 unidades","Kit de vías · 1 unidad"]);
+  assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===8).items,["Suero fisiológico 500 ml · 4 unidades"]);
+});
 test("the first intervention bag keeps its internal groups",()=>{const section=SVB_FRONT_WALL_SECTIONS.find(({id})=>id===10);assert.ok(section.groups.length>=9);assert.ok(frontSectionItems(section).some((item)=>item.includes("Glucómetro")))});
 test("Schiller includes the daily user test",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===13).items,["Prueba diaria de usuario realizada"]));
 test("compartment nine includes the vacuum pump",()=>assert.ok(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===9).items.includes("Bomba de vacío manual · 1 unidad")));
