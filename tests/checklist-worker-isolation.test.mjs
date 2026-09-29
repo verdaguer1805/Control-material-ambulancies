@@ -9,16 +9,16 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v188/);
-  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=188"/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v189/);
+  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=189"/);
   assert.match(source, /cma_svb_checklist_context_v1/);
   assert.match(source, /return flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v188 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v189 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v188"/);
+  assert.match(worker, /const CACHE = "cma-v189"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
@@ -59,6 +59,9 @@ test('SVB vehicle assignment persists by unit while drafts remain scoped by guar
   assert.match(menu, /Zona derecha/);
   assert.match(left, /cma_svb_left_wall_mobile_test_v1:\$\{scope\}:\$\{vehicle\}/);
   assert.match(front, /cma_svb_front_wall_mobile_test_v1:\$\{scope\}:\$\{vehicle\}/);
+  assert.doesNotMatch(left, /Reiniciar esta zona|Reiniciar toda la prueba/);
+  assert.doesNotMatch(front, /Reiniciar esta zona/);
+  assert.doesNotMatch(right, /Reiniciar esta zona/);
 });
 
 test('SVB production requires all zones and submits the authorized guard to Supabase', () => {
