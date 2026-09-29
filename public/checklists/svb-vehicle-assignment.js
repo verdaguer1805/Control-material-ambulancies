@@ -1,0 +1,7 @@
+export const SVB_VEHICLE_ASSIGNMENT_PREFIX = "cma_svb_vehicle_label_v2:";
+const LEGACY_PREFIX = "cma_svb_vehicle_label_v1:";
+const cleanUnit = unit => String(unit || "").trim().toUpperCase();
+const cleanVehicle = vehicle => String(vehicle || "").replace(/\D/g, "").slice(0, 4);
+export function svbVehicleAssignmentKey(unit){return`${SVB_VEHICLE_ASSIGNMENT_PREFIX}${cleanUnit(unit)}`}
+export function writeSvbVehicleAssignment(storage,unit,vehicle){const normalized=cleanVehicle(vehicle);if(!cleanUnit(unit)||!/^\d{4}$/.test(normalized))return false;storage.setItem(svbVehicleAssignmentKey(unit),normalized);return true}
+export function readSvbVehicleAssignment(storage,unit,guardCode=""){const normalizedUnit=cleanUnit(unit);if(!normalizedUnit)return"";const persistent=cleanVehicle(storage.getItem(svbVehicleAssignmentKey(normalizedUnit)));if(/^\d{4}$/.test(persistent))return persistent;const legacyPrefix=`${LEGACY_PREFIX}${normalizedUnit}:`,preferredKey=guardCode?`${legacyPrefix}${guardCode}`:"",preferred=preferredKey?cleanVehicle(storage.getItem(preferredKey)):"";let recovered=/^\d{4}$/.test(preferred)?preferred:"";for(let index=0;index<storage.length&&!recovered;index+=1){const key=storage.key(index);if(!key?.startsWith(legacyPrefix))continue;const candidate=cleanVehicle(storage.getItem(key));if(/^\d{4}$/.test(candidate))recovered=candidate}if(recovered)writeSvbVehicleAssignment(storage,normalizedUnit,recovered);return recovered}
