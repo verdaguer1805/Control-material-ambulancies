@@ -9,16 +9,16 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v194/);
-  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=194"/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v195/);
+  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=195"/);
   assert.match(source, /cma_svb_checklist_context_v1/);
   assert.match(source, /return flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v194 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v195 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v194"/);
+  assert.match(worker, /const CACHE = "cma-v195"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
@@ -72,6 +72,10 @@ test('each SVB compartment can mark all of its material correct in one action', 
     assert.match(source, /Object\.fromEntries/);
     assert.match(source, /className=`mark-all/);
   }
+  const front = fs.readFileSync(new URL('../public/svb-front-preview.html', import.meta.url), 'utf8');
+  assert.match(front, /section\.groups\?section\.groups\.flatMap/);
+  assert.match(front, /all\.onclick=\(\)=>markAll\(items\)/);
+  assert.doesNotMatch(front, /section\.items\.every/);
 });
 
 test('SVB production requires all zones and submits the authorized guard to Supabase', () => {
@@ -85,7 +89,7 @@ test('SVB production requires all zones and submits the authorized guard to Supa
   assert.match(production, /response\.status===401/);
   assert.match(production, /error instanceof TypeError/);
   assert.match(production, /ERROR_SUPABASE/);
-  assert.match(production, /textContent="v194"/);
+  assert.match(production, /textContent="v195"/);
   assert.match(production, /states\.every/);
   assert.match(sql, /DEVICE_NOT_AUTHORIZED/);
   assert.match(sql, /unique \(lot, unit, guard_code, vehicle_label\)/);
