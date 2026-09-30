@@ -32,7 +32,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "Detector de monoxido para alumno en practicas · 1 unidad"
   ] },
   { id: 9, title: "Compartimento 9", items: [
-    "Filtro para aspirador LSU", "Sonda de aspiracion controlada nº 6 · 2 unidades", "Sonda de aspiracion controlada nº 8 · 2 unidades",
+    "Sonda de aspiracion controlada nº 6 · 2 unidades", "Sonda de aspiracion controlada nº 8 · 2 unidades",
     "Sonda de aspiracion controlada nº 10 · 2 unidades", "Sonda de aspiracion controlada nº 12 · 2 unidades",
     "Sonda de aspiracion controlada nº 14 · 2 unidades", "Sonda de aspiracion controlada nº 16 · 2 unidades",
     "Sonda de aspiracion controlada nº 18 · 2 unidades", "Canula Yankauer · 4 unidades", "Bolsa de aspirador de un solo uso · 3 unidades"

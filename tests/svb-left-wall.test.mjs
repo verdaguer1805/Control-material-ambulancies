@@ -22,8 +22,10 @@ test("compartment four includes the pediatric vacuum mattress",()=>{
 });
 
 test("every controlled aspiration probe in compartment nine requires two units",()=>{
-  const probes=SVB_LEFT_WALL_SECTIONS.find(({id})=>id===9).items.filter(item=>item.startsWith("Sonda de aspiracion"));
+  const compartment=SVB_LEFT_WALL_SECTIONS.find(({id})=>id===9);
+  const probes=compartment.items.filter(item=>item.startsWith("Sonda de aspiracion"));
   assert.equal(probes.length,7);
+  assert.equal(compartment.items.includes("Filtro para aspirador LSU"),false);
   assert.ok(probes.every(item=>item.endsWith("2 unidades")));
 });
 
