@@ -3,7 +3,7 @@ export const SVB_FRONT_WALL_SECTIONS = [
   { id: 2, title: "Compartimento 2", groups: [
     { title: "Material general", items: ["Kit de quemados · 1 unidad"] },
     { title: "Bolsa de resucitación de adulto", items: ["Balón resucitador de adulto con reservorio · 1 unidad", "Mascarilla facial de adulto nº 2 · 1 unidad", "Mascarilla facial de adulto nº 3/4 · 1 unidad", "Mascarilla facial de adulto nº 5 · 1 unidad", "Filtro · 1 unidad", "Alargadera de oxígeno de 2 m · 1 unidad"] },
-    { title: "Bolsa de reposición del monitor", items: ["Parche de desfibrilación de adulto · 2 unidades", "Parche de desfibrilación pediátrico · 1 unidad", "Electrodos de monitorización adulto/pediátrico · 2 bolsas", "Rasuradora de un solo uso · 1 unidad"] },
+    { title: "Bolsa de reposición del monitor", items: ["Parche de desfibrilación de adulto · 2 unidades", "Parche de desfibrilación pediátrico · 1 unidad", "Electrodos de monitorización adulto/pediátrico · 2 bolsas", "Rasuradora de un solo uso · 1 unidad", "Sensor adulto SpCO · 1 unidad", "Sensor pediátrico SpCO · 1 unidad"] },
     { title: "Bolsa de mascarillas", items: ["Mascarillas quirúrgicas · 10 unidades", "Mascarillas de protección FFP2 · 4 unidades", "Mascarillas de protección FFP3 · 4 unidades"] }
   ] },
   { id: 3, title: "Compartimento 3", pendingDefinition: true, items: [] },

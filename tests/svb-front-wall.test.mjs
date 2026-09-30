@@ -8,6 +8,7 @@ test("front drawers seven and eight contain their assigned material",()=>{
   assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===8).items,["Suero fisiológico 500 ml · 4 unidades"]);
 });
 test("the first intervention bag keeps its internal groups",()=>{const section=SVB_FRONT_WALL_SECTIONS.find(({id})=>id===10);assert.ok(section.groups.length>=9);assert.ok(frontSectionItems(section).some((item)=>item.includes("Glucómetro")))});
+test("front compartment two includes both SpCO sensors",()=>{const items=frontSectionItems(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===2));assert.ok(items.includes("Sensor adulto SpCO · 1 unidad"));assert.ok(items.includes("Sensor pediátrico SpCO · 1 unidad"))});
 test("Schiller includes the daily user test",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===13).items,["Prueba diaria de usuario realizada"]));
 test("compartment nine includes the vacuum pump",()=>assert.ok(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===9).items.includes("Bomba de vacío manual · 1 unidad")));
 test("zone twelve contains immobilization material and two oxygen bottles",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===12).items,["Tabla espinal","Camilla de cuchara","Botella de oxígeno · 2 unidades"]));

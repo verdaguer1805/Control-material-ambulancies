@@ -17,6 +17,10 @@ test("the physical fifth drawer keeps loose material and hides only the IMA bag 
   assert.equal(SVB_LEFT_WALL_SECTIONS.some(({id})=>id===6),false);
 });
 
+test("compartment four includes the pediatric vacuum mattress",()=>{
+  assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===4).items.includes("Colchón de vacío pediátrico · 1 unidad"));
+});
+
 test("every controlled aspiration probe in compartment nine requires two units",()=>{
   const probes=SVB_LEFT_WALL_SECTIONS.find(({id})=>id===9).items.filter(item=>item.startsWith("Sonda de aspiracion"));
   assert.equal(probes.length,7);
