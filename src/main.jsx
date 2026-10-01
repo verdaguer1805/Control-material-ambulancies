@@ -1867,8 +1867,8 @@ function App() {
       while (true) {
         let query = supabase
           .from("stock_movements")
-          .select("id,warehouse_id,material,delta,movement_type,created_at,operation_id,performed_role,performed_zone")
-          .in("movement_type", ["central_receipt", "transfer_in"])
+          .select("id,warehouse_id,material,delta,movement_type,created_at,operation_id,performed_role,performed_zone,previous_quantity,new_quantity")
+          .in("movement_type", ["central_receipt", "transfer_in", "inventory_adjustment"])
           .in("warehouse_id", stockScope.warehouseIds)
           .gte("created_at", `${stockHistoryFrom}T00:00:00.000Z`)
           .lte("created_at", `${stockHistoryTo}T23:59:59.999Z`)
@@ -1901,8 +1901,16 @@ function App() {
         "N.º operación": operationNumbers.get(key),
         Fecha: date.toLocaleDateString("es-ES"),
         Hora: date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
-        "Tipo de movimiento": row.movement_type === "central_receipt" ? "Entrada al almacén central" : "Traslado a subalmacén",
-        Origen: row.movement_type === "central_receipt" ? "Entrada externa" : STOCK_DEMO_CENTRAL,
+        "Tipo de movimiento": row.movement_type === "central_receipt"
+          ? "Entrada al almacén central"
+          : row.movement_type === "inventory_adjustment"
+            ? "Ajuste manual de inventario"
+            : "Traslado a subalmacén",
+        Origen: row.movement_type === "central_receipt"
+          ? "Entrada externa"
+          : row.movement_type === "inventory_adjustment"
+            ? locationName(row.warehouse_id)
+            : STOCK_DEMO_CENTRAL,
         Destino: locationName(row.warehouse_id),
         "Realizado por": row.performed_role === "owner"
           ? "Propietario"
@@ -1912,13 +1920,16 @@ function App() {
               ? `Supervisión ${row.performed_zone || ""}`
               : "No registrado",
         Material: materialLabel(row.material),
-        Cantidad: Math.abs(Number(row.delta || 0)),
+        Cantidad: row.movement_type === "inventory_adjustment" ? "" : Math.abs(Number(row.delta || 0)),
+        "Cantidad anterior": row.movement_type === "inventory_adjustment" ? Number(row.previous_quantity) : "",
+        "Cantidad nueva": row.movement_type === "inventory_adjustment" ? Number(row.new_quantity) : "",
+        Diferencia: row.movement_type === "inventory_adjustment" ? Number(row.delta || 0) : "",
       };
     });
     const XLSX = await import("xlsx-js-style");
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.json_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 14 }, { wch: 13 }, { wch: 9 }, { wch: 30 }, { wch: 24 }, { wch: 35 }, { wch: 22 }, { wch: 46 }, { wch: 12 }];
+    sheet["!cols"] = [{ wch: 14 }, { wch: 13 }, { wch: 9 }, { wch: 30 }, { wch: 24 }, { wch: 35 }, { wch: 22 }, { wch: 46 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 12 }];
     const range = XLSX.utils.decode_range(sheet["!ref"]);
     for (let column = range.s.c; column <= range.e.c; column += 1) {
       const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
@@ -3351,7 +3362,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v199</span></h1>
+          <h1>Control de material <span className="app-version">v200</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4415,7 +4426,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v199", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v200", window.location.href).href);
                 }}>
                   Checklist
                 </button>

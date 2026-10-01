@@ -133,9 +133,10 @@ test("stock load reads only selected warehouses and ignores stale response", asy
   assert.deepEqual(h.filters.filter((f) => f.method === "eq").map((f) => f.args[1]), figueres.warehouseIds);
 });
 
-test("history is restricted to selected warehouse IDs and retains receipt/transfer labels", async () => {
+test("history is restricted to selected warehouse IDs and includes audited inventory adjustments", async () => {
   const rows = [{ id: 1, warehouse_id: figueres.central.id, movement_type: "central_receipt", delta: 25, material: "Test", created_at: "2026-09-16T10:00:00Z" },
-    { id: 2, warehouse_id: figueres.warehouseIds[1], movement_type: "transfer_in", delta: 3, material: "Test", created_at: "2026-09-16T11:00:00Z", performed_role: "logistics" }];
+    { id: 2, warehouse_id: figueres.warehouseIds[1], movement_type: "transfer_in", delta: 3, material: "Test", created_at: "2026-09-16T11:00:00Z", performed_role: "logistics" },
+    { id: 3, warehouse_id: figueres.warehouseIds[1], movement_type: "inventory_adjustment", delta: -8, previous_quantity: 20, new_quantity: 12, material: "Test", created_at: "2026-09-16T12:00:00Z", performed_role: "supervisor", performed_zone: "Figueres" }];
   const h = harness(figueres, { queryResult: () => ({ data: rows, error: null }) });
   h.load("  async function exportStockHistoryExcel()", "  async function openStockInventoryEditor()");
   await h.context.exportStockHistoryExcel();
@@ -147,6 +148,11 @@ test("history is restricted to selected warehouse IDs and retains receipt/transf
   assert.equal(out[0].Cantidad, 25);
   assert.equal(out[1].Origen, figueres.centralLabel);
   assert.equal(out[1].Cantidad, 3);
+  assert.equal(out[2]["Tipo de movimiento"], "Ajuste manual de inventario");
+  assert.equal(out[2]["Cantidad anterior"], 20);
+  assert.equal(out[2]["Cantidad nueva"], 12);
+  assert.equal(out[2].Diferencia, -8);
+  assert.equal(out[2]["Realizado por"], "Supervisión Figueres");
   assert.equal(h.calls.length, 0);
   h.context.stockHistoryDestination = "lot5_olot_central";
   h.filters.length = 0;

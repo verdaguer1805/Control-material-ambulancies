@@ -7,6 +7,7 @@ const recoveredSql = readFileSync(new URL("../sql/cumulative-guard-consumption-v
 const correctionSql = readFileSync(new URL("../sql/admin-consumption-corrections-v1.sql", import.meta.url), "utf8");
 const reportSql = readFileSync(new URL("../sql/admin-report-rpc-v1.sql", import.meta.url), "utf8");
 const optimisticSql = readFileSync(new URL("../sql/optimistic-inventory-locking-v1.sql", import.meta.url), "utf8");
+const inventoryAuditSql = readFileSync(new URL("../sql/inventory-adjustment-audit-v1.sql", import.meta.url), "utf8");
 
 test("the active guard keeps and replaces one cumulative total", () => {
   assert.match(main, /setQuantities\(activeRecord \? aggregate\(activeRecord\) : \{\}\)/);
@@ -45,4 +46,15 @@ test("absolute stock and minimum edits reject stale values atomically", () => {
   assert.match(optimisticSql, /for update/);
   assert.match(optimisticSql, /INVENTORY_CONFLICT/);
   assert.match(optimisticSql, /require_admin_warehouse/);
+});
+
+test("manual inventory edits record only real changes with actor and before/after values", () => {
+  assert.match(inventoryAuditSql, /movement_type[^\n]*operation_id/);
+  assert.match(inventoryAuditSql, /'inventory_adjustment'/);
+  assert.match(inventoryAuditSql, /w\.quantity is distinct from i\.value::integer/);
+  assert.match(inventoryAuditSql, /previous_quantity, new_quantity, actor_user_id/);
+  assert.match(inventoryAuditSql, /select role, zone into v_role, v_role_zone/);
+  assert.match(main, /"inventory_adjustment"/);
+  assert.match(main, /"Cantidad anterior"/);
+  assert.match(main, /"Cantidad nueva"/);
 });
