@@ -458,15 +458,6 @@ function App() {
   }, [mode, deviceAuth.verificationPending]);
   React.useEffect(() => {
     const currentUnit = localStorage.getItem(KEY.unit);
-    if (!currentUnit || unitZone(currentUnit) !== "Olot" || !navigator.onLine) return;
-    ensureAnonymousSession()
-      .then(() =>
-        supabase.rpc("initialize_olot_inventory", { p_materials: MATERIALS }),
-      )
-      .catch(() => {});
-  }, [unit]);
-  React.useEffect(() => {
-    const currentUnit = localStorage.getItem(KEY.unit);
     if (!currentUnit) return;
     const guard = guardState(currentUnit, localStorage.getItem(KEY.shift), new Date(guardTick));
     const guardKey = `${currentUnit}:${localStorage.getItem(KEY.shift) || "supervisor"}:${guard.active ? guard.code : "closed"}`;
@@ -1622,10 +1613,6 @@ function App() {
     setStockRemoteLoading(true);
     try {
       await ensureAnonymousSession();
-      if (stockScope.initializeRpc) {
-        const { error: initError } = await supabase.rpc(stockScope.initializeRpc, { p_materials: MATERIALS });
-        if (initError) throw initError;
-      }
       const inventoryResults = await Promise.all(
         Object.values(STOCK_REMOTE_IDS).map((warehouseId) =>
           supabase
@@ -3364,7 +3351,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v198</span></h1>
+          <h1>Control de material <span className="app-version">v199</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4428,7 +4415,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v198", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v199", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -5193,7 +5180,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=198", {
+    navigator.serviceWorker.register("./sw.js?v=199", {
       updateViaCache: "none",
     }),
   );

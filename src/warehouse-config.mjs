@@ -9,7 +9,8 @@ export const WAREHOUSE_DEPLOYMENTS = [{
   lot: DEFAULT_STOCK_LOT,
   zone: DEFAULT_STOCK_ZONE,
   enabled: true,
-  initializeRpc: "initialize_olot_inventory",
+  // L'inventari d'Olot ja està creat. Mai s'ha de reinicialitzar en obrir la PWA.
+  initializeRpc: null,
   safetyRpc: "set_inventory_safety_percentages",
   defaultTransferWarehouseId: "lot5_olot_camprodon",
   warehouses: [

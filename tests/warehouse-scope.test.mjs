@@ -62,8 +62,13 @@ test("Olot keeps exact production warehouse IDs and all nine unit assignments", 
   assert.deepEqual(scope.warehouseIds, ["lot5_olot_central", "lot5_olot_banyoles", "lot5_olot_campdevanol", "lot5_olot_camprodon", "lot5_olot_sant_joan"]);
   assert.equal(Object.keys(scope.unitAssignments).length, 9);
   assert.equal(scope.unitAssignments.G413, "lot5_olot_banyoles");
-  assert.equal(scope.initializeRpc, "initialize_olot_inventory");
+  assert.equal(scope.initializeRpc, null);
   assert.equal(scope.safetyRpc, "set_inventory_safety_percentages");
+});
+
+test("opening or refreshing stock never initializes Olot inventory", () => {
+  assert.doesNotMatch(source, /supabase\.rpc\("initialize_olot_inventory"/);
+  assert.doesNotMatch(source, /stockScope\.initializeRpc/);
 });
 
 test("unconfigured zones and lots do not fall back to Olot", () => {
