@@ -1995,10 +1995,10 @@ function App() {
     try {
       await Promise.race([
         ensureAnonymousSession(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("SESSION_TIMEOUT")), 8000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("SESSION_TIMEOUT")), 20000)),
       ]);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 20000);
       const { error } = await supabase.rpc("set_inventory_quantities_optimistic", {
         p_warehouse_id: target.id,
         p_items: changes,
@@ -2024,8 +2024,16 @@ function App() {
         setStockInventoryEditOpen(false);
         await loadRemoteStock();
         flash("El inventario ha cambiado desde otro dispositivo. Datos actualizados: revisa antes de guardar.", 5000);
+      } else if (/ADMIN_ROLE_ACCESS_DENIED|ADMIN_ACCESS_REQUIRED/.test(String(error?.message || error))) {
+        setStockInventoryEditOpen(false);
+        setAdminOk(false);
+        setAdminAccess(null);
+        flash("La sesión de administración ha caducado. Entra de nuevo con tu código y repite el cambio.", 7000);
+      } else if (/AbortError|SESSION_TIMEOUT|Failed to fetch|NetworkError|Load failed/i.test(String(error?.message || error))) {
+        flash("Supabase tarda demasiado en responder. No se ha modificado el inventario; vuelve a intentarlo.", 7000);
       } else {
-        flash("No se ha podido guardar. Comprueba la conexión y vuelve a intentarlo");
+        const detail = String(error?.message || error || "ERROR_DESCONOCIDO").slice(0, 180);
+        flash(`Supabase ha rechazado el cambio (${detail}). No se ha modificado el inventario.`, 9000);
       }
     } finally {
       setStockInventorySaving(false);
@@ -3362,7 +3370,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v201</span></h1>
+          <h1>Control de material <span className="app-version">v202</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4426,7 +4434,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v201", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v202", window.location.href).href);
                 }}>
                   Checklist
                 </button>

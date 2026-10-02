@@ -2,7 +2,7 @@ import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus}from"./svb-fr
 import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js";
 import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js";
 
-document.querySelector(".head h1 small").textContent="v201";
+document.querySelector(".head h1 small").textContent="v202";
 
 const SUPABASE_URL="https://dfnywetqnccykzjyihzq.supabase.co",SUPABASE_KEY="sb_publishable_fjxFCzJNnWQLar26ObYgRw_oK9w3yDI";
 const byId=id=>document.getElementById(id),read=key=>{try{return JSON.parse(localStorage.getItem(key)||"{}")}catch{return{}}};

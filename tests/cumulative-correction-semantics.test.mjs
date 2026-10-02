@@ -58,3 +58,10 @@ test("manual inventory edits record only real changes with actor and before/afte
   assert.match(main, /"Cantidad anterior"/);
   assert.match(main, /"Cantidad nueva"/);
 });
+
+test("inventory editing allows slow Supabase responses and exposes the real rejection", () => {
+  assert.match(main, /SESSION_TIMEOUT"\)\), 20000/);
+  assert.match(main, /setTimeout\(\(\) => controller\.abort\(\), 20000\)/);
+  assert.match(main, /La sesión de administración ha caducado/);
+  assert.match(main, /Supabase ha rechazado el cambio/);
+});
