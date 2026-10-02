@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { DEMO_ITEMS, TSNU_CHECKLIST_GROUPS, VEHICLE_TYPES, demoKey, completeDemo, closeDemoShift, readDemo, saveDemo, filterDemo, shouldAutoCloseTsnuShift } from "./checklist-demo.mjs";
+import { DEMO_ITEMS, TSNU_CHECKLIST_GROUPS, VEHICLE_TYPES, demoKey, completeDemo, closeDemoShift, closeTsnuShiftAutomatically, readDemo, saveDemo, filterDemo, shouldAutoCloseTsnuShift } from "./checklist-demo.mjs";
 import { ensureAnonymousSession, supabase } from "./supabase.js";
 import { newOperationId, queueTsnuOperation, readTsnuOutbox, readTsnuShift, saveTsnuShift, rpcForTsnuOperation, syncTsnuOutbox, removeTsnuShiftOperations, isTsnuConnectivityError } from "./tsnu-outbox.mjs";
 import "./checklist-demo.css";
@@ -26,11 +26,13 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     if(!production||!daily)return;
     const stored=readTsnuShift(localStorage,unit,lot);
     if(shouldAutoCloseTsnuShift(stored)){
-      const closed=closeDemoShift(stored,false);
+      const closed=closeTsnuShiftAutomatically(stored);
       queueTsnuOperation(localStorage,{localId:`finish:auto:${closed.sessionId}`,type:'finish',shiftId:closed.sessionId,at:closed.endedAt,closeSource:'automatic'});
       saveTsnuShift(localStorage,null);
       setActiveShift(null);
-      setNotice("La guardia anterior se ha cerrado automáticamente. Ya puedes iniciar el checklist de la nueva guardia.");
+      setNotice(stored.completed
+        ? "La guardia anterior se ha cerrado automáticamente. Ya puedes iniciar el checklist de la nueva guardia."
+        : "La guardia anterior se ha cerrado automáticamente como checklist no realizado. Ya puedes iniciar la nueva guardia.");
     }else{
       setActiveShift(stored);
       if(stored && !stored.completed && stored.date < today()) setNotice("Hay un checklist de una guardia anterior sin completar. Revísalo o avisa a supervisión.");
@@ -55,7 +57,9 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
         return;
       }
       const sessionId = daily ? `${Date.now()}-${Math.random().toString(36).slice(2)}` : undefined;
-      const identity = { unit,lot,zone,warehouse,date,service: daily ? "TSNU" : "TSU",vehicleType: assignedChecklist || vehicleType,shift: daily ? "" : shift || "07:00",sessionId,startedAt:new Date().toISOString() };
+      const startedAt = new Date().toISOString();
+      const sessionDate = production && daily ? today() : date;
+      const identity = { unit,lot,zone,warehouse,date:sessionDate,service: daily ? "TSNU" : "TSU",vehicleType: assignedChecklist || vehicleType,shift: daily ? "" : shift || "07:00",sessionId,startedAt };
       if(production&&daily){const id=newOperationId(),next={...identity,sessionId:id,id,answers:{},completed:false};queueTsnuOperation(localStorage,{localId:`start:${id}`,type:'start',shiftId:id,at:next.startedAt});saveTsnuShift(localStorage,next);setDraft(next);setOpen(true);void syncProduction();return;}
       const existing = daily ? null : readDemo(localStorage).find((r) => demoKey(r) === demoKey(identity));
       const next = { answers: {}, notes: {}, completed:false, ...existing, ...identity, phase: daily ? "open" : phase };

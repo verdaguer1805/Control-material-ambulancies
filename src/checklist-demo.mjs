@@ -29,7 +29,15 @@ export function localCalendarDate(value = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
 }
 export function shouldAutoCloseTsnuShift(record, now = new Date()) {
-  return Boolean(record?.completed && !record?.endedAt && validDemoDate(record.date) && record.date < localCalendarDate(now));
+  const startedDate = record?.startedAt ? localCalendarDate(record.startedAt) : "";
+  const shiftDate = validDemoDate(startedDate) ? startedDate : record?.date;
+  return Boolean(record && !record.endedAt && validDemoDate(shiftDate) && shiftDate < localCalendarDate(now));
+}
+export function closeTsnuShiftAutomatically(record, now = new Date()) {
+  if (!record || record.endedAt) throw new Error("Esta guardia ya está finalizada.");
+  const endedAt = now instanceof Date ? now : new Date(now);
+  if (Number.isNaN(endedAt.getTime())) throw new Error("Hora de cierre inválida.");
+  return { ...record, endedAt: endedAt.toISOString(), automaticCloseResult: record.completed ? "completed" : "not_completed" };
 }
 export function checklistStatus(record, now = new Date()) {
   // Completed checklists from before Baliza V-16 must keep their result.

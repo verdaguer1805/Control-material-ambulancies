@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import XLSX from "xlsx-js-style";
-import {DEMO_KEY,DEMO_ITEMS,TSNU_CHECKLIST_ITEMS,canDemoChecklist,inChecklistWindow,checklistStatus,saveDemo,readDemo,completeDemo,closeDemoShift,filterDemo,localCalendarDate,shouldAutoCloseTsnuShift} from "../src/checklist-demo.mjs";
+import {DEMO_KEY,DEMO_ITEMS,TSNU_CHECKLIST_ITEMS,canDemoChecklist,inChecklistWindow,checklistStatus,saveDemo,readDemo,completeDemo,closeDemoShift,closeTsnuShiftAutomatically,filterDemo,localCalendarDate,shouldAutoCloseTsnuShift} from "../src/checklist-demo.mjs";
 import {buildChecklistWorkbook} from "../src/checklist-demo-export.mjs";
 const base={lot:"Lot 5",zone:"Olot",warehouse:"Camprodon",unit:"G453",date:"2026-09-16",phase:"open",answers:{},notes:{}};
 const memory=()=>{const map=new Map();return {getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v),map};};
@@ -34,12 +34,28 @@ test('TSNU supports several shift sessions on the same date and cannot close wit
 });
 test('a completed TSNU shift auto-closes only after its local calendar day',()=>{
  const answers=Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']));
- const completed=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'old',date:'2026-09-23',answers});
+ const completed=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'old',date:'2026-09-23',startedAt:'2026-09-23T07:00:00+02:00',answers});
  assert.equal(localCalendarDate(new Date(2026,8,24,9,0)),'2026-09-24');
  assert.equal(shouldAutoCloseTsnuShift(completed,new Date(2026,8,23,23,59)),false);
  assert.equal(shouldAutoCloseTsnuShift(completed,new Date(2026,8,24,0,1)),true);
- assert.equal(shouldAutoCloseTsnuShift({...completed,completed:false},new Date(2026,8,24,9)),false);
+ assert.equal(shouldAutoCloseTsnuShift({...completed,completed:false},new Date(2026,8,24,9)),true);
  assert.equal(shouldAutoCloseTsnuShift({...completed,endedAt:new Date().toISOString()},new Date(2026,8,24,9)),false);
+});
+test('a stale screen date cannot close a TSNU shift started today',()=>{
+ const answers=Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']));
+ const completed=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'same-day',date:'2026-09-30',startedAt:'2026-10-02T04:55:09.936Z',answers});
+ assert.equal(shouldAutoCloseTsnuShift(completed,new Date('2026-10-02T12:02:42.917Z')),false);
+ assert.equal(shouldAutoCloseTsnuShift(completed,new Date('2026-10-03T00:01:00+02:00')),true);
+});
+test('an incomplete previous TSNU checklist closes as not completed without blocking the next guard',()=>{
+ const incomplete={...base,service:'TSNU',vehicleType:'TSNU',sessionId:'forgotten',date:'2026-10-01',startedAt:'2026-10-01T07:00:00+02:00',answers:{},completed:false};
+ const now=new Date('2026-10-02T00:01:00+02:00');
+ assert.equal(shouldAutoCloseTsnuShift(incomplete,now),true);
+ const closed=closeTsnuShiftAutomatically(incomplete,now);
+ assert.equal(closed.completed,false);
+ assert.equal(closed.automaticCloseResult,'not_completed');
+ assert.equal(checklistStatus(closed,now),'No realizado');
+ assert.ok(closed.endedAt);
 });
 test("authorized, unchecked, supervisor and enforcement-off devices cannot access demo",()=>{
   const demo={checked:true,enforcement:true,authorized:false};
