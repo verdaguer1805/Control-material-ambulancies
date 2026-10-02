@@ -132,6 +132,14 @@ const supervisorZone = (u) =>
   u.replace("SUPERVISOR_", "").slice(1).toLowerCase();
 const compareUnits = (a, b) =>
   String(a || "").localeCompare(String(b || ""), "es", { numeric: true, sensitivity: "base" });
+const reportDateKey = (value) => {
+  const text = String(value || "");
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) return text.split("/").reverse().join("-");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return text;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
 const sortUnits = (units) =>
   Object.keys(units).sort((a, b) =>
     isSupervisorMaterial(a)
@@ -2396,13 +2404,14 @@ function App() {
               .join(" · ") || "Sin material",
         };
       }).sort((a, b) =>
-        compareUnits(a.Unidad, b.Unidad) ||
         String(a["Fecha de guardia"] || "").localeCompare(String(b["Fecha de guardia"] || "")) ||
+        compareUnits(a.Unidad, b.Unidad) ||
         String(a["Inicio de guardia"] || "").localeCompare(String(b["Inicio de guardia"] || ""))),
       detail = [],
       critical = [],
       servicesByDay = {},
       tsnuShifts = (Array.isArray(tsnuData?.shifts) ? [...tsnuData.shifts] : []).sort((a, b) =>
+        reportDateKey(a.started_at).localeCompare(reportDateKey(b.started_at)) ||
         compareUnits(a.unit, b.unit) || new Date(a.started_at) - new Date(b.started_at)),
       tsnuWithdrawals = Array.isArray(tsnuData?.withdrawals) ? tsnuData.withdrawals : [],
       tsnuShiftById = new Map(tsnuShifts.map((shift) => [shift.id, shift])),
@@ -2504,18 +2513,18 @@ function App() {
           );
       });
     detail.sort((a, b) =>
-      compareUnits(a.Unidad, b.Unidad) ||
       String(a["Fecha de guardia"] || "").localeCompare(String(b["Fecha de guardia"] || "")) ||
+      compareUnits(a.Unidad, b.Unidad) ||
       String(a["Inicio de guardia"] || "").localeCompare(String(b["Inicio de guardia"] || "")) ||
       compareUnits(a.Material, b.Material));
     tsnuDetail.sort((a, b) =>
-      compareUnits(a.Unidad, b.Unidad) ||
       String(a.Fecha || "").split("/").reverse().join("").localeCompare(String(b.Fecha || "").split("/").reverse().join("")) ||
+      compareUnits(a.Unidad, b.Unidad) ||
       String(a.Hora || "").localeCompare(String(b.Hora || "")) ||
       compareUnits(a.Material, b.Material));
     dailyRows.sort((a, b) =>
-      compareUnits(a.Unidad, b.Unidad) ||
-      String(a["Fecha de guardia"] || "").localeCompare(String(b["Fecha de guardia"] || "")));
+      String(a["Fecha de guardia"] || "").localeCompare(String(b["Fecha de guardia"] || "")) ||
+      compareUnits(a.Unidad, b.Unidad));
     const wb = XLSX.utils.book_new(),
       ws1 = XLSX.utils.json_to_sheet(rows),
       ws2 = XLSX.utils.json_to_sheet(detail),
@@ -2534,8 +2543,8 @@ function App() {
         Cantidad: row.Cantidad,
       })),
       generalDetail = [...tsuDetail, ...tsnuDetail].sort((a, b) =>
+        reportDateKey(a.Fecha).localeCompare(reportDateKey(b.Fecha)) ||
         compareUnits(a.Unidad, b.Unidad) ||
-        String(a.Fecha || "").split("/").reverse().join("").localeCompare(String(b.Fecha || "").split("/").reverse().join("")) ||
         String(a.Hora || "").localeCompare(String(b.Hora || "")) ||
         String(a.Material || "").localeCompare(String(b.Material || ""), "es", { sensitivity: "base", numeric: true })
       ),
@@ -2555,6 +2564,7 @@ function App() {
         };
       }),
       checklistTsuRows = [...svbChecklists].sort((a, b) =>
+        reportDateKey(a.guard_started_at).localeCompare(reportDateKey(b.guard_started_at)) ||
         compareUnits(a.unit, b.unit) || new Date(a.guard_started_at) - new Date(b.guard_started_at)
       ).map((checklist) => {
         const answers = checklist.answers || {},
@@ -2597,8 +2607,8 @@ function App() {
         })),
         ...tsnuCritical,
       ].sort((a, b) =>
+        reportDateKey(a.Fecha).localeCompare(reportDateKey(b.Fecha)) ||
         compareUnits(a.Unidad, b.Unidad) ||
-        String(a.Fecha || "").localeCompare(String(b.Fecha || "")) ||
         String(a.Material || "").localeCompare(String(b.Material || ""), "es", { sensitivity: "base", numeric: true })
       ),
       wsGeneral = XLSX.utils.json_to_sheet(generalDetail),
@@ -2714,6 +2724,7 @@ function App() {
                   : "";
       },
       tsnuShifts = (Array.isArray(tsnuData?.shifts) ? [...tsnuData.shifts] : []).sort((a, b) =>
+        reportDateKey(a.started_at).localeCompare(reportDateKey(b.started_at)) ||
         compareUnits(a.unit, b.unit) || new Date(a.started_at) - new Date(b.started_at)),
       tsnuWithdrawals = Array.isArray(tsnuData?.withdrawals) ? tsnuData.withdrawals : [],
       tsnuShiftById = new Map(tsnuShifts.map((shift) => [shift.id, shift])),
@@ -3442,7 +3453,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v205</span></h1>
+          <h1>Control de material <span className="app-version">v206</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4506,7 +4517,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v205", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v206", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -5271,7 +5282,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=205", {
+    navigator.serviceWorker.register("./sw.js?v=206", {
       updateViaCache: "none",
     }),
   );

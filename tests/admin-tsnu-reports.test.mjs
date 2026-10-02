@@ -31,6 +31,8 @@ test('the general Excel separates TSU, TSNU and both checklist types', () => {
   assert.match(source, /\[\.\.\.svbChecklists\]\.sort/);
   assert.match(source, /compareUnits\(a\.unit, b\.unit\)/);
   assert.match(source, /compareUnits\(a\.Unidad, b\.Unidad\)/);
+  assert.match(source, /reportDateKey\(a\.started_at\)[\s\S]{0,180}compareUnits\(a\.unit, b\.unit\)/);
+  assert.match(source, /reportDateKey\(a\.Fecha\)[\s\S]{0,180}compareUnits\(a\.Unidad, b\.Unidad\)/);
   assert.match(source, /Vehículo: checklist\.vehicle_label/);
   assert.match(source, /Zona izquierda/);
 });
