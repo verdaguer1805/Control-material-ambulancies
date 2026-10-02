@@ -1,15 +1,6 @@
--- Auditoria lleugera dels ajustos manuals d'inventari.
--- Una fila per material realment modificat, agrupada per operacio.
+-- Permet regularitzar inventaris amb estoc anterior negatiu.
+-- El valor nou continua obligat a ser un enter igual o superior a zero.
 begin;
-
-alter table public.stock_movements
-  add column if not exists previous_quantity integer,
-  add column if not exists new_quantity integer,
-  add column if not exists actor_user_id uuid;
-
-create index if not exists stock_movements_inventory_adjustment_idx
-  on public.stock_movements (warehouse_id, created_at desc)
-  where movement_type = 'inventory_adjustment';
 
 create or replace function public.set_inventory_quantities_optimistic(
   p_warehouse_id text, p_items jsonb, p_expected jsonb
@@ -25,9 +16,7 @@ begin
      or p_expected is null or jsonb_typeof(p_expected)<>'object' then
     raise exception 'INVALID_INVENTORY';
   end if;
-  -- El nou inventari ha de ser un enter no negatiu. L'estoc anterior
-  -- (p_expected) pot ser negatiu: cal poder regularitzar inventaris que ja
-  -- hagin quedat sota zero sense que la validacio bloquegi la correccio.
+
   if exists(
        select 1 from jsonb_each_text(p_items) i
        where i.value !~ '^[0-9]+$'
