@@ -28,7 +28,9 @@ test('the general Excel separates TSU, TSNU and both checklist types', () => {
   }
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /reportData\.svb_checklists/);
-  assert.match(source, /svbChecklists\.map/);
+  assert.match(source, /\[\.\.\.svbChecklists\]\.sort/);
+  assert.match(source, /compareUnits\(a\.unit, b\.unit\)/);
+  assert.match(source, /compareUnits\(a\.Unidad, b\.Unidad\)/);
   assert.match(source, /Vehículo: checklist\.vehicle_label/);
   assert.match(source, /Zona izquierda/);
 });
