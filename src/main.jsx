@@ -438,7 +438,10 @@ function App() {
     if (mode !== "worker") return;
     const currentUnit = localStorage.getItem(KEY.unit);
     if (!currentUnit) {
-      setDeviceAuth((current) => ({ ...current, checked: true }));
+      void recoverTsnuAssignmentFromServer().then((recovered) => {
+        if (!recovered)
+          setDeviceAuth((current) => ({ ...current, checked: true }));
+      });
       return;
     }
     refreshDeviceAuthorization(currentUnit);
@@ -494,6 +497,49 @@ function App() {
       setIncidentConfirmed(false);
       setInvalidIncidentOpen(true);
     };
+  async function recoverTsnuAssignmentFromServer() {
+    try {
+      const session = await ensureAnonymousSession();
+      const authorization = await supabase.rpc("get_device_authorization");
+      if (authorization.error || authorization.data?.authorized !== true) return false;
+      const remote = await supabase.rpc("get_my_tsnu_assignment");
+      if (remote.error || !remote.data) return false;
+      const assignment = remote.data;
+      if (!assignment.unit || !assignment.lot || !assignment.zone || !assignment.warehouse_id ||
+          assignment.unit !== authorization.data.unit || assignment.lot !== authorization.data.lot)
+        return false;
+      const restored = {
+        service: "TSNU",
+        checklist: "TSNU",
+        unit: assignment.unit,
+        lot: assignment.lot,
+        zone: assignment.zone,
+        shift: "",
+        warehouse: assignment.warehouse || "",
+        warehouseId: assignment.warehouse_id,
+      };
+      localStorage.setItem(UNIT_CHECKLIST_KEY, JSON.stringify(restored));
+      localStorage.setItem(KEY.unit, assignment.unit);
+      localStorage.setItem(KEY.lot, assignment.lot);
+      localStorage.setItem(KEY.shift, "");
+      const next = {
+        checked: true,
+        enforcement: Boolean(authorization.data.enforcement_enabled),
+        authorized: true,
+        unit: authorization.data.unit,
+        lot: authorization.data.lot,
+        version: Number(authorization.data.current_version || 0),
+      };
+      localStorage.setItem(DEVICE_AUTH_CACHE, JSON.stringify(next));
+      rememberAuthorizedIdentity(localStorage, session.user?.id);
+      setDeviceAuth(next);
+      setLot(assignment.lot);
+      setUnit(assignment.unit);
+      return true;
+    } catch {
+      return false;
+    }
+  }
   async function refreshDeviceAuthorization(targetUnit = localStorage.getItem(KEY.unit)) {
     if (!targetUnit) return false;
     const request = ++deviceAuthSequence.current;
@@ -518,6 +564,9 @@ function App() {
         rememberAuthorizedIdentity(localStorage, session.user?.id);
         void rememberRecoverySession(session).catch(() => {});
         resolveAuthDiagnostic(localStorage);
+        const localConfig = readUnitChecklist(localStorage, targetUnit, targetLot);
+        if (deviceServiceLabel(targetUnit, targetLot).startsWith("TSNU") && localConfig.service !== "TSNU")
+          await recoverTsnuAssignmentFromServer();
       } else {
         if (localStorage.getItem(DEVICE_AUTH_CACHE) &&
             (readAuthDiagnostic(localStorage)?.reason !== "identity_changed" || readAuthDiagnostic(localStorage)?.resolvedAt))
@@ -3370,7 +3419,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v202</span></h1>
+          <h1>Control de material <span className="app-version">v203</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4434,7 +4483,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v202", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v203", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -5199,7 +5248,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=199", {
+    navigator.serviceWorker.register("./sw.js?v=203", {
       updateViaCache: "none",
     }),
   );

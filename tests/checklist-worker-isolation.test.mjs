@@ -9,16 +9,18 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /currentChecklistConfig\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v202/);
-  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=199"/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v203/);
+  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=203"/);
+  assert.match(source, /get_my_tsnu_assignment/);
+  assert.match(source, /recoverTsnuAssignmentFromServer/);
   assert.match(source, /cma_svb_checklist_context_v1/);
   assert.match(source, /return flash\("Próximamente"\)/);
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v202 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v203 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v202"/);
+  assert.match(worker, /const CACHE = "cma-v203"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
@@ -89,7 +91,7 @@ test('SVB production requires all zones and submits the authorized guard to Supa
   assert.match(production, /response\.status===401/);
   assert.match(production, /error instanceof TypeError/);
   assert.match(production, /ERROR_SUPABASE/);
-  assert.match(production, /textContent="v202"/);
+  assert.match(production, /textContent="v203"/);
   assert.match(production, /states\.every/);
   assert.match(sql, /DEVICE_NOT_AUTHORIZED/);
   assert.match(sql, /unique \(lot, unit, guard_code, vehicle_label\)/);
