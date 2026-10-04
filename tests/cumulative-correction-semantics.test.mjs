@@ -63,5 +63,5 @@ test("inventory editing allows slow Supabase responses and exposes the real reje
   assert.match(main, /SESSION_TIMEOUT"\)\), 20000/);
   assert.match(main, /setTimeout\(\(\) => controller\.abort\(\), 20000\)/);
   assert.match(main, /La sesión de administración ha caducado/);
-  assert.match(main, /Supabase ha rechazado el cambio/);
+  assert.match(main, /No se ha podido aplicar el cambio/);
 });

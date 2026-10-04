@@ -60,6 +60,6 @@ export function authDiagnosticLabel(reason) {
   if (reason === "session_missing") return "La sesión local de este móvil ha desaparecido.";
   if (reason === "session_error") return "No se ha podido verificar la sesión local de este móvil.";
   if (reason === "identity_changed") return "El móvil presenta una identidad distinta de la autorizada.";
-  if (reason === "server_denied") return "Supabase no reconoce esta identidad como autorizada.";
+  if (reason === "server_denied") return "El sistema no reconoce esta identidad como autorizada.";
   return "No se ha podido determinar el motivo de la desautorización.";
 }

@@ -7,7 +7,7 @@ import { accessAttemptMessage } from "./access-attempt-message.mjs";
 import { classifyPendingRecords, pendingUnitsLabel } from "./device-pending-authorization.mjs";
 import { isRecoverableGuardSyncError, syncPendingIndependently } from "./pending-sync.mjs";
 import { isolateGuardPending, recoverGuardPendingTransaction } from "./guard-pending-recovery.mjs";
-import { DATABASE_PLAN, databaseCapacity } from "./database-capacity.mjs";
+import { databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, attachRecoveryToPendingRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
 import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone, tsnuWarehouse } from "./unit-checklist-config.mjs";
@@ -868,7 +868,7 @@ function App() {
       return flash("Introduce las 4 cifras de la rotulación del vehículo");
     if(selectedService==='TSNU'){
       try{await ensureAnonymousSession();const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:assignmentAdminPin,p_lot:selectedLot,p_zone:selectedZone,p_unit:unit,p_warehouse_id:selectedWarehouse});if(error)throw error;}
-      catch{return flash('No se ha podido guardar la asignación TSNU en Supabase');}
+      catch{return flash('No se ha podido guardar la asignación TSNU');}
     }
     await forgetRecoverySession().catch(() => {});
     localStorage.removeItem(AUTH_IDENTITY_KEY);
@@ -1396,7 +1396,7 @@ function App() {
       if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu, selected.svbChecklists);
       else exportPdf(selected.records, selected.submissions, selected.tsnu);
     } catch (error) {
-      flash("No se pueden cargar los datos seleccionados de Supabase");
+      flash("No se pueden cargar los datos seleccionados");
     } finally {
       setReportLoading(false);
     }
@@ -1605,7 +1605,7 @@ function App() {
       return flash("Introduce las 4 cifras de la rotulación del vehículo");
     if(changeService==='TSNU'){
       try{const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:enteredPin,p_lot:changeLot,p_zone:changeZone,p_unit:nextUnit,p_warehouse_id:changeWarehouse});if(error)throw error;}
-      catch{return flash('No se ha podido guardar la asignación TSNU en Supabase');}
+      catch{return flash('No se ha podido guardar la asignación TSNU');}
     }
     await forgetRecoverySession().catch(() => {});
     localStorage.removeItem(AUTH_IDENTITY_KEY);
@@ -1732,7 +1732,7 @@ function App() {
       return { levels, minimums, minimumBases, safetyPercentages, pendingReplenishment };
     } catch (error) {
       if (request !== stockLoadSequence.current) return;
-      flash("No se ha podido cargar el inventario de Supabase");
+      flash("No se ha podido cargar el inventario");
       return null;
     } finally {
       if (request === stockLoadSequence.current) setStockRemoteLoading(false);
@@ -1872,7 +1872,7 @@ function App() {
       });
       setGuardRecoveryBlocked(false);
       setGuardRecoveryPinOpen(false);
-      flash(`Guardia recuperada. Se ha descartado solo el pendiente local de ${guard.code}; Supabase y las demás guardias se conservan.`,7000);
+      flash(`Guardia recuperada. Se ha descartado solo el pendiente local de ${guard.code}; los datos confirmados y las demás guardias se conservan.`,7000);
     } catch(error) {
       // If the server baseline cannot be restored, restore the exact local
       // state too. A failed recovery must never cause a second data loss.
@@ -2076,7 +2076,7 @@ function App() {
         },
       }));
       setStockInventoryEditOpen(false);
-      flash(`${Object.keys(changes).length} existencias actualizadas en Supabase`);
+      flash(`${Object.keys(changes).length} existencias actualizadas correctamente`);
     } catch (error) {
       console.error("No se ha podido guardar el inventario", error);
       if (String(error?.message || error).includes("INVENTORY_CONFLICT")) {
@@ -2089,10 +2089,10 @@ function App() {
         setAdminAccess(null);
         flash("La sesión de administración ha caducado. Entra de nuevo con tu código y repite el cambio.", 7000);
       } else if (/AbortError|SESSION_TIMEOUT|Failed to fetch|NetworkError|Load failed/i.test(String(error?.message || error))) {
-        flash("Supabase tarda demasiado en responder. No se ha modificado el inventario; vuelve a intentarlo.", 7000);
+        flash("El sistema tarda demasiado en responder. No se ha modificado el inventario; vuelve a intentarlo.", 7000);
       } else {
         const detail = String(error?.message || error || "ERROR_DESCONOCIDO").slice(0, 180);
-        flash(`Supabase ha rechazado el cambio (${detail}). No se ha modificado el inventario.`, 9000);
+        flash(`No se ha podido aplicar el cambio (${detail}). No se ha modificado el inventario.`, 9000);
       }
     } finally {
       setStockInventorySaving(false);
@@ -2152,7 +2152,7 @@ function App() {
       setStockMinimumOpen(false);
       flash(editingSafety
         ? `${Object.keys(changes).length} márgenes de seguridad actualizados`
-        : `${Object.keys(changes).length} mínimos actualizados en Supabase`);
+        : `${Object.keys(changes).length} mínimos actualizados correctamente`);
     } catch (error) {
       if (String(error?.message || error).includes("INVENTORY_CONFLICT")) {
         setStockMinimumOpen(false);
@@ -3453,7 +3453,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v206</span></h1>
+          <h1>Control de material <span className="app-version">v207</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4063,7 +4063,7 @@ function App() {
                 Comprobación de solo lectura. No modifica registros ni stock.
               </p>
               {systemStatusLoading ? (
-                <p className="system-status-loading">Comprobando Supabase...</p>
+                <p className="system-status-loading">Comprobando el estado del sistema...</p>
               ) : (
                 <>
                   <div
@@ -4071,8 +4071,8 @@ function App() {
                   >
                     <strong>
                       {systemStatus?.connected
-                        ? "Supabase conectado"
-                        : "No se puede conectar con Supabase"}
+                        ? "Sistema disponible"
+                        : "No se puede conectar con el sistema"}
                     </strong>
                   </div>
                   {systemStatus?.connected && (
@@ -4086,7 +4086,7 @@ function App() {
                   {systemStatus?.connected && (
                     <div className="database-usage">
                       <div className="database-usage-heading">
-                        <span>Base de datos · Plan {DATABASE_PLAN.name}</span>
+                        <span>Espacio utilizado</span>
                         <strong>{systemStatus.capacity ? `${systemStatus.capacity.percent.toFixed(2).replace(".", ",")}%` : "No disponible"}</strong>
                       </div>
                       <div className="database-usage-track">
@@ -4101,12 +4101,6 @@ function App() {
                           style={{ width: `${systemStatus.capacity?.barPercent ?? 0}%` }}
                         />
                       </div>
-                      <small>
-                        {systemStatus.capacity ? `${systemStatus.capacity.mb.toFixed(2).replace(".", ",")} MiB de base de datos / ${DATABASE_PLAN.includedGib} GiB de referencia incluidos en Pro.` : "No se ha recibido una medida válida de la base de datos."}
-                      </small>
-                      <p className="muted">Estimación del tamaño de la base de datos, no del disco total ni de todas las cuotas. Plan configurado manualmente; consulta Supabase para el uso y la facturación oficiales.</p>
-                      <p className="muted">Pro incluye copias diarias con 7 días de retención. Esta pantalla no comprueba si la última copia se ha completado.</p>
-                      <a href="https://supabase.com/dashboard/project/dfnywetqnccykzjyihzq/database/backups/scheduled" target="_blank" rel="noopener noreferrer">Verificar copias en Supabase</a>
                     </div>
                   )}
                   {systemStatus?.connected && (
@@ -4260,7 +4254,7 @@ function App() {
               <h2 style={{ textAlign: "center" }}>Recuperación supervisada</h2>
               <p style={{ textAlign: "center" }}>
                 Se descartará únicamente el consumo local pendiente de la guardia actual.
-                Lo guardado en Supabase y los pendientes de otras guardias no se modificarán.
+                Los datos ya confirmados y los pendientes de otras guardias no se modificarán.
               </p>
               <label>PIN de supervisión</label>
               <input
@@ -4517,7 +4511,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v206", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v207", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -4549,13 +4543,13 @@ function App() {
                   </strong>
                   <p className="small">
                     {deviceAuth.verificationPending
-                      ? "Puedes seguir registrando el trabajo en este móvil. Los envíos quedarán pendientes hasta recuperar la sesión y confirmar la autorización con Supabase."
+                      ? "Puedes seguir registrando el trabajo en este móvil. Los envíos quedarán pendientes hasta recuperar la sesión y confirmar la autorización."
                       : currentChecklistConfig.service === 'TSNU'
                       ? deviceAuth.authorized
                         ? "Dispositivo TSNU autorizado. El checklist y los consumos están conectados con el almacén asignado."
                         : "Unidad TSNU asignada, pero dispositivo sin autorización vigente. La administración debe autorizarlo para registrarlo en Dispositivos oficiales. El checklist todavía no está activo."
                       : deviceAuth.authorized
-                        ? "Los consumos se enviarán a Supabase y actualizarán el stock."
+                        ? "Los consumos se enviarán y actualizarán el stock."
                         : "Puedes probar la aplicación, pero no se enviará ningún dato ni se modificará el stock."}
                   </p>
                 </div>
@@ -4757,7 +4751,7 @@ function App() {
                   <div>
                     <h2>Stock</h2>
                     <p className="muted">
-                      Inventario real compartido y guardado en Supabase.
+                      Inventario real compartido y actualizado.
                     </p>
                   </div>
                   <div className="stock-demo-title-actions">
@@ -5069,7 +5063,7 @@ function App() {
                           </div>
                         ))}
                       </div>
-                      <p className="muted small">Las cantidades sustituyen el inventario actual. Solo se enviarán a Supabase los valores modificados.</p>
+                      <p className="muted small">Las cantidades sustituyen el inventario actual. Solo se aplicarán los valores modificados.</p>
                       <div className="toolbar stock-minimum-toolbar">
                         <button className="secondary" disabled={stockInventorySaving} onClick={() => setStockInventoryEditOpen(false)}>Cancelar</button>
                         <button className="primary" disabled={stockInventorySaving} onClick={saveStockInventory}>
@@ -5125,7 +5119,7 @@ function App() {
                       </div>
                       <p className="muted small">{stockDemoLocation === STOCK_DEMO_CENTRAL
                         ? "Todos empiezan con un 30%. Usa − y + para ajustar cada material en pasos de 5%."
-                        : "El valor 0 desactiva la alerta. Solo se enviarán a Supabase los mínimos que hayas cambiado."}</p>
+                        : "El valor 0 desactiva la alerta. Solo se aplicarán los mínimos que hayas cambiado."}</p>
                       <div className="toolbar stock-minimum-toolbar">
                         <button className="secondary" onClick={() => setStockMinimumOpen(false)}>Cancelar</button>
                         <button className="primary" onClick={saveStockMinimums}>Guardar mínimos</button>
@@ -5282,7 +5276,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=206", {
+    navigator.serviceWorker.register("./sw.js?v=207", {
       updateViaCache: "none",
     }),
   );
