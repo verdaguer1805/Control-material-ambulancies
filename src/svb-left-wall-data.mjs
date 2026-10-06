@@ -12,13 +12,12 @@ export const SVB_LEFT_WALL_SECTIONS = [
   ] },
   { id: 3, title: "Compartimento 3", items: [
     "Chaqueta anticorte · talla S · 1 unidad", "Chaqueta anticorte · talla M · 1 unidad", "Chaqueta anticorte · talla L · 1 unidad",
-    "Chaqueta anticorte · talla XL · 1 unidad", "Guantes anticorte · talla S · 1 par", "Guantes anticorte · talla M · 1 par",
-    "Guantes anticorte · talla L · 1 par", "Guantes anticorte · talla XL · 1 par"
+    "Chaqueta anticorte · talla XL · 1 unidad", "Guantes anticorte · 3 pares"
   ] },
   { id: 4, title: "Compartimento 4", items: ["Bolsa para objetos personales grande · 5 unidades", "Bolsa para objetos personales pequeña · 5 unidades", "Colchón de vacío pediátrico · 1 unidad"] },
   { id: 5, title: "Compartimento 5", items: [
     "Correas de anclaje de guias · 2 unidades", "Correa para perro guia · 1 unidad", "Kit antipinchazos · 1 unidad",
-    "Cadenas de nieve · 2 unidades", "Conos de señalizacion · 2 unidades", "Spray verde · 1 unidad",
+    "Cadenas de nieve · 2 unidades", "Spray verde · 1 unidad",
     "Spray amarillo · 1 unidad", "Spray rojo · 1 unidad", "Bolsa IMA"
   ] },
   { id: 7, title: "Compartimento 7", items: [

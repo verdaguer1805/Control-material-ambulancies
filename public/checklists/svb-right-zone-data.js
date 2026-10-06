@@ -7,7 +7,7 @@ export const SVB_RIGHT_ZONE_SECTIONS = [
   { id: 6, title: "Compartimento 6", items: ["Gasa estéril 20 × 20 · 20 unidades", "Gasa estéril 40 × 20 · 20 unidades"] },
   { id: 8, title: "Compartimento 8", items: ["Talla verde estéril · 2 unidades", "Pinzas estériles · 2 unidades", "Tijeras estériles · 2 unidades", "Rasuradoras · 4 unidades"] },
   { id: 9, title: "Compartimento 9", items: ["Inmovilizador de hombro · 1 unidad", "Manta térmica · 4 unidades", "Tiras reactivas · 1 bote", "Lancetas · 20 unidades", "Termómetro digital · 1 unidad", "Sutura cutánea de papel 100 × 12 mm · 5 unidades", "Sutura cutánea de papel 100 × 6 mm · 5 unidades"] },
-  { id: 10, title: "Compartimento 10", items: ["Apósito 7 × 2,5 · 4 unidades", "Apósito 10 × 8 · 4 unidades", "Apósito 20 × 8 · 4 unidades", "Bolsas de hielo · 4 unidades"] },
+  { id: 10, title: "Compartimento 10", items: ["Apósito 7 × 2,5 · 4 unidades", "Apósito 10 × 8 · 4 unidades", "Apósito 20 × 8 · 4 unidades", "Bolsas de hielo · 2 unidades", "Bolsa de calor · 1 unidad"] },
   { id: 11, title: "Compartimento 11", items: ["Cuña de cartón de un solo uso · 1 unidad", "Botella de cartón de un solo uso · 1 unidad", "Bolsa de basura · 1 paquete", "Bolsa para residuos GII · 1 rollo"] },
   { id: 12, title: "Seguridad y balizamiento", items: ["Extintor · 1 unidad", "Cinta de balizar · 1 unidad"] },
 ];

@@ -2,6 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SVB_LEFT_WALL_SECTIONS, sectionStatus } from "../src/svb-left-wall-data.mjs";
 
+test("anticorte gloves are a single three-pair entry and signaling cones are removed",()=>{
+  assert.deepEqual(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===3).items.filter(item=>item.startsWith("Guantes anticorte")),["Guantes anticorte · 3 pares"]);
+  assert.ok(SVB_LEFT_WALL_SECTIONS.every(section=>section.items.every(item=>!item.startsWith("Conos"))));
+});
+
 test("the real left wall defines its eight independent compartments",()=>{
   assert.deepEqual(SVB_LEFT_WALL_SECTIONS.map(({id})=>id),[1,2,3,4,5,7,8,9]);
   assert.ok(SVB_LEFT_WALL_SECTIONS.every(({items})=>items.length>0));
