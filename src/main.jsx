@@ -13,6 +13,7 @@ import { GUARD_HANDOFF_KEY, restoreGuardRecord, attachRecoveryToPendingRecord, g
 import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone, tsnuWarehouse } from "./unit-checklist-config.mjs";
 import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisibility, saveMaterialVisibility } from "./material-visibility.mjs";
 import { writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
+import { compareMaterialLabels } from "./material-order.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -83,7 +84,7 @@ const storedWorkerMaterialScope = () => {
 };
 // El stock utiliza la lista completa que puede registrar Material supervisor.
 const STOCK_DEMO_MATERIALS = [...MATERIALS].sort((a, b) =>
-  materialLabel(a).localeCompare(materialLabel(b), "es", { sensitivity: "base", numeric: true }),
+  compareMaterialLabels(a, b, materialLabel),
 );
 const stockLevel = (values = {}, defaultQuantity = 0) =>
   Object.fromEntries(
@@ -903,9 +904,7 @@ function App() {
           (isSupervisorMaterial(unit) || materialVisibility[m] !== false) &&
           materialLabel(m).toLowerCase().includes(search.toLowerCase()),
       ).sort((a, b) => {
-        const ga = /^(Guantes(?: estériles)?) (S|M|L|XL)(?: \(caja\))?$/.exec(a),
-          gb = /^(Guantes(?: estériles)?) (S|M|L|XL)(?: \(caja\))?$/.exec(b),
-          sa = /^Sonda de aspiración (\d+)$/.exec(a),
+        const sa = /^Sonda de aspiración (\d+)$/.exec(a),
           sb = /^Sonda de aspiración (\d+)$/.exec(b),
           sfa = /^Suerofisiológico(\d+)ml$/i.exec(a.replace(/\s+/g, "")),
           sfb = /^Suerofisiológico(\d+)ml$/i.exec(b.replace(/\s+/g, "")),
@@ -921,12 +920,9 @@ function App() {
           ),
           ma = /^Mascarilla ambu (0|0a|2|3\/4|5|6)$/i.exec(a),
           mb = /^Mascarilla ambu (0|0a|2|3\/4|5|6)$/i.exec(b),
-          sizes = { S: 0, M: 1, L: 2, XL: 3 },
           bagSizes = { pequeñas: 0, grandes: 1 },
           maskSizes = { 0: 0, "0a": 1, 2: 2, "3/4": 3, 5: 4, 6: 5 };
-        return ga && gb && ga[1] === gb[1]
-          ? sizes[ga[2]] - sizes[gb[2]]
-          : sa && sb
+        return sa && sb
             ? Number(sa[1]) - Number(sb[1])
             : sfa && sfb
               ? Number(sfa[1]) - Number(sfb[1])
@@ -942,10 +938,7 @@ function App() {
                     : ma && mb
                       ? maskSizes[ma[1].toLowerCase()] -
                         maskSizes[mb[1].toLowerCase()]
-                      : materialLabel(a).localeCompare(materialLabel(b), "es", {
-                          sensitivity: "base",
-                          numeric: true,
-                        });
+                      : compareMaterialLabels(a, b, materialLabel);
       }),
     [search, unit, materialVisibility],
   );
@@ -3455,7 +3448,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v208</span></h1>
+          <h1>Control de material <span className="app-version">v209</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4516,7 +4509,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v208", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v209", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -4536,7 +4529,7 @@ function App() {
                   warehouse={currentChecklistConfig.warehouse || tsnuWarehouse(currentUnit, localStorage.getItem(KEY.lot) || lot, currentChecklistConfig.zone || unitZone(currentUnit))}
                   assignedChecklist="TSNU"
                   production
-                  materials={MATERIALS.filter(m=>materialVisibility[m]!==false&&isTsnuMaterial(m)).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}))}
+                  materials={MATERIALS.filter(m=>materialVisibility[m]!==false&&isTsnuMaterial(m)).sort((a,b)=>compareMaterialLabels(a,b,materialLabel))}
                 />
               </React.Suspense>
             )}
@@ -5281,7 +5274,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=207", {
+    navigator.serviceWorker.register("./sw.js?v=209", {
       updateViaCache: "none",
     }),
   );
