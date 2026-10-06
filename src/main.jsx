@@ -106,11 +106,12 @@ const guardState = (u, shift, now = new Date()) => {
     makeDate = (d) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   if (isSupervisorMaterial(u)) {
     const start = new Date(now), end = new Date(now);
-    start.setHours(7, 0, 0, 0);
-    if (now < start) start.setDate(start.getDate() - 1);
+    // Las retiradas de Material Supervisor no siguen el turno de una unidad:
+    // se registran siempre por día natural.
+    start.setHours(0, 0, 0, 0);
     end.setTime(start.getTime());
     end.setDate(end.getDate() + 1);
-    return { active: true, start, end, code: makeCode(start), date: makeDate(start), label: "07:00–07:00" };
+    return { active: true, start, end, code: makeCode(start), date: makeDate(start), label: "00:00–24:00" };
   }
   if (!/^(07|08|09):00$/.test(shift || ""))
     return { active: false, reason: "Falta configurar la hora de inicio de guardia" };
@@ -713,7 +714,7 @@ function App() {
     await ensureAnonymousSession();
     const {data,error}=await supabase.rpc('recover_guard_consumption',{p_unit:displayUnit(targetUnit),p_lot:targetLot,p_guard_code:guard.code,p_occurred_at:guard.start.toISOString()});
     if(error) throw error;
-    const context={unit:targetUnit,serverUnit:displayUnit(targetUnit),lot:targetLot,code:guard.code,start:guard.start.toISOString(),date:guard.date,time:isSupervisorMaterial(targetUnit)?'07:00':localStorage.getItem(KEY.shift),warehouse:unitWarehouse(targetUnit)};
+    const context={unit:targetUnit,serverUnit:displayUnit(targetUnit),lot:targetLot,code:guard.code,start:guard.start.toISOString(),date:guard.date,time:isSupervisorMaterial(targetUnit)?'00:00':localStorage.getItem(KEY.shift),warehouse:unitWarehouse(targetUnit)};
     const currentRecords=getRecords();
     const hasPending=currentRecords.some(r=>r.unit===targetUnit && r.id===guard.code && !r.synced);
     const updated=hasPending ? attachRecoveryToPendingRecord(currentRecords,data,context) : restoreGuardRecord(currentRecords,data,context);
@@ -1051,7 +1052,7 @@ function App() {
         lot: localStorage.getItem(KEY.lot) || lot,
         warehouse: unitWarehouse(currentUnit),
         date: guard.date,
-        time: isSupervisorMaterial(currentUnit) ? "07:00" : localStorage.getItem(KEY.shift),
+        time: isSupervisorMaterial(currentUnit) ? "00:00" : localStorage.getItem(KEY.shift),
         createdAt: savedAt,
         updatedAt: savedAt,
         entries: [entry],
@@ -1308,6 +1309,7 @@ function App() {
   function openConsumptionCorrection() {
     const zone = adminAccess?.role === "supervisor" ? adminAccess.zone || "" : correctionZone;
     setCorrectionZone(zone);
+    setCorrectionDate(nowParts().date);
     setCorrectionRows([]);
     setCorrectionIncidentId("");
     setCorrectionMaterial("");
@@ -3453,7 +3455,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v207</span></h1>
+          <h1>Control de material <span className="app-version">v208</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3931,6 +3933,9 @@ function App() {
                 disabled={correctionLoading}
                 onChange={(e) => { setCorrectionDate(e.target.value); setCorrectionRows([]); }}
               />
+              <p className="muted" style={{ margin: "-4px 0 12px" }}>
+                Los consumos de Material Supervisor se registran por día natural (00:00–24:00).
+              </p>
               <button className="secondary full" onClick={loadCorrectableConsumptions} disabled={correctionLoading}>
                 {correctionLoading ? "Consultando..." : "Buscar consumos"}
               </button>
@@ -4511,7 +4516,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v207", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v208", window.location.href).href);
                 }}>
                   Checklist
                 </button>
