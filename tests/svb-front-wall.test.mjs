@@ -1,6 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {SVB_FRONT_WALL_SECTIONS,frontSectionItems,frontSectionStatus} from "../src/svb-front-wall-data.mjs";
+test("front burns kit includes all nine supplied materials with one unit each",()=>{
+  const section=SVB_FRONT_WALL_SECTIONS.find(({id})=>id===2);
+  const kit=section.groups.find(({title})=>title==="Kit de quemados");
+  assert.equal(kit.items.length,9);
+  for(const size of ["10 × 10","20 × 20","20 × 45"])assert.ok(kit.items.some(item=>item.includes(size)));
+  assert.ok(kit.items.every(item=>item.endsWith("· 1 unidad")||item.endsWith("· 1 par")));
+  assert.ok(kit.items.some(item=>item.includes("talla L · 1 par")));
+  assert.equal(section.groups.find(({title})=>title==="Material general").items.some(item=>item.startsWith("Kit de quemados")),false);
+});
 test("the front wall defines every visual zone",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.map(({id})=>id),[1,2,3,4,5,6,7,8,9,10,11,12,13]));
 test("the only undefined drawer cannot be completed accidentally",()=>assert.equal(frontSectionStatus(SVB_FRONT_WALL_SECTIONS.find((row)=>row.id===3),{}),"undefined"));
 test("front drawers seven and eight contain their assigned material",()=>{

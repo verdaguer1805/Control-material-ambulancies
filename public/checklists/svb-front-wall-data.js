@@ -1,7 +1,8 @@
 export const SVB_FRONT_WALL_SECTIONS = [
   { id: 1, title: "Compartimento 1", items: ["Balón resucitador neonatal con reservorio · 1 unidad", "Mascarilla facial nº 0 · 1 unidad", "Mascarilla facial con orificio · 1 unidad", "Filtro · 1 unidad", "Válvula PEEP · 1 unidad", "Alargadera de oxígeno de 2 m · 1 unidad"] },
   { id: 2, title: "Compartimento 2", groups: [
-    { title: "Material general", items: ["Kit de quemados · 1 unidad", "Soporte de bombas · 1 unidad"] },
+    { title: "Material general", items: ["Soporte de bombas · 1 unidad"] },
+    { title: "Kit de quemados", items: ["Compresa estéril Burnshield 10 × 10 cm · 1 unidad", "Compresa estéril Burnshield 20 × 20 cm · 1 unidad", "Bolsa de frío Pack Sport 14 × 19 cm · 1 unidad", "Compresa estéril Burnshield 20 × 45 cm · 1 unidad", "Hidrogel Burnshield 50 ml · 1 unidad", "Venda estéril para quemados 60 × 40 cm · 1 unidad", "Venda elástica cohesiva Vendari 10 cm × 4 m · 1 unidad", "Bolsa azul para kit de quemados · 1 unidad", "Guantes de nitrilo estériles sin polvo · talla L · 1 par"] },
     { title: "Bolsa de resucitación de adulto", items: ["Balón resucitador de adulto con reservorio · 1 unidad", "Mascarilla facial de adulto nº 2 · 1 unidad", "Mascarilla facial de adulto nº 3/4 · 1 unidad", "Mascarilla facial de adulto nº 5 · 1 unidad", "Mascarilla facial de adulto nº 6 · 1 unidad", "Filtro · 1 unidad", "Alargadera de oxígeno de 2 m · 1 unidad"] },
     { title: "Bolsa de reposición del monitor", items: ["Parche de desfibrilación de adulto · 2 unidades", "Parche de desfibrilación pediátrico · 1 unidad", "Electrodos de monitorización adulto/pediátrico · 2 bolsas", "Rasuradora de un solo uso · 1 unidad", "Sensor adulto SpCO · 1 unidad", "Sensor pediátrico SpCO · 1 unidad"] },
     { title: "Bolsa de mascarillas", items: ["Mascarillas quirúrgicas · 10 unidades", "Mascarillas de protección FFP2 · 4 unidades", "Mascarillas de protección FFP3 · 4 unidades"] }
