@@ -8,7 +8,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "Guantes de nitrilo sin polvo · talla S", "Guantes de nitrilo sin polvo · talla M",
     "Guantes de nitrilo sin polvo · talla L", "Guantes de nitrilo sin polvo · talla XL",
     "Guantes esteriles · talla S · 1 par", "Guantes esteriles · talla M · 1 par", "Guantes esteriles · talla L · 1 par",
-    "Cinta americana · 1 unidad", "Cubrebotas · 4 unidades"
+    "Cinta americana · 1 unidad", "Cubrebotas · 2 unidades"
   ] },
   { id: 3, title: "Compartimento 3", items: [
     "Chaqueta anticorte · talla S · 1 unidad", "Chaqueta anticorte · talla M · 1 unidad", "Chaqueta anticorte · talla L · 1 unidad",
@@ -18,7 +18,13 @@ export const SVB_LEFT_WALL_SECTIONS = [
   { id: 5, title: "Compartimento 5", items: [
     "Correas de anclaje de guias · 2 unidades", "Correa para perro guia · 1 unidad", "Kit antipinchazos · 1 unidad",
     "Cadenas de nieve · 2 unidades", "Spray verde · 1 unidad",
-    "Spray amarillo · 1 unidad", "Spray rojo · 1 unidad", "Bolsa IMA"
+    "Spray amarillo · 1 unidad", "Spray rojo · 1 unidad", "Bolsa IMA",
+    "Bolsa IMA — Torniquete · 2 unidades",
+    "Bolsa IMA — Cánula Guedel nº 3 · 2 unidades", "Bolsa IMA — Cánula Guedel nº 4 · 2 unidades",
+    "Bolsa IMA — Chaleco responsable de aparcamiento de ambulancias (K3) · 1 unidad",
+    "Bolsa IMA — Funda de casco K3 · 1 unidad", "Bolsa IMA — Chaleco responsable sanitario (K0) · 1 unidad",
+    "Bolsa IMA — Lanyards verdes · 20 unidades", "Bolsa IMA — Lanyards amarillos · 10 unidades",
+    "Bolsa IMA — Lanyards rojos · 10 unidades", "Bolsa IMA — Lanyards negros · 5 unidades"
   ] },
   { id: 7, title: "Compartimento 7", items: [
     "Empapador", "Toallas de papel", "Pañal · 1 unidad", "Gorro para recien nacido · 1 unidad", "Manta termica neonatal · 1 unidad",
@@ -28,13 +34,17 @@ export const SVB_LEFT_WALL_SECTIONS = [
   ] },
   { id: 8, title: "Compartimento 8", items: [
     "Tensiometro digital · 1 unidad", "Manguito infantil para tensiometro · 1 unidad", "Equipo de infusion para seroterapia · 1 unidad",
-    "Detector de monoxido para alumno en practicas · 1 unidad"
+    "Detector de monoxido para alumno en practicas · 1 unidad", "Manguito adulto 42–57 cm para tensiómetro · 1 unidad"
   ] },
   { id: 9, title: "Compartimento 9", items: [
     "Sonda de aspiracion controlada nº 6 · 2 unidades", "Sonda de aspiracion controlada nº 8 · 2 unidades",
     "Sonda de aspiracion controlada nº 10 · 2 unidades", "Sonda de aspiracion controlada nº 12 · 2 unidades",
     "Sonda de aspiracion controlada nº 14 · 2 unidades", "Sonda de aspiracion controlada nº 16 · 2 unidades",
-    "Sonda de aspiracion controlada nº 18 · 2 unidades", "Canula Yankauer · 4 unidades", "Bolsa de aspirador de un solo uso · 3 unidades"
+    "Sonda de aspiracion controlada nº 18 · 2 unidades", "Canula Yankauer · 3 unidades", "Bolsa de aspirador de un solo uso · 3 unidades"
+  ] },
+  { id: 10, title: "Bolsa de férulas", items: [
+    "Férula Kramer · 3 unidades", "Funda para férula Kramer · 3 unidades",
+    "Férula maleable digital · 2 unidades", "Férula maleable braquial · 2 unidades"
   ] }
 ];
 

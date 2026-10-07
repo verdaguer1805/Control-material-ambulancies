@@ -1,6 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {SVB_FRONT_WALL_SECTIONS,frontSectionItems,frontSectionStatus} from "../src/svb-front-wall-data.mjs";
+test("front oxygen quantities and corrected trauma material follow the new configuration",()=>{
+  const items=id=>frontSectionItems(SVB_FRONT_WALL_SECTIONS.find(row=>row.id===id));
+  assert.ok(!items(1).some(item=>item.includes("PEEP")));
+  assert.ok(items(5).includes("Mascarilla de oxígeno de adulto · 4 unidades"));
+  assert.ok(items(5).includes("Mascarilla de oxígeno de adulto con reservorio · 3 unidades"));
+  assert.ok(items(5).includes("Mascarilla nebulizadora adulta · 1 unidad"));
+  assert.ok(items(6).includes("Mascarilla de oxígeno pediátrica · 2 unidades"));
+  assert.ok(items(6).includes("Gafas nasales pediátricas · 1 unidad"));
+  assert.ok(items(10).includes("Inmovilizador de hombro · 1 unidad"));
+  assert.ok(!items(10).some(item=>item.includes("espátula")));
+});
 test("front burns kit includes all nine supplied materials with one unit each",()=>{
   const section=SVB_FRONT_WALL_SECTIONS.find(({id})=>id===2);
   const kit=section.groups.find(({title})=>title==="Kit de quemados");
