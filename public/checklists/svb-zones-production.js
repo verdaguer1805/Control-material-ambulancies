@@ -4,7 +4,7 @@ import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right
 import{cabinStatus}from"./svb-cabin-data.js";
 import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js";
 
-document.querySelector(".head h1 small").textContent="v212";
+document.querySelector(".head h1 small").textContent="v213";
 
 const SUPABASE_URL="https://dfnywetqnccykzjyihzq.supabase.co",SUPABASE_KEY="sb_publishable_fjxFCzJNnWQLar26ObYgRw_oK9w3yDI";
 const byId=id=>document.getElementById(id),read=key=>{try{return JSON.parse(localStorage.getItem(key)||"{}")}catch{return{}}};

@@ -28,7 +28,8 @@ export const SVB_LEFT_WALL_SECTIONS = [
       "Guantes estériles · talla M · 1 par",
       "Guantes estériles · talla L · 1 par",
       "Cinta americana · 1 unidad",
-      "Cubrebotas · 2 unidades"
+      "Cubrebotas · 2 unidades",
+      "Gafas de protección · 3 unidades"
     ]
   },
   {

@@ -8,7 +8,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "Guantes de nitrilo sin polvo · talla S", "Guantes de nitrilo sin polvo · talla M",
     "Guantes de nitrilo sin polvo · talla L", "Guantes de nitrilo sin polvo · talla XL",
     "Guantes esteriles · talla S · 1 par", "Guantes esteriles · talla M · 1 par", "Guantes esteriles · talla L · 1 par",
-    "Cinta americana · 1 unidad", "Cubrebotas · 2 unidades"
+    "Cinta americana · 1 unidad", "Cubrebotas · 2 unidades", "Gafas de protección · 3 unidades"
   ] },
   { id: 3, title: "Compartimento 3", items: [
     "Chaqueta anticorte · talla S · 1 unidad", "Chaqueta anticorte · talla M · 1 unidad", "Chaqueta anticorte · talla L · 1 unidad",

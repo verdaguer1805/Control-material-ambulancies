@@ -33,6 +33,7 @@ test("the physical fifth drawer keeps loose material and details the IMA bag",()
 
 test("updated left quantities include two shoe covers, three Yankauer and adult cuff",()=>{
   assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===2).items.includes("Cubrebotas · 2 unidades"));
+  assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===2).items.includes("Gafas de protección · 3 unidades"));
   assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===9).items.includes("Canula Yankauer · 3 unidades"));
   assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===8).items.includes("Manguito adulto 42–57 cm para tensiómetro · 1 unidad"));
 });

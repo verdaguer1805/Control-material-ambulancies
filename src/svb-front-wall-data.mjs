@@ -9,9 +9,9 @@ export const SVB_FRONT_WALL_SECTIONS = [
   ] },
   { id: 3, title: "Compartimento 3", pendingDefinition: true, items: [] },
   { id: 4, title: "Compartimento 4", items: ["Cánula Guedel nº 00 · 2 unidades", "Cánula Guedel nº 0 · 2 unidades", "Cánula Guedel nº 1 · 2 unidades", "Cánula Guedel nº 1,5 · 3 unidades", "Cánula Guedel nº 2 · 3 unidades", "Cánula Guedel nº 3 · 3 unidades", "Cánula Guedel nº 4 · 3 unidades", "Cánula Guedel nº 5 · 3 unidades", "Filtro respiratorio · 2 unidades"] },
-  { id: 5, title: "Compartimento 5", items: ["Mascarilla de oxígeno de adulto · 4 unidades", "Mascarilla de oxígeno de adulto con reservorio · 3 unidades", "Gafas nasales · 4 unidades", "Mascarilla nebulizadora adulta · 1 unidad"] },
-  { id: 6, title: "Compartimento 6", items: ["Mascarilla de oxígeno pediátrica · 2 unidades", "Mascarilla de oxígeno pediátrica con reservorio · 2 unidades", "Alargadera de oxígeno · 5 unidades", "Gafas nasales pediátricas · 1 unidad"] },
-  { id: 7, title: "Compartimento 7", items: ["Bolsa para vómito · 10 unidades", "Kit de vías · 1 unidad"] },
+  { id: 5, title: "Compartimento 5", items: ["Mascarilla de oxígeno de adulto · 4 unidades", "Mascarilla de oxígeno de adulto con reservorio · 4 unidades"] },
+  { id: 6, title: "Compartimento 6", items: ["Mascarilla de oxígeno pediátrica · 2 unidades", "Mascarilla de oxígeno pediátrica con reservorio · 2 unidades", "Alargadera de oxígeno · 5 unidades", "Gafas nasales pediátricas · 1 unidad", "Mascarilla nebulizadora pediátrica · 1 unidad"] },
+  { id: 7, title: "Compartimento 7", items: ["Bolsa para vómito · 10 unidades", "Kit de vías · 1 unidad", "Gafas nasales · 4 unidades", "Mascarilla nebulizadora adulta · 1 unidad"] },
   { id: 8, title: "Compartimento 8", items: ["Suero fisiológico 500 ml · 2 unidades"] },
   { id: 9, title: "Compartimento 9", items: ["Productos de limpieza", "Bomba de vacío manual · 1 unidad"] },
   { id: 10, title: "Maleta de primera intervención", groups: [
@@ -27,7 +27,7 @@ export const SVB_FRONT_WALL_SECTIONS = [
   ] },
   { id: 11, title: "Bolsa detrás del Schiller", items: ["Collarines multitalla de adulto · 3 unidades", "Collarines multitalla pediátricos · 2 unidades", "Faja pélvica · 1 unidad"] },
   { id: 12, title: "Material de inmovilización y oxígeno", items: ["Tabla espinal", "Camilla de cuchara", "Botella de oxígeno · 2 unidades"] },
-  { id: 13, title: "Schiller", items: ["Prueba diaria de usuario realizada"] }
+  { id: 13, title: "Schiller", items: ["Prueba diaria de usuario realizada","Electrodos de monitorización · 1 bolsa","Parche de desfibrilación de adulto Schiller · 2 unidades","Parche de desfibrilación pediátrico Schiller · 1 unidad","Rasuradora de un solo uso · 1 unidad","Cable ECG de 4 derivaciones · 1 unidad","Cable ECG de 12 derivaciones · 1 unidad","Cable de pulsioximetría · 1 unidad","Manguito de tensión arterial adulto · 1 unidad","Manguito de tensión arterial pediátrico · 1 unidad","Manguito de tensión arterial para adulto obeso · 1 unidad","Manguito de tensión arterial neonatal · 1 unidad"] }
 ];
 
 export function frontSectionItems(section) { return section.groups ? section.groups.flatMap((group) => group.items) : section.items; }
