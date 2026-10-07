@@ -14,6 +14,7 @@ import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, 
 import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisibility, saveMaterialVisibility } from "./material-visibility.mjs";
 import { writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
 import { compareMaterialLabels } from "./material-order.mjs";
+import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -1033,6 +1034,10 @@ function App() {
     const savedAt = new Date().toISOString(),
       entry = { createdAt: savedAt, materials: used };
     if (rec) {
+      if (isSupervisorMaterial(currentUnit)) {
+        rec.guardOccurredAt ||= guard.start.toISOString();
+        rec.time = madridDateTime(savedAt).time;
+      }
       rec.entries = [entry];
       rec.recoveredBaseline = false;
       rec.updatedAt = savedAt;
@@ -1045,7 +1050,8 @@ function App() {
         lot: localStorage.getItem(KEY.lot) || lot,
         warehouse: unitWarehouse(currentUnit),
         date: guard.date,
-        time: isSupervisorMaterial(currentUnit) ? "00:00" : localStorage.getItem(KEY.shift),
+        time: isSupervisorMaterial(currentUnit) ? madridDateTime(savedAt).time : localStorage.getItem(KEY.shift),
+        guardOccurredAt: guard.start.toISOString(),
         createdAt: savedAt,
         updatedAt: savedAt,
         entries: [entry],
@@ -1257,21 +1263,7 @@ function App() {
       setSystemStatusLoading(false);
     }
   }
-  const mapAdminRecords = (data) =>
-    data.map((r) => {
-      const d = new Date(r.occurred_at);
-      return {
-        id: r.incident_code,
-        unit: r.unit,
-        warehouse: r.warehouse,
-        date: d.toISOString().slice(0, 10),
-        time: d.toTimeString().slice(0, 5),
-        createdAt: r.created_at,
-        updatedAt: r.updated_at || r.created_at,
-        entries: [{ createdAt: r.created_at, materials: r.materials || {} }],
-        synced: true,
-      };
-    });
+  const mapAdminRecords = mapReportRecords;
   async function loadSelectedAdminRecords() {
     const [reportResult, tsnuResult] = await Promise.all([
         supabase.rpc("get_admin_report_data", {
@@ -1293,7 +1285,7 @@ function App() {
       incidents = Array.isArray(reportData.incidents) ? reportData.incidents : [],
       unique = [...new Map(incidents.map((row) => [row.id, row])).values()];
     return {
-      records: mapAdminRecords(unique),
+      records: mapAdminRecords(unique, Array.isArray(reportData.submissions) ? reportData.submissions : []),
       submissions: Array.isArray(reportData.submissions) ? reportData.submissions : [],
       svbChecklists: Array.isArray(reportData.svb_checklists) ? reportData.svb_checklists : [],
       tsnu: tsnuResult.data || { shifts: [], withdrawals: [] },
@@ -2488,25 +2480,14 @@ function App() {
         });
       currentDay.setDate(currentDay.getDate() + 1);
     }
-    // Un unico resumen diario por Material Supervisor. Las distintas retiradas
-    // del mismo dia se conservan en Supabase, pero no aparecen separadas en el
-    // informe: se muestra el total agregado de la jornada.
-    const supervisorDeliveries = [];
-    selected
-      .filter((record) => /^Material supervisor · /i.test(record.unit))
-      .forEach((record) => {
-        Object.entries(aggregate(record))
-          .sort(([a], [b]) => a.localeCompare(b, "es", { sensitivity: "base" }))
-          .forEach(([material, quantity]) =>
-            supervisorDeliveries.push({
-              "Fecha de guardia": record.date,
-              Supervisor: record.unit,
-              Almacén: reportWarehouse(record.warehouse),
-              Material: materialLabel(material),
-              "Cantidad total del día": Number(quantity),
-            }),
-          );
-      });
+    // Cada cambio conserva su fecha y hora reales; un reenvío sin cambios
+    // no vuelve a sumar consumos. El resumen diario se mantiene en Resumen.
+    const supervisorDeliveries = supervisorReportEvents(submissions, exportZone, exportFrom, exportTo)
+      .map(event => ({
+        Fecha: event.date, Hora: event.time, Supervisor: event.unit,
+        Almacén: reportWarehouse(event.warehouse), Material: materialLabel(event.material),
+        "Cantidad registrada": event.quantity
+      }));
     detail.sort((a, b) =>
       String(a["Fecha de guardia"] || "").localeCompare(String(b["Fecha de guardia"] || "")) ||
       compareUnits(a.Unidad, b.Unidad) ||
@@ -3449,7 +3430,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v213</span></h1>
+          <h1>Control de material <span className="app-version">v214</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4510,7 +4491,7 @@ function App() {
                 <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
                   if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
                   localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v213", window.location.href).href);
+                  window.location.assign(new URL("./svb-zones.html?from=pwa-v214", window.location.href).href);
                 }}>
                   Checklist
                 </button>
@@ -5275,7 +5256,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=213", {
+    navigator.serviceWorker.register("./sw.js?v=214", {
       updateViaCache: "none",
     }),
   );
