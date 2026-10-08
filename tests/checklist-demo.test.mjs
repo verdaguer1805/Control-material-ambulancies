@@ -45,11 +45,11 @@ test('a stale screen date cannot close a TSNU shift started today',()=>{
  const answers=Object.fromEntries(TSNU_CHECKLIST_ITEMS.map(m=>[m,'ok']));
  const completed=completeDemo({...base,service:'TSNU',vehicleType:'TSNU',sessionId:'same-day',date:'2026-09-30',startedAt:'2026-10-02T04:55:09.936Z',answers});
  assert.equal(shouldAutoCloseTsnuShift(completed,new Date('2026-10-02T12:02:42.917Z')),false);
- assert.equal(shouldAutoCloseTsnuShift(completed,new Date('2026-10-03T00:01:00+02:00')),true);
+ assert.equal(shouldAutoCloseTsnuShift(completed,new Date(2026,9,3,0,1)),true);
 });
 test('an incomplete previous TSNU checklist closes as not completed without blocking the next guard',()=>{
  const incomplete={...base,service:'TSNU',vehicleType:'TSNU',sessionId:'forgotten',date:'2026-10-01',startedAt:'2026-10-01T07:00:00+02:00',answers:{},completed:false};
- const now=new Date('2026-10-02T00:01:00+02:00');
+ const now=new Date(2026,9,2,0,1);
  assert.equal(shouldAutoCloseTsnuShift(incomplete,now),true);
  const closed=closeTsnuShiftAutomatically(incomplete,now);
  assert.equal(closed.completed,false);
