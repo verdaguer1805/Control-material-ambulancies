@@ -15,6 +15,7 @@ import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisi
 import { writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
 import { compareMaterialLabels } from "./material-order.mjs";
 import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
+import { svbAssignedGuard } from "./svb-guard-window.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -1017,7 +1018,9 @@ function App() {
     const used = noMaterial
       ? {}
       : Object.fromEntries(Object.entries(quantities).filter(([, n]) => n > 0));
-    if (!Object.keys(used).length && !noMaterial)
+    const previousRecord = getRecords().find((r) => r.id === id && r.unit === currentUnit);
+    const hasExistingConsumption = previousRecord && (previousRecord.serverIncidentId || !previousRecord.recoveredBaseline || Object.keys(aggregate(previousRecord)).length);
+    if (!Object.keys(used).length && !noMaterial && !hasExistingConsumption)
       return flash("No hay material seleccionado; no es necesario enviar");
     const canSendRealData = deviceAuth.checked
       ? deviceAuth.authorized
@@ -1034,6 +1037,7 @@ function App() {
     const savedAt = new Date().toISOString(),
       entry = { createdAt: savedAt, materials: used };
     if (rec) {
+      if (rec.synced && !rec.serverMaterials) rec.serverMaterials = aggregate(rec);
       if (isSupervisorMaterial(currentUnit)) {
         rec.guardOccurredAt ||= guard.start.toISOString();
         rec.time = madridDateTime(savedAt).time;
@@ -1077,6 +1081,7 @@ function App() {
       const { error } = await supabase.rpc(request.name,request.args);
       if (error) throw error;
       rec.synced = true;
+      rec.serverMaterials = { ...used };
       rec.pendingUpdate = false;
       saveRecords(list);
       setRecords([...list]);
@@ -1097,7 +1102,7 @@ function App() {
       saveRecords(list);
       setRecords([...list]);
       setStatus("queued");
-      flash(/RECOVERY|STALE_GUARD|MULTIPLE_ACTIVE|GUARD_START|CLIENT_UPGRADE/.test(String(error?.message || '')) ? recoveryErrorMessage(error) : "No se ha podido enviar: consumo guardado en el móvil",5000);
+      flash(/RECOVERY|STALE_GUARD|MULTIPLE_ACTIVE|GUARD_START|CLIENT_UPGRADE|CONSUMPTION_CHANGED/.test(String(error?.message || '')) ? recoveryErrorMessage(error) : "No se ha podido enviar: consumo guardado en el móvil",5000);
     }
     } finally { consumptionOperationRef.current=false; }
   }
@@ -1125,6 +1130,7 @@ function App() {
         const request=guardSaveRequest(rec,displayUnit(rec.unit),rec.warehouse || unitWarehouse(rec.unit));
         const { error } = await supabase.rpc(request.name,request.args);
         if (error) throw error;
+        rec.serverMaterials = { ...request.args.p_materials };
       });
       saveRecords(list);
       setRecords([...list]);
@@ -1200,10 +1206,19 @@ function App() {
     if (!/^\d{4}$/.test(normalized)) return flash("La rotulación debe tener exactamente 4 cifras");
     const guard = guardState(currentUnit, localStorage.getItem(KEY.shift));
     writeSvbVehicleAssignment(localStorage, displayUnit(currentUnit), normalized);
-    localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: guard?.code || "", lot: currentLot, zone: config.zone || unitZone(currentUnit), checklist: "SVB" }));
+    localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: guard?.code || "", guardStartedAt: guard?.start?.toISOString?.(), guardEndsAt: guard?.end?.toISOString?.(), lot: currentLot, zone: config.zone || unitZone(currentUnit), checklist: "SVB" }));
     setSvbVehicleChangeOpen(false);
     setSvbVehicleNewLabel("");
     flash(`Vehículo ${normalized} seleccionado. Su checklist queda separado del anterior.`, 5000);
+  }
+  function openSvbChecklist() {
+    const assignedUnit = localStorage.getItem(KEY.unit), assignedLot = localStorage.getItem(KEY.lot) || lot;
+    const config = readUnitChecklist(localStorage, assignedUnit, assignedLot);
+    if (config.checklist !== "SVB") return flash("Próximamente");
+    const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
+    if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
+    localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v215", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -2562,7 +2577,8 @@ function App() {
           "Inicio de guardia": new Date(checklist.guard_started_at).toLocaleTimeString("es-ES", {hour:"2-digit",minute:"2-digit"}),
           Unidad: checklist.unit,
           Vehículo: checklist.vehicle_label,
-          "Hora de checklist": new Date(checklist.submitted_at).toLocaleTimeString("es-ES", {hour:"2-digit",minute:"2-digit"}),
+          "Fecha de envío": madridDateTime(checklist.submitted_at).date,
+          "Hora de checklist": madridDateTime(checklist.submitted_at).time,
           Estado: issues.length ? "Con incidencia" : "Correcto",
           "Zona izquierda": zoneState("left"),
           "Zona frontal": zoneState("front"),
@@ -3430,7 +3446,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v214</span></h1>
+          <h1>Control de material <span className="app-version">v215</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4488,11 +4504,7 @@ function App() {
           <>
             {!isSupervisorMaterial(currentUnit) && currentChecklistConfig.service !== 'TSNU' && (
               <div className="card">
-                <button type="button" disabled={!currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => {
-                  if (currentChecklistConfig.checklist !== "SVB") return flash("Próximamente");
-                  localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: currentGuard?.code || "", guardStartedAt: currentGuard?.start?.toISOString?.() || new Date().toISOString(), lot: localStorage.getItem(KEY.lot) || lot, zone: currentChecklistConfig.zone || unitZone(currentUnit), checklist: "SVB" }));
-                  window.location.assign(new URL("./svb-zones.html?from=pwa-v214", window.location.href).href);
-                }}>
+                <button type="button" disabled={currentChecklistConfig.checklist === "SVB" ? !svbAssignedGuard(localStorage.getItem(KEY.shift), new Date(guardTick)) : !currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => openSvbChecklist()}>
                   Checklist
                 </button>
                 {currentChecklistConfig.checklist === "SVB" && (
@@ -5256,7 +5268,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=214", {
+    navigator.serviceWorker.register("./sw.js?v=215", {
       updateViaCache: "none",
     }),
   );
