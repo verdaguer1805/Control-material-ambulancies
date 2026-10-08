@@ -1,11 +1,11 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=219";
-import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=219";
-import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=219";
-import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=219";
-import{cabinStatus}from"./svb-cabin-data.js?v=219";
-import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=219";
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=220";
+import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=220";
+import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=220";
+import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=220";
+import{cabinStatus}from"./svb-cabin-data.js?v=220";
+import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=220";
 
-document.querySelector(".head h1 small").textContent="v219";
+document.querySelector(".head h1 small").textContent="v220";
 
 const SUPABASE_URL="https://dfnywetqnccykzjyihzq.supabase.co",SUPABASE_KEY="sb_publishable_fjxFCzJNnWQLar26ObYgRw_oK9w3yDI";
 const byId=id=>document.getElementById(id),read=key=>{try{return JSON.parse(localStorage.getItem(key)||"{}")}catch{return{}}};
