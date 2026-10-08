@@ -25,6 +25,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Comprova la visibilitat dels materials
         run: npm run test:materials
+      - name: Bloqueja versions incoherents i regressions abans de publicar
+        run: npm run test:release
       - name: Compila l'aplicació
         run: npm run build
       - name: Prepara GitHub Pages
