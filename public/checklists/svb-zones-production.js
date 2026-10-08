@@ -1,11 +1,11 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus}from"./svb-left-wall-data.js";
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js";
 import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus}from"./svb-front-wall-data.js";
 import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js";
 import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js";
 import{cabinStatus}from"./svb-cabin-data.js";
 import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js";
 
-document.querySelector(".head h1 small").textContent="v216";
+document.querySelector(".head h1 small").textContent="v217";
 
 const SUPABASE_URL="https://dfnywetqnccykzjyihzq.supabase.co",SUPABASE_KEY="sb_publishable_fjxFCzJNnWQLar26ObYgRw_oK9w3yDI";
 const byId=id=>document.getElementById(id),read=key=>{try{return JSON.parse(localStorage.getItem(key)||"{}")}catch{return{}}};
@@ -14,7 +14,7 @@ const context=read("cma_svb_checklist_context_v1"),scope=`${context.unit||"TSU"}
 let vehicle=readSvbVehicleAssignment(localStorage,context.unit,context.guardCode);
 const draftKey=zone=>`cma_svb_${zone}_${zone==="right"?"zone":"wall"}_mobile_test_v1:${scope}:${vehicle}`;
 const zoneAnswers=zone=>read(draftKey(zone));
-function state(zone){const answers=zoneAnswers(zone);if(zone==="cabin")return cabinStatus(answers);const sections=zone==="left"?leftSections:zone==="front"?frontSections.filter(s=>!s.pendingDefinition):rightSections,status=zone==="left"?sectionStatus:zone==="front"?frontSectionStatus:rightZoneStatus,values=sections.map(s=>status(s,answers));return !values.length||values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}
+function state(zone){const answers=zoneAnswers(zone);if(zone==="cabin")return cabinStatus(answers);const sections=zone==="left"?leftRequiredSections(leftSections,answers,Boolean(localStorage.getItem(`cma_svb_submitted_v1:${scope}:${vehicle}`))):zone==="front"?frontSections.filter(s=>!s.pendingDefinition):rightSections,status=zone==="left"?sectionStatus:zone==="front"?frontSectionStatus:rightZoneStatus,values=sections.map(s=>status(s,answers));return !values.length||values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}
 function paint(id,value){const el=byId(id);el.classList.remove("pending","ok","issue");el.classList.add(value)}
 const SESSION_KEY="sb-dfnywetqnccykzjyihzq-auth-token";
 function storedSession(){try{const value=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");return{root:value,session:value?.currentSession||value}}catch{return{root:null,session:null}}}

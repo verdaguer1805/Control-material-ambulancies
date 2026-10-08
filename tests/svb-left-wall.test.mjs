@@ -1,15 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SVB_LEFT_WALL_SECTIONS, sectionStatus } from "../src/svb-left-wall-data.mjs";
+import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from "../src/svb-left-wall-data.mjs";
 
 test("anticorte gloves are a single three-pair entry and signaling cones are removed",()=>{
   assert.deepEqual(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===3).items.filter(item=>item.startsWith("Guantes anticorte")),["Guantes anticorte · 3 pares"]);
   assert.ok(SVB_LEFT_WALL_SECTIONS.every(section=>section.items.every(item=>!item.startsWith("Conos"))));
 });
 
-test("the real left wall defines its nine independent compartments",()=>{
-  assert.deepEqual(SVB_LEFT_WALL_SECTIONS.map(({id})=>id),[1,2,3,4,5,7,8,9,10]);
+test("the real left wall includes the new aspirator compartment",()=>{
+  assert.deepEqual(SVB_LEFT_WALL_SECTIONS.map(({id})=>id),[1,2,3,4,5,7,8,9,10,11]);
   assert.ok(SVB_LEFT_WALL_SECTIONS.every(({items})=>items.length>0));
+});
+
+test("aspirator is required for unsent and new guards but confirmed historical checklists are preserved",()=>{
+  assert.ok(leftRequiredSections(SVB_LEFT_WALL_SECTIONS,{},false).some(s=>s.id===11));
+  assert.ok(!leftRequiredSections(SVB_LEFT_WALL_SECTIONS,{},true).some(s=>s.id===11));
+  assert.ok(leftRequiredSections(SVB_LEFT_WALL_SECTIONS,{11:{Aspirador:'issue'}},true).some(s=>s.id===11));
 });
 
 test("new compartment ten contains the splint bag with printed quantities",()=>{

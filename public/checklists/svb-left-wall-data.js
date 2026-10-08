@@ -131,10 +131,15 @@ export const SVB_LEFT_WALL_SECTIONS = [
       "Férula maleable braquial · 2 unidades"
     ]
   }
+  , { id: 11, title: "Aspirador", items: ["Aspirador"] }
 ];
 export function sectionStatus(section, answers) {
   const values = section.items.map(item => answers?.[section.id]?.[item]);
   if (!values.every(value => value === "ok" || value === "issue")) return "pending";
   return values.includes("issue") ? "issue" : "ok";
+}
+
+export function leftRequiredSections(sections, answers, confirmed) {
+  return sections.filter(section => section.id !== 11 || !confirmed || Object.hasOwn(answers || {}, '11'));
 }
 

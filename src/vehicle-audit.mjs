@@ -29,6 +29,11 @@ export function auditComplete(draft) {
   const items = draft?.catalog || [];
   return validAuditVehicle(draft?.vehicle) && ['TSNU','SVB'].includes(draft?.type) && items.length > 0 && items.every(item => ['ok','issue'].includes(draft.answers?.[item.id]));
 }
+export function refreshPendingAudit(draft) {
+  if (draft.confirmedAt) return draft;
+  const known=new Set(draft.catalog.map(item=>item.id));
+  return {...draft,catalog:[...draft.catalog,...auditItems(draft.type).filter(item=>!known.has(item.id))]};
+}
 export function markAuditGroupCorrect(draft, groupId) {
   const answers = {...draft.answers};
   for (const item of draft.catalog.filter(item => item.id.startsWith(`${groupId}:`))) {

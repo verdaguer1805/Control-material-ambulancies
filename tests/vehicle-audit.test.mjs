@@ -1,15 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {AUDIT_STORAGE_KEY, auditGroups,auditItems,auditComplete,auditRequest,markAuditGroupCorrect,normalizeAuditVehicle,validAuditVehicle,isAuditSupervisor,saveAudit,readAudits} from '../src/vehicle-audit.mjs';
+import {AUDIT_STORAGE_KEY, auditGroups,auditItems,auditComplete,auditRequest,markAuditGroupCorrect,normalizeAuditVehicle,validAuditVehicle,isAuditSupervisor,saveAudit,readAudits,refreshPendingAudit} from '../src/vehicle-audit.mjs';
 import {TSNU_CHECKLIST_ITEMS} from '../src/checklist-demo.mjs';
 import {SVB_FRONT_WALL_SECTIONS,frontSectionItems} from '../src/svb-front-wall-data.mjs';
+import {SVB_PHOTO_LAYOUT} from '../src/svb-photo-layout.mjs';
+
+test('SVB audit photos and marker positions match the operational unit checklist',()=>{
+ for(const [zone,file] of [['left','svb-preview.html'],['front','svb-front-preview.html'],['right','svb-right-preview.html']]){
+  const html=fs.readFileSync(new URL(`../public/${file}`,import.meta.url),'utf8');
+  const literal=html.match(/const pos=\{([^}]+)\}/)[1];
+  const positions=Object.fromEntries([...literal.matchAll(/(\d+):\[([\d.]+),([\d.]+)\]/g)].map(match=>[match[1],[+match[2],+match[3]]]));
+  assert.deepEqual(SVB_PHOTO_LAYOUT[zone].positions,positions);
+  assert.ok(html.includes(SVB_PHOTO_LAYOUT[zone].image));
+ }
+ const component=fs.readFileSync(new URL('../src/VehicleAudit.jsx',import.meta.url),'utf8');
+ assert.match(component,/draft.type==='SVB'\?<VehicleAuditMap/);
+ assert.ok(component.indexOf('if(preview)')<component.indexOf("await import('./supabase')"));
+ assert.match(component,/preview \? sessionStorage : localStorage/);
+});
 test('audits use production catalogs including nested bags and cabin; pending types have no fake checklist',()=>{
  assert.deepEqual(auditItems('TSNU').map(x=>x.label),TSNU_CHECKLIST_ITEMS);
  const svb=auditItems('SVB');assert.equal(new Set(svb.map(x=>x.id)).size,svb.length);
  for(const section of SVB_FRONT_WALL_SECTIONS.filter(s=>!s.pendingDefinition))for(const item of frontSectionItems(section))assert.ok(svb.some(x=>x.label===item));
  assert.ok(auditGroups('SVB').some(x=>x.title==='Cabina de conducción'));
  assert.deepEqual(auditItems('Polivalente'),[]);assert.deepEqual(auditItems('Logística'),[]);
+});
+test('new compartments require review in pending audits without rewriting confirmed audits',()=>{
+ const catalog=auditItems('SVB').filter(item=>!item.id.startsWith('Zona izquierda-11-'));
+ const old={type:'SVB',vehicle:'5438',catalog,answers:Object.fromEntries(catalog.map(item=>[item.id,'ok'])),notes:{}};
+ assert.ok(auditComplete(old));const updated=refreshPendingAudit(old);
+ assert.equal(auditComplete(updated),false);assert.ok(updated.catalog.some(item=>item.label==='Aspirador'));
+ assert.deepEqual(updated.answers,old.answers);const sent={...old,confirmedAt:'2026-10-08T07:00:00Z'};assert.equal(refreshPendingAudit(sent),sent);
 });
 test('vehicle identity needs no unit and accepts TSNU and numeric labels globally',()=>{
  for(const vehicle of ['T1733','5517','5438','KE1384'])assert.ok(validAuditVehicle(vehicle));
