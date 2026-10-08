@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {AUDIT_STORAGE_KEY, auditGroups,auditItems,auditComplete,auditRequest,markAuditGroupCorrect,normalizeAuditVehicle,validAuditVehicle,isAuditSupervisor,saveAudit,readAudits} from '../src/vehicle-audit.mjs';
+import {TSNU_CHECKLIST_ITEMS} from '../src/checklist-demo.mjs';
+import {SVB_FRONT_WALL_SECTIONS,frontSectionItems} from '../src/svb-front-wall-data.mjs';
+test('audits use production catalogs including nested bags and cabin; pending types have no fake checklist',()=>{
+ assert.deepEqual(auditItems('TSNU').map(x=>x.label),TSNU_CHECKLIST_ITEMS);
+ const svb=auditItems('SVB');assert.equal(new Set(svb.map(x=>x.id)).size,svb.length);
+ for(const section of SVB_FRONT_WALL_SECTIONS.filter(s=>!s.pendingDefinition))for(const item of frontSectionItems(section))assert.ok(svb.some(x=>x.label===item));
+ assert.ok(auditGroups('SVB').some(x=>x.title==='Cabina de conducción'));
+ assert.deepEqual(auditItems('Polivalente'),[]);assert.deepEqual(auditItems('Logística'),[]);
+});
+test('vehicle identity needs no unit and accepts TSNU and numeric labels globally',()=>{
+ for(const vehicle of ['T1733','5517','5438','KE1384'])assert.ok(validAuditVehicle(vehicle));
+ assert.equal(normalizeAuditVehicle(' t1733 '),'T1733');assert.ok(!validAuditVehicle('<script>'));
+ assert.ok(isAuditSupervisor('Material Supervisor · Otra zona'));assert.ok(!isAuditSupervisor('G450'));
+});
+test('new audits are grey, group marking preserves issues and immutable request has no guard or unit',()=>{
+ let draft={id:'id',type:'TSNU',vehicle:'T1733',catalog:auditItems('TSNU'),answers:{},notes:{}};
+ assert.equal(auditComplete(draft),false);
+ const first=draft.catalog[0].id;draft.answers[first]='issue';
+ for(const group of auditGroups('TSNU'))draft=markAuditGroupCorrect(draft,group.id);
+ assert.equal(draft.answers[first],'issue');assert.ok(auditComplete(draft));
+ const request=auditRequest(draft);assert.ok(!('p_unit' in request));assert.ok(!('p_guard_code' in request));assert.equal(request.p_items[0].status,'issue');
+});
+test('audit drafts preserve all operational storage and damaged drafts fail without overwriting',()=>{
+ const map=new Map([['cma_unit_checklist_v1','original'],['cma_svb_checklist_context_v1','original']]);const storage={getItem:k=>map.get(k)||null,setItem:(k,v)=>map.set(k,v)};
+ saveAudit(storage,{id:'a',vehicle:'5438'});saveAudit(storage,{id:'b',vehicle:'T1733'});assert.equal(readAudits(storage).length,2);
+ assert.equal(map.get('cma_unit_checklist_v1'),'original');assert.equal(map.get('cma_svb_checklist_context_v1'),'original');
+ map.set(AUDIT_STORAGE_KEY,'broken');assert.throws(()=>saveAudit(storage,{id:'c'}));assert.equal(map.get(AUDIT_STORAGE_KEY),'broken');
+});
+test('server controls supervisor identity and scope, records exact receipt, and never touches operational data',()=>{
+ const sql=fs.readFileSync(new URL('../sql/supervisor-vehicle-audits-v1.sql',import.meta.url),'utf8');
+ assert.match(sql,/d\.user_id=auth\.uid\(\) and d\.active/);assert.match(sql,/SUPERVISOR_NOT_AUTHORIZED/);assert.match(sql,/w\.lot=v_device\.lot and w\.zone=v_zone/);assert.match(sql,/clock_timestamp\(\)/);assert.match(sql,/AUDIT_ALREADY_CONFIRMED/);assert.match(sql,/ADMIN_ZONE_ACCESS_DENIED/);
+ assert.doesNotMatch(sql,/(insert into|update|delete from) public\.(incidents|svb_checklist_submissions|tsnu_shift_sessions|stock)/i);
+ const main=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');assert.match(main,/isSupervisorMaterial\(currentUnit\) && \(/);assert.match(main,/<VehicleAudit/);
+});

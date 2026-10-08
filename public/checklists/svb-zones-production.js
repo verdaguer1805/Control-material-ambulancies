@@ -5,7 +5,7 @@ import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js";
 import{cabinStatus}from"./svb-cabin-data.js";
 import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js";
 
-document.querySelector(".head h1 small").textContent="v215";
+document.querySelector(".head h1 small").textContent="v216";
 
 const SUPABASE_URL="https://dfnywetqnccykzjyihzq.supabase.co",SUPABASE_KEY="sb_publishable_fjxFCzJNnWQLar26ObYgRw_oK9w3yDI";
 const byId=id=>document.getElementById(id),read=key=>{try{return JSON.parse(localStorage.getItem(key)||"{}")}catch{return{}}};

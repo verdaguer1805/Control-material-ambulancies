@@ -17,6 +17,7 @@ import { compareMaterialLabels } from "./material-order.mjs";
 import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
+const VehicleAudit = React.lazy(() => import("./VehicleAudit.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
@@ -1218,7 +1219,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v215", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v216", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -1280,7 +1281,7 @@ function App() {
   }
   const mapAdminRecords = mapReportRecords;
   async function loadSelectedAdminRecords() {
-    const [reportResult, tsnuResult] = await Promise.all([
+    const [reportResult, tsnuResult, auditResult] = await Promise.all([
         supabase.rpc("get_admin_report_data", {
           p_lot: exportLot,
           p_zone: exportZone,
@@ -1293,9 +1294,13 @@ function App() {
           p_from: exportFrom,
           p_to: exportTo,
         }),
+        supabase.rpc("get_vehicle_audits_report", {
+          p_lot: exportLot, p_zone: exportZone, p_from: exportFrom, p_to: exportTo,
+        }),
       ]);
     if (reportResult.error) throw reportResult.error;
     if (tsnuResult.error) throw tsnuResult.error;
+    if (auditResult.error) throw auditResult.error;
     const reportData = reportResult.data || {},
       incidents = Array.isArray(reportData.incidents) ? reportData.incidents : [],
       unique = [...new Map(incidents.map((row) => [row.id, row])).values()];
@@ -1303,6 +1308,7 @@ function App() {
       records: mapAdminRecords(unique, Array.isArray(reportData.submissions) ? reportData.submissions : []),
       submissions: Array.isArray(reportData.submissions) ? reportData.submissions : [],
       svbChecklists: Array.isArray(reportData.svb_checklists) ? reportData.svb_checklists : [],
+      vehicleAudits: Array.isArray(auditResult.data) ? auditResult.data : [],
       tsnu: tsnuResult.data || { shifts: [], withdrawals: [] },
     };
   }
@@ -1395,7 +1401,7 @@ function App() {
       const selected = await loadSelectedAdminRecords();
       setAdminRecords([]);
       setAdminLoaded(false);
-      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu, selected.svbChecklists);
+      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu, selected.svbChecklists, selected.vehicleAudits);
       else exportPdf(selected.records, selected.submissions, selected.tsnu);
     } catch (error) {
       flash("No se pueden cargar los datos seleccionados");
@@ -2366,7 +2372,7 @@ function App() {
     doc.save(`lista_reposicion_${new Date().toISOString().slice(0, 10)}.pdf`);
     flash("Lista de reposición exportada en PDF");
   }
-  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}, svbChecklists = []) {
+  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}, svbChecklists = [], vehicleAudits = []) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
@@ -2681,6 +2687,18 @@ function App() {
     });
     XLSX.utils.book_append_sheet(wb, wsGeneral, "Resumen general");
     XLSX.utils.book_append_sheet(wb, wsChecklistTsu, "Checklist SVB");
+    const auditRows = vehicleAudits.flatMap(audit => audit.items.map(item => ({
+      Fecha: madridDateTime(audit.received_at).date,
+      Hora: madridDateTime(audit.received_at).time,
+      Lote: audit.lot, Zona: audit.zone, Supervisor: audit.supervisor,
+      Vehículo: audit.vehicle, Checklist: audit.checklist_type,
+      Apartado: item.section, Material: item.label,
+      Estado: item.status === "issue" ? "Incidencia" : "Correcto",
+      Observaciones: item.note || "",
+    })));
+    const auditSheet = XLSX.utils.json_to_sheet(auditRows.length ? auditRows : [{Información:"No hay auditorías en este periodo"}]);
+    configure(auditSheet, [14,14,26,20,32,14,14,48,60,18,60]);
+    XLSX.utils.book_append_sheet(wb, auditSheet, "Auditorías vehículos");
     XLSX.utils.book_append_sheet(wb, wsTsu, "Consumo TSU");
     XLSX.utils.book_append_sheet(wb, wsTsnu, "Consumo TSNU");
     XLSX.utils.book_append_sheet(wb, ws1, "Resumen guardias TSU");
@@ -3446,7 +3464,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v215</span></h1>
+          <h1>Control de material <span className="app-version">v216</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4502,6 +4520,11 @@ function App() {
         )}
         {mode === "worker" && currentUnit && (
           <>
+            {isSupervisorMaterial(currentUnit) && (
+              <React.Suspense fallback={<div className="card">Cargando auditorías...</div>}>
+                <VehicleAudit key={`${currentUnit}:${lot}`} supervisor={displayUnit(currentUnit)} lot={localStorage.getItem(KEY.lot) || lot} zone={currentChecklistConfig.zone || unitZone(currentUnit)} authorized={deviceAuth.checked && deviceAuth.authorized} />
+              </React.Suspense>
+            )}
             {!isSupervisorMaterial(currentUnit) && currentChecklistConfig.service !== 'TSNU' && (
               <div className="card">
                 <button type="button" disabled={currentChecklistConfig.checklist === "SVB" ? !svbAssignedGuard(localStorage.getItem(KEY.shift), new Date(guardTick)) : !currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => openSvbChecklist()}>
@@ -5268,7 +5291,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=215", {
+    navigator.serviceWorker.register("./sw.js?v=216", {
       updateViaCache: "none",
     }),
   );
