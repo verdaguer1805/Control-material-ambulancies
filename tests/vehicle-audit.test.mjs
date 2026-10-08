@@ -30,13 +30,25 @@ test('new compartments require review in pending audits without rewriting confir
  const catalog=auditItems('SVB').filter(item=>!item.id.startsWith('Zona izquierda-11-'));
  const old={type:'SVB',vehicle:'5438',catalog,answers:Object.fromEntries(catalog.map(item=>[item.id,'ok'])),notes:{}};
  assert.ok(auditComplete(old));const updated=refreshPendingAudit(old);
- assert.equal(auditComplete(updated),false);assert.ok(updated.catalog.some(item=>item.label==='Aspirador'));
+ assert.equal(auditComplete(updated),false);assert.ok(updated.catalog.some(item=>item.label.startsWith('Tubo de silicona para aspirador')));
  assert.deepEqual(updated.answers,old.answers);const sent={...old,confirmedAt:'2026-10-08T07:00:00Z'};assert.equal(refreshPendingAudit(sent),sent);
 });
 test('vehicle identity needs no unit and accepts TSNU and numeric labels globally',()=>{
  for(const vehicle of ['T1733','5517','5438','KE1384'])assert.ok(validAuditVehicle(vehicle));
  assert.equal(normalizeAuditVehicle(' t1733 '),'T1733');assert.ok(!validAuditVehicle('<script>'));
  assert.ok(isAuditSupervisor('Material Supervisor · Otra zona'));assert.ok(!isAuditSupervisor('G450'));
+});
+
+test('replacing the aspirator placeholder does not transfer its answer to another item',()=>{
+ const current=auditItems('SVB'),prefix='Zona izquierda-11-';
+ const catalog=[...current.filter(item=>!item.id.startsWith(prefix)),{id:'Zona izquierda-11-0:0',section:'Zona izquierda · Aspirador',label:'Aspirador'}];
+ const old={type:'SVB',catalog,answers:Object.fromEntries(catalog.map(item=>[item.id,'ok'])),notes:{}};
+ const next=refreshPendingAudit(old);
+ for(const item of next.catalog.filter(item=>item.id.startsWith(prefix)))assert.equal(next.answers[item.id],undefined);
+ assert.equal(next.answers[current[0].id],'ok');
+ assert.ok(SVB_FRONT_WALL_SECTIONS.find(s=>s.id===3).items.includes('Partes SEM · 1 bloc'));
+ assert.equal(SVB_PHOTO_LAYOUT.front.positions[7][1]-SVB_PHOTO_LAYOUT.front.positions[6][1],4.5);
+ assert.equal(SVB_PHOTO_LAYOUT.front.positions[8][1]-SVB_PHOTO_LAYOUT.front.positions[7][1],4.5);
 });
 test('new audits are grey, group marking preserves issues and immutable request has no guard or unit',()=>{
  let draft={id:'id',type:'TSNU',vehicle:'T1733',catalog:auditItems('TSNU'),answers:{},notes:{}};

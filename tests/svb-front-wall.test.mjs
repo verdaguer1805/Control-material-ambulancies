@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {SVB_FRONT_WALL_SECTIONS,frontSectionItems,frontSectionStatus} from "../src/svb-front-wall-data.mjs";
+import {SVB_FRONT_WALL_SECTIONS,frontSectionItems,frontSectionStatus,frontRequiredSections} from "../src/svb-front-wall-data.mjs";
 test("front oxygen quantities and corrected trauma material follow the new configuration",()=>{
   const items=id=>frontSectionItems(SVB_FRONT_WALL_SECTIONS.find(row=>row.id===id));
   assert.ok(!items(1).some(item=>item.includes("PEEP")));
@@ -25,7 +25,14 @@ test("front burns kit includes all nine supplied materials with one unit each",(
   assert.equal(section.groups.find(({title})=>title==="Material general").items.some(item=>item.startsWith("Kit de quemados")),false);
 });
 test("the front wall defines every visual zone",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.map(({id})=>id),[1,2,3,4,5,6,7,8,9,10,11,12,13]));
-test("the only undefined drawer cannot be completed accidentally",()=>assert.equal(frontSectionStatus(SVB_FRONT_WALL_SECTIONS.find((row)=>row.id===3),{}),"undefined"));
+test("drawer three requires the SEM report block, except in already confirmed legacy checklists",()=>{
+ const section=SVB_FRONT_WALL_SECTIONS.find(row=>row.id===3);
+ assert.deepEqual(section.items,["Partes SEM · 1 bloc"]);
+ assert.equal(frontSectionStatus(section,{}),"pending");
+ assert.ok(frontRequiredSections(SVB_FRONT_WALL_SECTIONS,{},false).some(s=>s.id===3));
+ assert.ok(!frontRequiredSections(SVB_FRONT_WALL_SECTIONS,{},true).some(s=>s.id===3));
+ assert.ok(frontRequiredSections(SVB_FRONT_WALL_SECTIONS,{3:{"Partes SEM · 1 bloc":"ok"}},true).some(s=>s.id===3));
+});
 test("front drawers seven and eight contain their assigned material",()=>{
   assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===7).items,["Bolsa para vómito · 10 unidades","Kit de vías · 1 unidad","Gafas nasales · 4 unidades","Mascarilla nebulizadora adulta · 1 unidad"]);
   assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===8).items,["Suero fisiológico 500 ml · 2 unidades"]);
@@ -48,4 +55,4 @@ test("Schiller includes the daily user test and the monitor contents including n
 });
 test("compartment nine includes the vacuum pump",()=>assert.ok(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===9).items.includes("Bomba de vacío manual · 1 unidad")));
 test("zone twelve contains immobilization material and two oxygen bottles",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===12).items,["Tabla espinal","Camilla de cuchara","Botella de oxígeno · 2 unidades"]));
-test("cervical material belongs to the bag behind Schiller",()=>{assert.equal(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===3).items.length,0);assert.ok(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===11).items.some((item)=>item.startsWith("Collarines multitalla de adulto")))});
+test("cervical material belongs to the bag behind Schiller",()=>{assert.ok(!SVB_FRONT_WALL_SECTIONS.find(({id})=>id===3).items.some(item=>item.startsWith("Collarines")));assert.ok(SVB_FRONT_WALL_SECTIONS.find(({id})=>id===11).items.some((item)=>item.startsWith("Collarines multitalla de adulto")))});

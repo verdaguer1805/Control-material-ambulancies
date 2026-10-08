@@ -46,7 +46,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "Férula Kramer · 3 unidades", "Funda para férula Kramer · 3 unidades",
     "Férula maleable digital · 2 unidades", "Férula maleable braquial · 2 unidades"
   ] },
-  { id: 11, title: "Aspirador", items: ["Aspirador"] }
+  { id: 11, title: "Aspirador", items: ["Bolsa de aspirador de un solo uso · 1 unidad","Tubo de silicona para aspirador (1 metro) · 1 unidad","Sonda de aspiración controlada nº 6 · 1 unidad","Sonda de aspiración controlada nº 8 · 1 unidad","Sonda de aspiración controlada nº 10 · 1 unidad","Sonda de aspiración controlada nº 14 · 1 unidad","Sonda de aspiración controlada nº 16 · 1 unidad","Sonda de aspiración controlada nº 18 · 1 unidad","Cánula Yankauer · 1 unidad","Conexión en Y · 1 unidad"] }
 ];
 
 export function sectionStatus(section, answers) {
@@ -57,5 +57,10 @@ export function sectionStatus(section, answers) {
 
 // Older confirmed submissions stay confirmed; every unsent/new guard requires 11.
 export function leftRequiredSections(sections, answers, confirmed) {
-  return sections.filter(section => section.id !== 11 || !confirmed || Object.hasOwn(answers || {}, '11'));
+  return sections.flatMap(section => {
+    if(section.id!==11 || !confirmed)return [section];
+    if(!Object.hasOwn(answers || {},'11'))return [];
+    if(Object.hasOwn(answers[11] || {},'Aspirador') && !section.items.some(item=>Object.hasOwn(answers[11],item)))return [{...section,items:['Aspirador']}];
+    return [section];
+  });
 }

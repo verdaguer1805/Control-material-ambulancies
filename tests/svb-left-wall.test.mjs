@@ -25,6 +25,19 @@ test("new compartment ten contains the splint bag with printed quantities",()=>{
   assert.equal(sectionStatus(bag,{}),"pending");
 });
 
+test("aspirator contents follow the printed list without the vacuum connector",()=>{
+ const section=SVB_LEFT_WALL_SECTIONS.find(s=>s.id===11);
+ assert.equal(section.items.length,10);
+ assert.ok(section.items.every(item=>item.endsWith('· 1 unidad')));
+ assert.ok(section.items.includes('Conexión en Y · 1 unidad'));
+ assert.ok(section.items.every(item=>!item.toLowerCase().includes('connector')&&!item.toLowerCase().includes('vacío')));
+ const probes=section.items.filter(item=>item.startsWith('Sonda'));
+ assert.deepEqual(probes.map(item=>Number(item.match(/nº (\d+)/)[1])),[6,8,10,14,16,18]);
+ const historic=leftRequiredSections(SVB_LEFT_WALL_SECTIONS,{11:{Aspirador:'issue'}},true).find(s=>s.id===11);
+ assert.equal(sectionStatus(historic,{11:{Aspirador:'issue'}}),'issue');
+ assert.equal(sectionStatus(section,{11:{Aspirador:'ok'}}),'pending');
+});
+
 test("the physical fifth drawer keeps loose material and details the IMA bag",()=>{
   const drawer=SVB_LEFT_WALL_SECTIONS.find(({id})=>id===5);
   assert.ok(drawer.items.some(item=>item.startsWith("Cadenas de nieve")));

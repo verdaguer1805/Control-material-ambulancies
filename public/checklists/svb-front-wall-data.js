@@ -7,7 +7,7 @@ export const SVB_FRONT_WALL_SECTIONS = [
     { title: "Bolsa de reposición del monitor", items: ["Parche de desfibrilación de adulto · 2 unidades", "Parche de desfibrilación pediátrico · 1 unidad", "Electrodos de monitorización adulto/pediátrico · 2 bolsas", "Rasuradora de un solo uso · 1 unidad", "Sensor adulto SpCO · 1 unidad", "Sensor pediátrico SpCO · 1 unidad"] },
     { title: "Bolsa de mascarillas", items: ["Mascarillas quirúrgicas · 10 unidades", "Mascarillas de protección FFP2 · 4 unidades", "Mascarillas de protección FFP3 · 4 unidades"] }
   ] },
-  { id: 3, title: "Compartimento 3", pendingDefinition: true, items: [] },
+  { id: 3, title: "Compartimento 3", items: ["Partes SEM · 1 bloc"] },
   { id: 4, title: "Compartimento 4", items: ["Cánula Guedel nº 00 · 2 unidades", "Cánula Guedel nº 0 · 2 unidades", "Cánula Guedel nº 1 · 2 unidades", "Cánula Guedel nº 1,5 · 3 unidades", "Cánula Guedel nº 2 · 3 unidades", "Cánula Guedel nº 3 · 3 unidades", "Cánula Guedel nº 4 · 3 unidades", "Cánula Guedel nº 5 · 3 unidades", "Filtro respiratorio · 2 unidades"] },
   { id: 5, title: "Compartimento 5", items: ["Mascarilla de oxígeno de adulto · 4 unidades", "Mascarilla de oxígeno de adulto con reservorio · 4 unidades"] },
   { id: 6, title: "Compartimento 6", items: ["Mascarilla de oxígeno pediátrica · 2 unidades", "Mascarilla de oxígeno pediátrica con reservorio · 2 unidades", "Alargadera de oxígeno · 5 unidades", "Gafas nasales pediátricas · 1 unidad", "Mascarilla nebulizadora pediátrica · 1 unidad"] },
@@ -31,6 +31,9 @@ export const SVB_FRONT_WALL_SECTIONS = [
 ];
 
 export function frontSectionItems(section) { return section.groups ? section.groups.flatMap((group) => group.items) : section.items; }
+export function frontRequiredSections(sections, answers, confirmed) {
+  return sections.filter(section => !section.pendingDefinition && !(confirmed && section.id === 3 && !Object.hasOwn(answers?.[3] || {}, 'Partes SEM · 1 bloc')));
+}
 export function frontSectionStatus(section, answers) {
   if (section.pendingDefinition) return "undefined";
   const values = frontSectionItems(section).map((item) => answers?.[section.id]?.[item]);
