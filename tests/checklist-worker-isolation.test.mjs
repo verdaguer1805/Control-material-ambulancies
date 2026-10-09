@@ -9,8 +9,8 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.doesNotMatch(source, /reportsOnly/);
   assert.doesNotMatch(source, /Checklist · informes de prueba/);
   assert.match(source, /config\.checklist !== "SVB"/);
-  assert.match(source, /svb-zones\.html\?from=pwa-v220/);
-  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=220"/);
+  assert.match(source, /svb-zones\.html\?from=pwa-v221/);
+  assert.match(source, /serviceWorker\.register\("\.\/sw\.js\?v=221"/);
   assert.match(source, /get_my_tsnu_assignment/);
   assert.match(source, /recoverTsnuAssignmentFromServer/);
   assert.match(source, /cma_svb_checklist_context_v1/);
@@ -18,9 +18,9 @@ test('public worker route exposes the isolated SVB preview and the TSNU producti
   assert.match(source, /isTsnuMaterial\(m\)/);
 });
 
-test('v220 caches the isolated SVB zone menu and previews for company mobiles', () => {
+test('v221 caches the isolated SVB zone menu and previews for company mobiles', () => {
   const worker = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const CACHE = "cma-v220"/);
+  assert.match(worker, /const CACHE = "cma-v221"/);
   assert.match(worker, /\.\/svb-zones\.html/);
   assert.match(worker, /\.\/svb-preview\.html/);
   assert.match(worker, /\.\/svb-front-preview\.html/);
@@ -39,7 +39,7 @@ test('SVB vehicle assignment persists by unit while drafts remain scoped by guar
   const front = fs.readFileSync(new URL('../public/svb-front-preview.html', import.meta.url), 'utf8');
   const right = fs.readFileSync(new URL('../public/svb-right-preview.html', import.meta.url), 'utf8');
   const production = fs.readFileSync(new URL('../public/checklists/svb-zones-production.js', import.meta.url), 'utf8');
-  assert.match(menu, /href="\.\/svb-right-preview\.html\?v=220"/);
+  assert.match(menu, /href="\.\/svb-right-preview\.html\?v=221"/);
   assert.match(right, /cma_svb_right_zone_mobile_test_v1/);
   const source = fs.readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
   assert.match(menu, /Unidad/);
@@ -91,7 +91,7 @@ test('SVB production requires all zones and submits the authorized guard to Supa
   assert.match(production, /response\.status===401/);
   assert.match(production, /error instanceof TypeError/);
   assert.match(production, /No se ha podido completar el envío/);
-  assert.match(production, /textContent="v220"/);
+  assert.match(production, /textContent="v221"/);
   assert.match(production, /states\.every/);
   assert.match(sql, /DEVICE_NOT_AUTHORIZED/);
   assert.match(sql, /unique \(lot, unit, guard_code, vehicle_label\)/);

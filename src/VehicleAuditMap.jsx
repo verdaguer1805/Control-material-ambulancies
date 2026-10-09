@@ -1,5 +1,6 @@
 import React,{useState} from 'react';
 import {SVB_PHOTO_LAYOUT} from './svb-photo-layout.mjs';
+import {materialDisplayName} from './material-display.mjs';
 import './vehicle-audit-map.css';
 
 export function auditPhotoItems(draft,zone,id) {
@@ -18,7 +19,7 @@ export default function VehicleAuditMap({draft,update,busy}) {
   function mark(item,value){update({...draft,answers:{...draft.answers,[item.id]:value},confirmedAt:null});}
   function markAll(){const answers={...draft.answers};for(const item of items)if(answers[item.id]!=='issue')answers[item.id]='ok';update({...draft,answers,confirmedAt:null});}
   const row=item=><div className={`audit-item ${draft.answers[item.id]||'pending'}`} key={item.id}>
-    <strong>{item.label}</strong><div className="audit-choices">
+    <strong>{materialDisplayName(item.label)}</strong><div className="audit-choices">
       <button type="button" disabled={locked} className={draft.answers[item.id]==='ok'?'yes active':'yes'} aria-label={`Correcto: ${item.label}`} onClick={()=>mark(item,'ok')}>✓</button>
       <button type="button" disabled={locked} className={draft.answers[item.id]==='issue'?'no active':'no'} aria-label={`Incidencia: ${item.label}`} onClick={()=>mark(item,'issue')}>✕</button>
     </div>

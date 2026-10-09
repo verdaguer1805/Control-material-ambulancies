@@ -8,7 +8,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "Guantes de nitrilo sin polvo · talla S", "Guantes de nitrilo sin polvo · talla M",
     "Guantes de nitrilo sin polvo · talla L", "Guantes de nitrilo sin polvo · talla XL",
     "Guantes esteriles · talla S · 1 par", "Guantes esteriles · talla M · 1 par", "Guantes esteriles · talla L · 1 par",
-    "Cinta americana · 1 unidad", "Cubrebotas · 2 unidades", "Gafas de protección · 3 unidades"
+    "Cinta americana · 1 unidad", "Gafas de protección · 3 unidades"
   ] },
   { id: 3, title: "Compartimento 3", items: [
     "Chaqueta anticorte · talla S · 1 unidad", "Chaqueta anticorte · talla M · 1 unidad", "Chaqueta anticorte · talla L · 1 unidad",
@@ -27,7 +27,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "Bolsa IMA — Lanyards rojos · 10 unidades", "Bolsa IMA — Lanyards negros · 5 unidades"
   ] },
   { id: 7, title: "Compartimento 7", items: [
-    "Empapador", "Toallas de papel", "Pañal · 1 unidad", "Gorro para recien nacido · 1 unidad", "Manta termica neonatal · 1 unidad",
+    "Empapador", "Caja de pañuelos", "Pañal · 1 unidad", "Gorro para recien nacido · 1 unidad", "Manta térmica · 1 unidad",
     "Pera de goma de aspiracion de 35 ml · 1 unidad", "Gasas esteriles grandes · 2 unidades", "Talla verde esteril · 1 unidad",
     "Pinzas umbilicales · 2 unidades", "Tijera umbilical de un solo uso · 1 unidad", "Empapador del kit de parto · 1 unidad",
     "Compresa posparto · 1 unidad", "Bolsa para material de rechazo GII · 1 unidad"
@@ -43,7 +43,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "Sonda de aspiracion controlada nº 18 · 2 unidades", "Canula Yankauer · 3 unidades", "Bolsa de aspirador de un solo uso · 3 unidades"
   ] },
   { id: 10, title: "Bolsa de férulas", items: [
-    "Férula Kramer · 3 unidades", "Funda para férula Kramer · 3 unidades",
+    "Férula Kramer (hierro + funda) · 3 unidades",
     "Férula maleable digital · 2 unidades", "Férula maleable braquial · 2 unidades"
   ] },
   { id: 11, title: "Aspirador", items: ["Bolsa de aspirador de un solo uso · 1 unidad","Tubo de silicona para aspirador (1 metro) · 1 unidad","Sonda de aspiración controlada nº 6 · 1 unidad","Sonda de aspiración controlada nº 8 · 1 unidad","Sonda de aspiración controlada nº 10 · 1 unidad","Sonda de aspiración controlada nº 14 · 1 unidad","Sonda de aspiración controlada nº 16 · 1 unidad","Sonda de aspiración controlada nº 18 · 1 unidad","Cánula Yankauer · 1 unidad","Conexión en Y · 1 unidad"] }

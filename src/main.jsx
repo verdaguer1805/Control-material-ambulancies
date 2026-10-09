@@ -14,6 +14,7 @@ import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, 
 import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisibility, saveMaterialVisibility } from "./material-visibility.mjs";
 import { writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
 import { compareMaterialLabels } from "./material-order.mjs";
+import { materialDisplayName } from "./material-display.mjs";
 import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
@@ -74,7 +75,7 @@ const MATERIAL_LABELS = {
   "Celulosa cortada": "Celulosa precortada (unidades)",
   "Tiras reactivas": "Tiras reactivas (botes)",
 };
-const materialLabel = (material) => MATERIAL_LABELS[material] || material;
+const materialLabel = (material) => materialDisplayName(MATERIAL_LABELS[material] || material);
 const isTsnuMaterial = (material) =>
   !/^Parches schiller /i.test(material) &&
   !/^Parches monitorización schiller$/i.test(material);
@@ -1219,7 +1220,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v220", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v221", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -2570,7 +2571,7 @@ function App() {
         Object.entries(answers).forEach(([zone, sections]) =>
           Object.entries(sections || {}).forEach(([section, items]) =>
             Object.entries(items || {}).forEach(([item, value]) => {
-              if (value === "issue") issues.push(`${zoneNames[zone] || zone} · ${section} · ${item}`);
+              if (value === "issue") issues.push(`${zoneNames[zone] || zone} · ${section} · ${materialLabel(item)}`);
             }),
           ),
         );
@@ -2692,7 +2693,7 @@ function App() {
       Hora: madridDateTime(audit.received_at).time,
       Lote: audit.lot, Zona: audit.zone, Supervisor: audit.supervisor,
       Vehículo: audit.vehicle, Checklist: audit.checklist_type,
-      Apartado: item.section, Material: item.label,
+      Apartado: item.section, Material: materialLabel(item.label),
       Estado: item.status === "issue" ? "Incidencia" : "Correcto",
       Observaciones: item.note || "",
     })));
@@ -3464,7 +3465,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v220</span></h1>
+          <h1>Control de material <span className="app-version">v221</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5291,7 +5292,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=220", {
+    navigator.serviceWorker.register("./sw.js?v=221", {
       updateViaCache: "none",
     }),
   );

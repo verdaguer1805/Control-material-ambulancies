@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import { auditItems } from "../src/vehicle-audit.mjs";
 import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from "../src/svb-left-wall-data.mjs";
 
 test("anticorte gloves are a single three-pair entry and signaling cones are removed",()=>{
@@ -21,8 +23,25 @@ test("aspirator is required for unsent and new guards but confirmed historical c
 test("new compartment ten contains the splint bag with printed quantities",()=>{
   const bag=SVB_LEFT_WALL_SECTIONS.find(({id})=>id===10);
   assert.equal(bag.title,"Bolsa de férulas");
-  assert.deepEqual(bag.items,["Férula Kramer · 3 unidades","Funda para férula Kramer · 3 unidades","Férula maleable digital · 2 unidades","Férula maleable braquial · 2 unidades"]);
+  assert.deepEqual(bag.items,["Férula Kramer (hierro + funda) · 3 unidades","Férula maleable digital · 2 unidades","Férula maleable braquial · 2 unidades"]);
   assert.equal(sectionStatus(bag,{}),"pending");
+});
+
+test("left blanket and complete Kramer set use the same labels in unit checks and audits",()=>{
+ const blanket="Manta térmica · 1 unidad",kramer="Férula Kramer (hierro + funda) · 3 unidades";
+ assert.ok(SVB_LEFT_WALL_SECTIONS.find(s=>s.id===7).items.includes(blanket));
+ assert.ok(SVB_LEFT_WALL_SECTIONS.find(s=>s.id===7).items.includes("Caja de pañuelos"));
+ assert.ok(!SVB_LEFT_WALL_SECTIONS.find(s=>s.id===7).items.includes("Toallas de papel"));
+ assert.ok(!SVB_LEFT_WALL_SECTIONS.find(s=>s.id===7).items.some(item=>/manta.*neonatal/i.test(item)));
+ for(const file of ['public/checklists/svb-left-wall-data.js','public/svb-preview.html']){
+  const text=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  assert.ok(text.includes(blanket));assert.ok(text.includes(kramer));
+  assert.ok(text.includes("Caja de pañuelos"));assert.ok(!text.includes("Toallas de papel"));
+  assert.ok(!text.includes('Funda para férula Kramer · 3 unidades'));
+ }
+ const labels=auditItems('SVB').map(item=>item.label);
+ assert.ok(labels.includes(blanket));assert.ok(labels.includes(kramer));
+ assert.ok(labels.includes("Caja de pañuelos"));
 });
 
 test("aspirator contents follow the printed list without the vacuum connector",()=>{
@@ -50,8 +69,9 @@ test("the physical fifth drawer keeps loose material and details the IMA bag",()
   assert.equal(SVB_LEFT_WALL_SECTIONS.some(({id})=>id===6),false);
 });
 
-test("updated left quantities include two shoe covers, three Yankauer and adult cuff",()=>{
-  assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===2).items.includes("Cubrebotas · 2 unidades"));
+test("updated left contents exclude shoe covers and include three Yankauer and adult cuff",()=>{
+  assert.ok(!SVB_LEFT_WALL_SECTIONS.find(({id})=>id===2).items.some(item=>item.startsWith("Cubrebotas")));
+  assert.ok(!auditItems('SVB').some(item=>item.section.startsWith('Zona izquierda')&&item.label.startsWith('Cubrebotas')));
   assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===2).items.includes("Gafas de protección · 3 unidades"));
   assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===9).items.includes("Canula Yankauer · 3 unidades"));
   assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===8).items.includes("Manguito adulto 42–57 cm para tensiómetro · 1 unidad"));

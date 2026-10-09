@@ -28,7 +28,6 @@ export const SVB_LEFT_WALL_SECTIONS = [
       "Guantes estériles · talla M · 1 par",
       "Guantes estériles · talla L · 1 par",
       "Cinta americana · 1 unidad",
-      "Cubrebotas · 2 unidades",
       "Gafas de protección · 3 unidades"
     ]
   },
@@ -81,10 +80,10 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "title": "Compartimento 7",
     "items": [
       "Empapador",
-      "Toallas de papel",
+      "Caja de pañuelos",
       "Pañal · 1 unidad",
       "Gorro para recién nacido · 1 unidad",
-      "Manta térmica neonatal · 1 unidad",
+      "Manta térmica · 1 unidad",
       "Pera de goma de aspiración de 35 ml · 1 unidad",
       "Gasas estériles grandes · 2 unidades",
       "Talla verde estéril · 1 unidad",
@@ -125,8 +124,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "id": 10,
     "title": "Bolsa de férulas",
     "items": [
-      "Férula Kramer · 3 unidades",
-      "Funda para férula Kramer · 3 unidades",
+      "Férula Kramer (hierro + funda) · 3 unidades",
       "Férula maleable digital · 2 unidades",
       "Férula maleable braquial · 2 unidades"
     ]
