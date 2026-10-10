@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {correctionService,tsnuCorrectionRows,consumptionCorrectionRequest} from '../src/consumption-correction-service.mjs';
 
+test('correction unit type is visible between supervision and guard date',()=>{
+ const source=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
+ const modal=source.slice(source.indexOf('{correctionOpen && ('),source.indexOf('{accessCodesOpen && ('));
+ assert.ok(modal.indexOf('<label>Supervisión</label>')<modal.indexOf('<label>Tipo de unidad</label>'));
+ assert.ok(modal.indexOf('<label>Tipo de unidad</label>')<modal.indexOf('<label>Fecha de guardia</label>'));
+});
+
 test('service selector includes BP with TSU and T1744 with TSNU',()=>{
  const lot='Lot 5 · Girona - Alt Maresme';
  assert.equal(correctionService('BP52',lot,'Olot'),'TSU');
