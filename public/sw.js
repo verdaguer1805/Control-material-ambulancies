@@ -1,4 +1,4 @@
-const CACHE = "cma-v224";
+const CACHE = "cma-v225";
 const APP_SHELL = ["./", "./index.html", "./admin.html", "./admin/", "./admin/manifest.webmanifest", "./icon.svg", "./falck-eagle-admin.png", "./svb-zones.html", "./svb-door-preview.html", "./checklists/svb-door-data.js", "./checklists/svb-puerta-izquierda-mobile.jpg", "./svb-cabin.html", "./checklists/svb-cabin.js", "./checklists/svb-cabin-data.js", "./svb-preview.html", "./svb-front-preview.html", "./svb-right-preview.html", "./checklists/svb-paret-lateral-esquerre-mobile.jpg", "./checklists/svb-paret-frontal-mobile.jpg", "./checklists/svb-zona-derecha-mobile.jpg", "./checklists/svb-front-wall-data.js", "./checklists/svb-left-wall-data.js", "./checklists/svb-right-zone-data.js", "./checklists/svb-vehicle-assignment.js", "./checklists/svb-guard-window.js", "./checklists/svb-zones-production.js"];
 
 self.addEventListener("install", (event) => {

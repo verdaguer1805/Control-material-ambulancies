@@ -10,7 +10,7 @@ test('SVB audit photos and marker positions match the operational unit checklist
  for(const [zone,file] of [['left','svb-preview.html'],['front','svb-front-preview.html'],['right','svb-right-preview.html'],['door','svb-door-preview.html']]){
   const html=fs.readFileSync(new URL(`../public/${file}`,import.meta.url),'utf8');
   const literal=html.match(/const pos=\{([^}]+)\}/)[1];
-  const positions=Object.fromEntries([...literal.matchAll(/(\d+):\[([\d.]+),([\d.]+)\]/g)].map(match=>[match[1],[+match[2],+match[3]]]));
+  const positions=Object.fromEntries([...literal.matchAll(/['"]?(\d+[a-z]?)['"]?:\[([\d.]+),([\d.]+)\]/g)].map(match=>[match[1],[+match[2],+match[3]]]));
   assert.deepEqual(SVB_PHOTO_LAYOUT[zone].positions,positions);
   assert.ok(html.includes(SVB_PHOTO_LAYOUT[zone].image));
  }

@@ -1,6 +1,7 @@
 export const SVB_RIGHT_ZONE_SECTIONS = [
   { id: 1, title: "Compartimento 1", items: ["Sábana de un solo uso · 5 unidades"] },
-  { id: 2, title: "Compartimento 2", items: ["Guantes talla M · 1 caja", "Guantes talla L · 1 caja"] },
+  { id: 2, title: "Compartimento 2", items: ["Guantes talla L · 1 caja", "Guantes talla XL · 1 caja"] },
+  { id: "2a", title: "Compartimento 2a", items: ["Guantes talla M · 1 caja", "Guantes talla S · 1 caja"] },
   { id: 3, title: "Compartimento 3", items: ["Suero fisiológico de irrigación 100 ml · 4 unidades", "Suero fisiológico de irrigación 250 ml · 2 unidades"] },
   { id: 4, title: "Compartimento 4", items: ["Gel hidroalcohólico 100 ml · 1 unidad", "Clorhexidina acuosa 2 % 100 ml · 5 unidades", "Suero fisiológico 5 ml · 10 unidades", "Contenedor de agujas pequeño · 1 unidad"] },
   { id: 5, title: "Compartimento 5", items: ["Venda de crepé 10 × 4 · 4 unidades", "Venda de crepé 10 × 10 · 4 unidades", "Venda de gasa 10 cm · 5 unidades", "Venda cohesiva 10 × 10 · 4 unidades", "Esparadrapo 5 × 2,5 · 4 unidades"] },
