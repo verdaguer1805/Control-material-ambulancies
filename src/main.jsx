@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
+import { correctionService, tsnuCorrectionRows, consumptionCorrectionRequest } from "./consumption-correction-service.mjs";
 import { cachedDeviceCanQueue } from "./device-auth-continuity.mjs";
 import { AUTH_IDENTITY_KEY, authDiagnosticLabel, readAuthDiagnostic, recordAuthDiagnostic, rememberAuthorizedIdentity, resolveAuthDiagnostic } from "./auth-session-diagnostic.mjs";
 import { forgetRecoverySession, rememberRecoverySession } from "./device-session-recovery.mjs";
@@ -287,6 +288,7 @@ function App() {
     [exportTo, setExportTo] = useState(""),
     [correctionOpen, setCorrectionOpen] = useState(false),
     [correctionLoading, setCorrectionLoading] = useState(false),
+    [correctionType, setCorrectionType] = useState("TSU"),
     [correctionLot, setCorrectionLot] = useState("Lot 5 · Girona - Alt Maresme"),
     [correctionZone, setCorrectionZone] = useState(""),
     [correctionDate, setCorrectionDate] = useState(nowParts().date),
@@ -1220,7 +1222,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v222", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v223", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -1316,6 +1318,7 @@ function App() {
   function openConsumptionCorrection() {
     const zone = adminAccess?.role === "supervisor" ? adminAccess.zone || "" : correctionZone;
     setCorrectionZone(zone);
+    setCorrectionType("TSU");
     setCorrectionDate(nowParts().date);
     setCorrectionRows([]);
     setCorrectionIncidentId("");
@@ -1327,25 +1330,33 @@ function App() {
   async function loadCorrectableConsumptions() {
     if (!correctionLot || !correctionZone || !correctionDate)
       return flash("Selecciona lote, supervisión y fecha");
-    const units = Object.keys(LOTS[correctionLot]?.[correctionZone] || {}).map(displayUnit),
+    const units = Object.keys(LOTS[correctionLot]?.[correctionZone] || {}).map(displayUnit).filter(unit => correctionService(unit, correctionLot, correctionZone) === "TSU"),
       supervisorUnit = `Material Supervisor · ${correctionZone}`,
       [year, month, day] = correctionDate.split("-"),
       guardCode = `${day}${month}${year.slice(-2)}`;
     setCorrectionLoading(true);
     try {
       await ensureAnonymousSession();
-      const { data, error } = await supabase
-        .from("incidents")
-        .select("id,incident_code,unit,warehouse,occurred_at,materials,updated_at")
-        .in("unit", [...units, supervisorUnit])
-        .eq("incident_code", guardCode)
-        .order("unit", { ascending: true });
-      if (error) throw error;
-      setCorrectionRows(data || []);
+      let rows;
+      if (correctionType === "TSNU") {
+        const {data,error} = await supabase.rpc("get_tsnu_report_data", {p_lot:correctionLot,p_zone:correctionZone,p_from:correctionDate,p_to:correctionDate});
+        if (error) throw error;
+        rows = tsnuCorrectionRows(data);
+      } else {
+        const { data, error } = await supabase
+          .from("incidents")
+          .select("id,incident_code,unit,warehouse,occurred_at,materials,updated_at")
+          .in("unit", [...units, supervisorUnit])
+          .eq("incident_code", guardCode)
+          .order("unit", { ascending: true });
+        if (error) throw error;
+        rows = (data || []).map(row => ({...row,service:"TSU"}));
+      }
+      setCorrectionRows(rows);
       setCorrectionIncidentId("");
       setCorrectionMaterial("");
       setCorrectionQuantity("");
-      if (!(data || []).length) flash("No hay consumos registrados para esta fecha");
+      if (!rows.length) flash("No hay consumos registrados para esta fecha");
     } catch (error) {
       flash(error?.message || "No se han podido cargar los consumos");
     } finally {
@@ -1365,13 +1376,8 @@ function App() {
     setCorrectionLoading(true);
     try {
       await ensureAnonymousSession();
-      const { error } = await supabase.rpc("correct_guard_consumption", {
-        p_incident_id: correctionIncidentId,
-        p_lot: correctionLot,
-        p_material: correctionMaterial,
-        p_corrected_quantity: corrected,
-        p_reason: correctionReason.trim(),
-      });
+      const [rpc,params] = consumptionCorrectionRequest(selectedCorrectionRecord, {lot:correctionLot,material:correctionMaterial,quantity:corrected,previous:selectedCorrectionPrevious,reason:correctionReason.trim()});
+      const { error } = await supabase.rpc(rpc, params);
       if (error) throw error;
       flash("Consumo corregido. Stock, reposición e historial actualizados");
       await loadCorrectableConsumptions();
@@ -1380,6 +1386,10 @@ function App() {
       flash(
         message.includes("CORRECTION_WITHOUT_CHANGES")
           ? "La cantidad indicada ya es la registrada"
+          : message.includes("CORRECTION_CONFLICT")
+            ? "El consumo ha cambiado. Busca de nuevo los consumos antes de corregirlo."
+          : message.includes("PGRST202")
+            ? "Falta activar la corrección de TSNU en el servidor. Contacta con administración."
           : message.includes("GUARD_STILL_ACTIVE")
             ? "La guardia todavía está activa. Corrígelo desde la unidad y vuelve a enviar el total."
           : message.includes("ADMIN_ZONE_ACCESS_DENIED")
@@ -3466,7 +3476,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v222</span></h1>
+          <h1>Control de material <span className="app-version">v223</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3910,6 +3920,11 @@ function App() {
           <div className="modal-backdrop">
             <div className="card export-modal consumption-correction-modal">
               <h2>Corregir un consumo</h2>
+              <label>Tipo de unidad</label>
+              <select value={correctionType} disabled={correctionLoading} onChange={e=>{setCorrectionType(e.target.value);setCorrectionRows([]);setCorrectionIncidentId("");setCorrectionMaterial("");setCorrectionQuantity("");}}>
+                <option value="TSU">TSU · SVB y BP</option>
+                <option value="TSNU">TSNU</option>
+              </select>
               <p className="muted">
                 Para guardias ya finalizadas. Rectifica un error humano sin borrar el envío original: se ajustarán el stock y la reposición y quedará registrado quién hizo el cambio.
               </p>
@@ -3928,7 +3943,7 @@ function App() {
               <label>Supervisión</label>
               <select
                 value={correctionZone}
-                disabled={correctionLoading || adminAccess?.role === "supervisor"}
+                  disabled={correctionLoading || adminAccess?.role === "supervisor"}
                 onChange={(e) => { setCorrectionZone(e.target.value); setCorrectionRows([]); }}
               >
                 <option value="">Selecciona...</option>
@@ -3945,7 +3960,7 @@ function App() {
                 onChange={(e) => { setCorrectionDate(e.target.value); setCorrectionRows([]); }}
               />
               <p className="muted" style={{ margin: "-4px 0 12px" }}>
-                Los consumos de Material Supervisor se registran por día natural (00:00–24:00).
+                {correctionType === "TSNU" ? "Se muestran los envíos de consumo de TSNU del día seleccionado. Solo se corrigen turnos finalizados." : "Los consumos de Material Supervisor se registran por día natural (00:00–24:00)."}
               </p>
               <button className="secondary full" onClick={loadCorrectableConsumptions} disabled={correctionLoading}>
                 {correctionLoading ? "Consultando..." : "Buscar consumos"}
@@ -3962,11 +3977,12 @@ function App() {
                 >
                   <option value="">Selecciona...</option>
                   {correctionRows.map((row) => (
-                    <option key={row.id} value={row.id}>{row.unit} · {row.incident_code} · {row.warehouse}</option>
+                    <option key={row.id} value={row.id}>{row.unit} · {row.incident_code} · {row.service === "TSNU" ? madridDateTime(row.occurred_at).time + " · " : ""}{row.warehouse}{row.service === "TSNU" && !row.ended_at ? " · Turno activo" : ""}</option>
                   ))}
                 </select>
               </>}
               {selectedCorrectionRecord && <>
+                {selectedCorrectionRecord.service === "TSNU" && !selectedCorrectionRecord.ended_at && <p className="muted">Este turno sigue activo. Finaliza el turno antes de corregir su consumo.</p>}
                 <label>Material registrado</label>
                 <select
                   value={correctionMaterial}
@@ -4010,7 +4026,7 @@ function App() {
                 <button
                   className="danger"
                   onClick={applyConsumptionCorrection}
-                  disabled={correctionLoading || !correctionMaterial || correctionQuantity === ""}
+                  disabled={correctionLoading || !correctionMaterial || correctionQuantity === "" || (selectedCorrectionRecord?.service === "TSNU" && !selectedCorrectionRecord.ended_at)}
                 >
                   {correctionLoading ? "Aplicando..." : "Aplicar corrección"}
                 </button>
@@ -5293,7 +5309,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=222", {
+    navigator.serviceWorker.register("./sw.js?v=223", {
       updateViaCache: "none",
     }),
   );
