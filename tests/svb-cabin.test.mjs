@@ -19,13 +19,13 @@ test("cabin remains pending until every item is checked and preserves incidents"
   delete items[SVB_CABIN_ITEMS[1]];
   assert.equal(cabinStatus({1:items}),"pending");
 });
-test("four-zone menu, submission, reports and offline assets include the cabin",()=>{
+test("five-zone menu, submission, reports and offline assets include the cabin",()=>{
   const read=file=>fs.readFileSync(new URL("../"+file,import.meta.url),"utf8");
   assert.match(read("public/svb-zones.html"),/id="cabin".*svb-cabin.html/);
   const production=read("public/checklists/svb-zones-production.js");
-  assert.match(production,/\["left","front","right","cabin"\]/);
+  assert.match(production,/\["left","front","right","cabin","door"\]/);
   assert.match(production,/cabin:zoneAnswers\("cabin"\)/);
-  assert.match(production,/Completa las cuatro zonas/);
+  assert.match(production,/Completa las cinco zonas/);
   assert.match(read("src/main.jsx"),/"Cabina de conducción": zoneState\("cabin"\)/);
   assert.match(read("public/checklists/svb-cabin.js"),/cma_svb_cabin_wall_mobile_test_v1:\$\{scope\}:\$\{vehicle\}/);
   assert.match(read("public/sw.js"),/svb-cabin.html/);

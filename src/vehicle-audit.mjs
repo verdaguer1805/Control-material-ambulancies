@@ -3,6 +3,7 @@ import { SVB_LEFT_WALL_SECTIONS } from './svb-left-wall-data.mjs';
 import { SVB_FRONT_WALL_SECTIONS } from './svb-front-wall-data.mjs';
 import { SVB_RIGHT_ZONE_SECTIONS } from './svb-right-zone-data.mjs';
 import { SVB_CABIN_ITEMS } from './svb-cabin-data.mjs';
+import { SVB_DOOR_SECTIONS } from './svb-door-data.mjs';
 
 export const AUDIT_TYPES = ['TSNU', 'SVB', 'Polivalente', 'Logística'];
 export const AUDIT_STORAGE_KEY = 'cma_supervisor_vehicle_audits_v1';
@@ -13,7 +14,7 @@ export function auditGroups(type) {
   if (type === 'TSNU') return TSNU_CHECKLIST_GROUPS.map(([title, items], index) => ({id:`tsnu-${index}`, title, items}));
   if (type !== 'SVB') return [];
   const groups = [];
-  for (const [zone, sections] of [['Zona izquierda', SVB_LEFT_WALL_SECTIONS], ['Zona frontal', SVB_FRONT_WALL_SECTIONS], ['Zona derecha', SVB_RIGHT_ZONE_SECTIONS]]) {
+  for (const [zone, sections] of [['Zona izquierda', SVB_LEFT_WALL_SECTIONS], ['Zona frontal', SVB_FRONT_WALL_SECTIONS], ['Zona derecha', SVB_RIGHT_ZONE_SECTIONS], ['Puerta corredera izquierda', SVB_DOOR_SECTIONS]]) {
     for (const section of sections.filter(s => !s.pendingDefinition)) {
       const children = section.groups || [{title:'', items:section.items}];
       children.forEach((child, index) => groups.push({id:`${zone}-${section.id}-${index}`, title:`${zone} · ${section.title}${child.title ? ` · ${child.title}` : ''}`, items:child.items}));

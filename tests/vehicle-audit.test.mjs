@@ -7,7 +7,7 @@ import {SVB_FRONT_WALL_SECTIONS,frontSectionItems} from '../src/svb-front-wall-d
 import {SVB_PHOTO_LAYOUT} from '../src/svb-photo-layout.mjs';
 
 test('SVB audit photos and marker positions match the operational unit checklist',()=>{
- for(const [zone,file] of [['left','svb-preview.html'],['front','svb-front-preview.html'],['right','svb-right-preview.html']]){
+ for(const [zone,file] of [['left','svb-preview.html'],['front','svb-front-preview.html'],['right','svb-right-preview.html'],['door','svb-door-preview.html']]){
   const html=fs.readFileSync(new URL(`../public/${file}`,import.meta.url),'utf8');
   const literal=html.match(/const pos=\{([^}]+)\}/)[1];
   const positions=Object.fromEntries([...literal.matchAll(/(\d+):\[([\d.]+),([\d.]+)\]/g)].map(match=>[match[1],[+match[2],+match[3]]]));

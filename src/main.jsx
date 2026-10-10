@@ -1220,7 +1220,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v221", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v222", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -2566,7 +2566,7 @@ function App() {
         compareUnits(a.unit, b.unit) || new Date(a.guard_started_at) - new Date(b.guard_started_at)
       ).map((checklist) => {
         const answers = checklist.answers || {},
-          zoneNames = { left: "Zona izquierda", front: "Zona frontal", right: "Zona derecha", cabin: "Cabina de conducción" },
+          zoneNames = { left: "Zona izquierda", front: "Zona frontal", right: "Zona derecha", cabin: "Cabina de conducción", door: "Puerta corredera izquierda" },
           issues = [];
         Object.entries(answers).forEach(([zone, sections]) =>
           Object.entries(sections || {}).forEach(([section, items]) =>
@@ -2591,6 +2591,7 @@ function App() {
           "Zona frontal": zoneState("front"),
           "Zona derecha": zoneState("right"),
           "Cabina de conducción": zoneState("cabin"),
+          "Puerta corredera izquierda": zoneState("door"),
           Incidencias: issues.join(" · ") || "—",
         };
       }),
@@ -3465,7 +3466,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v221</span></h1>
+          <h1>Control de material <span className="app-version">v222</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5292,7 +5293,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=221", {
+    navigator.serviceWorker.register("./sw.js?v=222", {
       updateViaCache: "none",
     }),
   );
