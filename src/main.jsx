@@ -17,6 +17,7 @@ import { writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
 import { compareMaterialLabels } from "./material-order.mjs";
 import { materialDisplayName } from "./material-display.mjs";
 import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
+import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, INCIDENT_DETAIL_SHEET } from "./checklist-report-format.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 const VehicleAudit = React.lazy(() => import("./VehicleAudit.jsx"));
@@ -1222,7 +1223,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v226", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v227", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -2571,10 +2572,11 @@ function App() {
           "Guardia finalizada": shift.ended_at ? shift.close_source === "automatic" ? "Sí · Automática" : "Sí · Manual" : "No",
         };
       }),
-      checklistTsuRows = [...svbChecklists].sort((a, b) =>
+      checklistTsuRecords = [...svbChecklists].sort((a, b) =>
         reportDateKey(a.guard_started_at).localeCompare(reportDateKey(b.guard_started_at)) ||
         compareUnits(a.unit, b.unit) || new Date(a.guard_started_at) - new Date(b.guard_started_at)
-      ).map((checklist) => {
+      ),
+      checklistTsuRows = checklistTsuRecords.map((checklist) => {
         const answers = checklist.answers || {},
           zoneNames = { left: "Zona izquierda", front: "Zona frontal", right: "Zona derecha", cabin: "Cabina de conducción", door: "Puerta corredera izquierda" },
           issues = [];
@@ -2653,22 +2655,11 @@ function App() {
     configure(wsGeneral, [14, 14, 12, 14, 18, 24, 24, 42, 12]);
     configure(wsTsu, [14, 14, 12, 14, 18, 24, 24, 42, 12]);
     configure(wsTsnu, [14, 10, 12, 14, 24, 24, 42, 12]);
-    configure(wsChecklistTsnu, [14, 16, 14, 24, 18, 18, 18, 60, 18]);
-    configure(wsChecklistTsu, [14, 16, 14, 12, 18, 18, 18, 18, 18, 80]);
-    checklistTsnuRows.forEach((row, rowIndex) => {
-      const rgb = row.Estado === "Correcto" ? "D9EEDC" : "F8CDCD";
-      for (let column = 0; column < 9; column += 1) {
-        const cell = wsChecklistTsnu[XLSX.utils.encode_cell({r:rowIndex + 1,c:column})];
-        if (cell) cell.s = {fill:{fgColor:{rgb}}};
-      }
-    });
-    checklistTsuRows.forEach((row, rowIndex) => {
-      const rgb = row.Estado === "Correcto" ? "D9EEDC" : "F8CDCD";
-      for (let column = 0; column < 10; column += 1) {
-        const cell = wsChecklistTsu[XLSX.utils.encode_cell({r:rowIndex + 1,c:column})];
-        if (cell) cell.s = {fill:{fgColor:{rgb}}};
-      }
-    });
+    configure(wsChecklistTsnu, checklistReportWidths(checklistTsnuRows));
+    configure(wsChecklistTsu, checklistReportWidths(checklistTsuRows));
+    colorChecklistReportRows(XLSX, wsChecklistTsnu, checklistTsnuRows);
+    colorChecklistReportRows(XLSX, wsChecklistTsu, checklistTsuRows);
+    const wsChecklistIncidents = addChecklistIncidentDetails(XLSX, wsChecklistTsu, checklistTsuRows, checklistTsuRecords, materialLabel);
     configure(ws5, [16, 12, 28, 38, 18]);
     configure(ws6, [14, 10, 16, 28, 22, 42, 20, 14]);
     const dailyHeaderStyle = {
@@ -2699,6 +2690,7 @@ function App() {
     });
     XLSX.utils.book_append_sheet(wb, wsGeneral, "Resumen general");
     XLSX.utils.book_append_sheet(wb, wsChecklistTsu, "Checklist SVB");
+    if (wsChecklistIncidents) XLSX.utils.book_append_sheet(wb, wsChecklistIncidents, INCIDENT_DETAIL_SHEET);
     const auditRows = vehicleAudits.flatMap(audit => audit.items.map(item => ({
       Fecha: madridDateTime(audit.received_at).date,
       Hora: madridDateTime(audit.received_at).time,
@@ -3476,7 +3468,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v226</span></h1>
+          <h1>Control de material <span className="app-version">v227</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5309,7 +5301,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=226", {
+    navigator.serviceWorker.register("./sw.js?v=227", {
       updateViaCache: "none",
     }),
   );
