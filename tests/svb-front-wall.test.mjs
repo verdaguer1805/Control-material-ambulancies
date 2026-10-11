@@ -1,4 +1,12 @@
 import test from "node:test";
+test("adult resuscitation bag in compartment ten adds Guedel 2 to 5 after oxygen extension",()=>{
+ const bag=SVB_FRONT_WALL_SECTIONS.find(s=>s.id===10).groups.find(g=>g.title==='Bolsa de resucitación de adulto');
+ const expected=[2,3,4,5].map(size=>`Cánula Guedel nº ${size} · 1 unidad`);
+ const start=bag.items.indexOf('Alargadera de oxígeno de 2 m · 1 unidad');
+ assert.deepEqual(bag.items.slice(start+1),expected);
+ const other=SVB_FRONT_WALL_SECTIONS.find(s=>s.id===2).groups.find(g=>g.title==='Bolsa de resucitación de adulto');
+ assert.ok(!other.items.some(item=>item.startsWith('Cánula Guedel')));
+});
 import assert from "node:assert/strict";
 import {SVB_FRONT_WALL_SECTIONS,frontSectionItems,frontSectionStatus,frontRequiredSections} from "../src/svb-front-wall-data.mjs";
 test("front oxygen quantities and corrected trauma material follow the new configuration",()=>{
