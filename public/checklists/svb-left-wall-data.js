@@ -78,7 +78,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "id": 7,
     "title": "Compartimento 7",
     "items": [
-      "Empapador",
+      "Empapadores · 5 unidades",
       "Caja de pañuelos",
       "Pañal · 1 unidad",
       "Gorro para recién nacido · 1 unidad",
@@ -130,6 +130,9 @@ export const SVB_LEFT_WALL_SECTIONS = [
   }
   , { id: 11, title: "Aspirador", items: ["Bolsa de aspirador de un solo uso · 1 unidad","Tubo de silicona para aspirador (1 metro) · 1 unidad","Sonda de aspiración controlada nº 6 · 1 unidad","Sonda de aspiración controlada nº 8 · 1 unidad","Sonda de aspiración controlada nº 10 · 1 unidad","Sonda de aspiración controlada nº 14 · 1 unidad","Sonda de aspiración controlada nº 16 · 1 unidad","Sonda de aspiración controlada nº 18 · 1 unidad","Cánula Yankauer · 1 unidad","Conexión en Y · 1 unidad"] }
 ];
+SVB_LEFT_WALL_SECTIONS.find(section=>section.id===7).kit = {
+  title:"Kit de parto", items:SVB_LEFT_WALL_SECTIONS.find(section=>section.id===7).items.slice(2)
+};
 export function sectionStatus(section, answers) {
   const values = section.items.map(item => answers?.[section.id]?.[item]);
   if (!values.every(value => value === "ok" || value === "issue")) return "pending";

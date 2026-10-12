@@ -1,10 +1,10 @@
-import { SVB_CABIN_ITEMS, cabinStatus } from "./svb-cabin-data.js?v=228";
-import { readSvbVehicleAssignment } from "./svb-vehicle-assignment.js?v=228";
+import { SVB_CABIN_ITEMS, cabinStatus } from "./svb-cabin-data.js?v=229";
+import { readSvbVehicleAssignment } from "./svb-vehicle-assignment.js?v=229";
 const read = key => { try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; } };
 const context = read("cma_svb_checklist_context_v1");
 const scope = `${context.unit || "TSU"}:${context.guardCode || "guardia"}`;
 const vehicle = readSvbVehicleAssignment(localStorage, context.unit, context.guardCode);
-if (!context.unit || !context.guardCode || !vehicle) location.replace("./svb-zones.html?v=228");
+if (!context.unit || !context.guardCode || !vehicle) location.replace("./svb-zones.html?v=229");
 const key = `cma_svb_cabin_wall_mobile_test_v1:${scope}:${vehicle}`;
 let answers = read(key);
 const byId = id => document.getElementById(id);

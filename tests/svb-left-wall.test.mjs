@@ -37,7 +37,7 @@ test("left blanket and complete Kramer set use the same labels in unit checks an
  assert.ok(SVB_LEFT_WALL_SECTIONS.find(s=>s.id===7).items.includes("Caja de pañuelos"));
  assert.ok(!SVB_LEFT_WALL_SECTIONS.find(s=>s.id===7).items.includes("Toallas de papel"));
  assert.ok(!SVB_LEFT_WALL_SECTIONS.find(s=>s.id===7).items.some(item=>/manta.*neonatal/i.test(item)));
- for(const file of ['public/checklists/svb-left-wall-data.js','public/svb-preview.html']){
+ for(const file of ['public/checklists/svb-left-wall-data.js']){
   const text=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
   assert.ok(text.includes(blanket));assert.ok(text.includes(kramer));
   assert.ok(text.includes("Caja de pañuelos"));assert.ok(!text.includes("Toallas de papel"));
@@ -46,6 +46,24 @@ test("left blanket and complete Kramer set use the same labels in unit checks an
  const labels=auditItems('SVB').map(item=>item.label);
  assert.ok(labels.includes(blanket));assert.ok(labels.includes(kramer));
  assert.ok(labels.includes("Caja de pañuelos"));
+ const preview=fs.readFileSync(new URL('../public/svb-preview.html',import.meta.url),'utf8');
+ assert.match(preview,/import\{SVB_LEFT_WALL_SECTIONS\}from/);
+ assert.match(preview,/SVB_LEFT_WALL_SECTIONS.map/);
+ assert.doesNotMatch(preview,/const legacySections/);
+});
+
+test("left compartment seven has five pads outside an eleven-item birth kit",()=>{
+ const section=SVB_LEFT_WALL_SECTIONS.find(s=>s.id===7);
+ assert.deepEqual(section.items.slice(0,2),["Empapadores · 5 unidades","Caja de pañuelos"]);
+ assert.equal(section.kit.title,"Kit de parto");
+ assert.deepEqual(section.kit.items,section.items.slice(2));
+ assert.equal(section.kit.items.length,11);
+ assert.equal(section.kit.items.filter(item=>item.startsWith('Empapador del kit')).length,1);
+ assert.ok(!section.kit.items.includes('Empapadores · 5 unidades'));
+ const publicSource=fs.readFileSync(new URL('../public/checklists/svb-left-wall-data.js',import.meta.url),'utf8');
+ assert.ok(publicSource.includes('Empapadores · 5 unidades'));
+ const preview=fs.readFileSync(new URL('../public/svb-preview.html',import.meta.url),'utf8');
+ assert.ok(preview.includes('heading.textContent=kit.title'));
 });
 
 test("aspirator contents follow the printed list without the vacuum connector",()=>{
