@@ -1,5 +1,5 @@
 export const SVB_LEFT_WALL_SECTIONS = [
-  { id: 1, title: "Compartimento 1", items: ["Mantas de un solo uso · 5 unidades", "Sabanas de un solo uso · 5 unidades"] },
+  { id: 1, title: "Compartimento 1", items: ["Mantas de un solo uso · 5 unidades"] },
   { id: 2, title: "Compartimento 2", items: [
     "Mascarillas FFP2 · 6 unidades", "Mascarillas FFP3 · 6 unidades", "Mascarillas quirúrgicas · 5 unidades",
     "Bata impermeable de un solo uso · talla S · 1 unidad", "Bata impermeable de un solo uso · talla M · 1 unidad",

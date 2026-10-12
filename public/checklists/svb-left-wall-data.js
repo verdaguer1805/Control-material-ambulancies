@@ -3,8 +3,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "id": 1,
     "title": "Compartimento 1",
     "items": [
-      "Mantas de un solo uso · 5 unidades",
-      "Sabanas de un solo uso · 5 unidades"
+      "Mantas de un solo uso · 5 unidades"
     ]
   },
   {

@@ -1,4 +1,8 @@
 import test from "node:test";
+
+test("left compartment one contains only five single-use blankets",()=>{
+ assert.deepEqual(SVB_LEFT_WALL_SECTIONS.find(s=>s.id===1).items,["Mantas de un solo uso · 5 unidades"]);
+});
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { auditItems } from "../src/vehicle-audit.mjs";
@@ -90,10 +94,10 @@ test("every controlled aspiration probe in compartment nine requires two units",
 });
 
 test("a compartment becomes green only when every item is correct",()=>{
-  const section=SVB_LEFT_WALL_SECTIONS[0];
+  const section=SVB_LEFT_WALL_SECTIONS.find(s=>s.items?.length>1);
   assert.equal(sectionStatus(section,{}),"pending");
-  assert.equal(sectionStatus(section,{1:{[section.items[0]]:"ok"}}),"pending");
-  assert.equal(sectionStatus(section,{1:Object.fromEntries(section.items.map(item=>[item,"ok"]))}),"ok");
+  assert.equal(sectionStatus(section,{[section.id]:{[section.items[0]]:"ok"}}),"pending");
+  assert.equal(sectionStatus(section,{[section.id]:Object.fromEntries(section.items.map(item=>[item,"ok"]))}),"ok");
 });
 
 test("a completed compartment with any incidence becomes red",()=>{

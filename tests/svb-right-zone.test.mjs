@@ -5,6 +5,10 @@ import { SVB_RIGHT_ZONE_SECTIONS, rightZoneStatus } from "../src/svb-right-zone-
 import { SVB_PHOTO_LAYOUT } from "../src/svb-photo-layout.mjs";
 import { auditItems } from "../src/vehicle-audit.mjs";
 
+test("right compartment three requires six irrigation sera 100 ml and four 250 ml",()=>{
+ assert.deepEqual(SVB_RIGHT_ZONE_SECTIONS.find(s=>s.id===3).items,["Suero fisiológico de irrigación 100 ml · 6 unidades","Suero fisiológico de irrigación 250 ml · 4 unidades"]);
+});
+
 test("guantes L y XL en 2, M y S en 2a, también en auditorías",()=>{
  assert.deepEqual(SVB_RIGHT_ZONE_SECTIONS.find(s=>s.id===2).items,["Guantes talla L · 1 caja","Guantes talla XL · 1 caja"]);
  const section=SVB_RIGHT_ZONE_SECTIONS.find(s=>s.id==="2a");
