@@ -38,30 +38,42 @@ test('incident links open the matching checklist detail and survive Excel serial
  const original=JSON.stringify(records);
  const summary=XLSX.utils.json_to_sheet(rows);
  colorChecklistReportRows(XLSX,summary,rows);
- const detail=addChecklistIncidentDetails(XLSX,summary,rows,records,value=>value);
+ const details=addChecklistIncidentDetails(XLSX,summary,rows,records,value=>value);
+ const detail=details[0].sheet;
  assert.equal(JSON.stringify(records),original);
  assert.equal(checklistIncidentDetails(records).length,4);
  const cells=XLSX.utils.sheet_to_json(detail);
- assert.deepEqual(cells.map(row=>row.Unidad),['G450','G450','G450','G451']);
+ assert.deepEqual(cells.map(row=>row.Unidad),['G450','G450','G450']);
  assert.deepEqual(cells.filter(row=>row.Zona==='Zona derecha').map(row=>row.Compartimento),['2','2a']);
- assert.equal(cells[3].Zona,'Puerta corredera izquierda');
+ assert.equal(XLSX.utils.sheet_to_json(details[1].sheet)[0].Zona,'Puerta corredera izquierda');
  assert.equal(summary.H2.v,'Ver incidencias (3)');
- assert.equal(summary.H2.l.Target,"#'Incidencias SVB'!A2");
- assert.equal(summary.H3.l.Target,"#'Incidencias SVB'!A5");
+ assert.equal(summary.H2.l.Target,"#'Inc 1 G450'!A2");
+ assert.equal(summary.H3.l.Target,"#'Inc 2 G451'!A2");
  assert.equal(summary.H4.l,undefined);
- assert.equal(detail.J5.l.Target,"#'Checklist SVB'!A3");
+ assert.equal(details[1].sheet.J2.l.Target,"#'Checklist SVB'!A3");
  assert.equal(summary.H2.s.fill.fgColor.rgb,'F8CDCD');
  const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,summary,'Checklist SVB');
- XLSX.utils.book_append_sheet(wb,detail,INCIDENT_DETAIL_SHEET);
+ details.forEach(({sheet,name})=>XLSX.utils.book_append_sheet(wb,sheet,name));
  const saved=XLSX.read(XLSX.write(wb,{bookType:'xlsx',type:'buffer'}),{type:'buffer',cellStyles:true});
- assert.equal(saved.Sheets['Checklist SVB'].H3.l.Target,"#'Incidencias SVB'!A5");
- assert.equal(saved.Sheets[INCIDENT_DETAIL_SHEET].J5.l.Target,"#'Checklist SVB'!A3");
- assert.equal(saved.Sheets[INCIDENT_DETAIL_SHEET]['!autofilter'].ref,'A1:J5');
+ assert.equal(saved.Sheets['Checklist SVB'].H3.l.Target,"#'Inc 2 G451'!A2");
+ assert.equal(saved.Sheets['Inc 2 G451'].J2.l.Target,"#'Checklist SVB'!A3");
+ assert.equal(saved.Sheets['Inc 1 G450']['!autofilter'].ref,'A1:J4');
+ assert.deepEqual(XLSX.utils.sheet_to_json(saved.Sheets['Inc 2 G451']).map(row=>row.Unidad),['G451']);
 });
 
 test('no incidence creates no links or empty detail sheet',()=>{
- assert.equal(addChecklistIncidentDetails(XLSX,{},[],[],value=>value),null);
+ assert.deepEqual(addChecklistIncidentDetails(XLSX,{},[],[],value=>value),[]);
+});
+
+test('repeated units on different dates have isolated, uniquely named detail sheets',()=>{
+ const rows=['12/10/2026','13/10/2026'].map(Fecha=>({Fecha,Unidad:'G450',Incidencias:'issue'}));
+ const records=['Guantes','Gasas'].map(item=>({answers:{left:{7:{[item]:'issue'}}}}));
+ const summary=XLSX.utils.json_to_sheet(rows);
+ const details=addChecklistIncidentDetails(XLSX,summary,rows,records);
+ assert.notEqual(details[0].name,details[1].name);
+ assert.deepEqual(details.map(({sheet})=>XLSX.utils.sheet_to_json(sheet).map(row=>row.Material)),[['Guantes'],['Gasas']]);
+ assert.equal(summary.C3.l.Target,`#'${details[1].name}'!A2`);
 });
 
 test('both TSU and TSNU exports use the shared dynamic formatting',()=>{

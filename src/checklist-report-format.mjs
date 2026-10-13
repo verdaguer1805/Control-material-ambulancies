@@ -33,7 +33,20 @@ export function checklistIncidentDetails(records, label = value => value) {
 
 export function addChecklistIncidentDetails(XLSX, summarySheet, summaryRows, records, label) {
   const details=checklistIncidentDetails(records,label);
-  if (!details.length) return null;
+  const grouped=new Map();
+  details.forEach(detail=>{
+    if(!grouped.has(detail.recordIndex))grouped.set(detail.recordIndex,[]);
+    grouped.get(detail.recordIndex).push(detail);
+  });
+  return [...grouped].map(([recordIndex,items])=>{
+    // The row number guarantees unique, Excel-safe names even for repeated units/dates.
+    const unit=String(summaryRows[recordIndex].Unidad || 'Unidad').replace(/[\\/?*\[\]:']/g,'').slice(0,16);
+    const name=`Inc ${recordIndex+1} ${unit}`.slice(0,31);
+    return {name,sheet:incidentDetailSheet(XLSX,summarySheet,summaryRows,items,name)};
+  });
+}
+
+function incidentDetailSheet(XLSX, summarySheet, summaryRows, details, name) {
   const rows=details.map(detail => {
     const summary=summaryRows[detail.recordIndex];
     return {
@@ -68,7 +81,7 @@ export function addChecklistIncidentDetails(XLSX, summarySheet, summaryRows, rec
     const cell=summarySheet[XLSX.utils.encode_cell({r:recordIndex+1,c:column})];
     const count=details.filter(detail=>detail.recordIndex===recordIndex).length;
     cell.v=`Ver incidencias (${count})`;
-    cell.l={Target:`#'${INCIDENT_DETAIL_SHEET}'!A${target}`,Tooltip:'Abrir el detalle de este checklist'};
+    cell.l={Target:`#'${name}'!A${target}`,Tooltip:'Ver solo las incidencias de este checklist'};
     cell.s={...cell.s,font:linkStyle};
   });
   return sheet;
