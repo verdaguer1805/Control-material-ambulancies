@@ -10,8 +10,8 @@ const optimisticSql = readFileSync(new URL("../sql/optimistic-inventory-locking-
 const inventoryAuditSql = readFileSync(new URL("../sql/inventory-adjustment-audit-v1.sql", import.meta.url), "utf8");
 
 test("the active guard keeps and replaces one cumulative total", () => {
-  assert.match(main, /setQuantities\(activeRecord \? aggregate\(activeRecord\) : \{\}\)/);
-  assert.match(main, /rec\.entries = \[entry\]/);
+  assert.match(main, /setQuantities\(isSupervisorMaterial\(currentUnit\) \? supervisorDraft\(activeRecord\) : activeRecord \? aggregate\(activeRecord\) : \{\}\)/);
+  assert.match(main, /rec\.entries = supervisorBatch \? supervisorBatch\.entries : \[entry\]/);
   assert.match(main, /setQuantities\(\{ \.\.\.used \}\)/);
 });
 

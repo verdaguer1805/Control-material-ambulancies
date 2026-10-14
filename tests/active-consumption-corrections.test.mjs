@@ -27,7 +27,7 @@ test('first empty save remains blocked but existing records can be cleared',()=>
  const source=readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
  assert.match(source,/!Object.keys\(used\).length && !noMaterial && !hasExistingConsumption/);
  assert.match(source,/previousRecord.serverIncidentId \|\| !previousRecord.recoveredBaseline/);
- assert.match(source,/rec\.serverMaterials = \{ \.\.\.used \}/);
+ assert.match(source,/rec\.serverMaterials = \{ \.\.\.request\.args\.p_materials \}/);
 });
 test('server correction is authorized, serialized, compare-and-swap and idempotent',()=>{
  const sql=readFileSync(new URL('../sql/active-consumption-corrections-v1.sql',import.meta.url),'utf8');

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { supervisorDraft, appendSupervisorConsumption } from "./supervisor-consumption.mjs";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
 import { correctionService, tsnuCorrectionRows, consumptionCorrectionRequest } from "./consumption-correction-service.mjs";
 import { cachedDeviceCanQueue } from "./device-auth-continuity.mjs";
@@ -495,7 +496,7 @@ function App() {
     const activeRecord = getRecords().find(
       (record) => record.unit === currentUnit && record.id === guard.code,
     );
-    setQuantities(activeRecord ? aggregate(activeRecord) : {});
+    setQuantities(isSupervisorMaterial(currentUnit) ? supervisorDraft(activeRecord) : activeRecord ? aggregate(activeRecord) : {});
     setIncident(guard.code);
     setIncidentConfirmed(true);
     setEditingRecord(null);
@@ -1024,6 +1025,11 @@ function App() {
       ? {}
       : Object.fromEntries(Object.entries(quantities).filter(([, n]) => n > 0));
     const previousRecord = getRecords().find((r) => r.id === id && r.unit === currentUnit);
+    const supervisor = isSupervisorMaterial(currentUnit);
+    if (supervisor && previousRecord && !previousRecord.synced)
+      return flash('Hay un consumo pendiente. Pulsa Sincronizar pendientes antes de enviar otro consumo.',5000);
+    if (supervisor && !Object.keys(used).length)
+      return flash('No hay material seleccionado; no es necesario enviar');
     const hasExistingConsumption = previousRecord && (previousRecord.serverIncidentId || !previousRecord.recoveredBaseline || Object.keys(aggregate(previousRecord)).length);
     if (!Object.keys(used).length && !noMaterial && !hasExistingConsumption)
       return flash("No hay material seleccionado; no es necesario enviar");
@@ -1041,13 +1047,15 @@ function App() {
       rec = list.find((r) => r.id === id && r.unit === currentUnit);
     const savedAt = new Date().toISOString(),
       entry = { createdAt: savedAt, materials: used };
+    const supervisorBatch = supervisor ? appendSupervisorConsumption(rec,used,savedAt) : null;
     if (rec) {
       if (rec.synced && !rec.serverMaterials) rec.serverMaterials = aggregate(rec);
       if (isSupervisorMaterial(currentUnit)) {
         rec.guardOccurredAt ||= guard.start.toISOString();
         rec.time = madridDateTime(savedAt).time;
       }
-      rec.entries = [entry];
+      rec.entries = supervisorBatch ? supervisorBatch.entries : [entry];
+      if (supervisorBatch) rec.supervisorPendingBatch = supervisorBatch.supervisorPendingBatch;
       rec.recoveredBaseline = false;
       rec.updatedAt = savedAt;
       rec.synced = false;
@@ -1068,6 +1076,7 @@ function App() {
         pendingUpdate: false,
       };
       list.push(rec);
+      if (supervisorBatch) rec.supervisorPendingBatch = supervisorBatch.supervisorPendingBatch;
     }
     saveRecords(list);
     setRecords([...list]);
@@ -1086,7 +1095,12 @@ function App() {
       const { error } = await supabase.rpc(request.name,request.args);
       if (error) throw error;
       rec.synced = true;
-      rec.serverMaterials = { ...used };
+      rec.serverMaterials = { ...request.args.p_materials };
+      if (supervisor) {
+        delete rec.supervisorPendingBatch;
+        setQuantities({});
+        setSearch('');
+      }
       rec.pendingUpdate = false;
       saveRecords(list);
       setRecords([...list]);
@@ -1136,9 +1150,14 @@ function App() {
         const { error } = await supabase.rpc(request.name,request.args);
         if (error) throw error;
         rec.serverMaterials = { ...request.args.p_materials };
+        if (isSupervisorMaterial(rec.unit)) delete rec.supervisorPendingBatch;
       });
       saveRecords(list);
       setRecords([...list]);
+      if (isSupervisorMaterial(localStorage.getItem(KEY.unit)) && syncResult.synced.some(record=>record.unit===localStorage.getItem(KEY.unit) && record.id===guardState(record.unit,localStorage.getItem(KEY.shift)).code)) {
+        setQuantities({});
+        setSearch('');
+      }
       if (syncResult.conflict) {
         setConflictRecordId(syncResult.conflict.createdAt);
         setConflictNewId(syncResult.conflict.id);
@@ -1223,7 +1242,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v232", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v233", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -3468,7 +3487,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v232</span></h1>
+          <h1>Control de material <span className="app-version">v233</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5301,7 +5320,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=232", {
+    navigator.serviceWorker.register("./sw.js?v=233", {
       updateViaCache: "none",
     }),
   );
