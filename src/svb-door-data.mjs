@@ -8,7 +8,8 @@ export const SVB_DOOR_SECTIONS = [
     "Sistema de retención infantil · 1 unidad",
     "Bolsa de contenciones para paciente agitado · 1 unidad",
     "Dispositivo de extracción de vehículos (Ferno) · 1 unidad",
-    "Señal de punto de estacionamiento (trípode) · 1 unidad"
+    "Señal de punto de estacionamiento (trípode) · 1 unidad",
+    "Transfer de lona azul · 1 unidad"
   ] },
   { id: 2, title: "Compartimento 2", items: [
     "Cizalla · 1 unidad", "Pata de cabra · 1 unidad", "Martillo rompecristales · 1 unidad"

@@ -35,7 +35,7 @@ test("front burns kit includes all nine supplied materials with one unit each",(
 test("the front wall defines every visual zone",()=>assert.deepEqual(SVB_FRONT_WALL_SECTIONS.map(({id})=>id),[1,2,3,4,5,6,7,8,9,10,11,12,13]));
 test("drawer three requires the SEM report block, except in already confirmed legacy checklists",()=>{
  const section=SVB_FRONT_WALL_SECTIONS.find(row=>row.id===3);
- assert.deepEqual(section.items,["Partes SEM · 1 bloc"]);
+ assert.deepEqual(section.items,["Partes SEM · 1 bloc","Cargador de 220 V para aspirador · 1 unidad"]);
  assert.equal(frontSectionStatus(section,{}),"pending");
  assert.ok(frontRequiredSections(SVB_FRONT_WALL_SECTIONS,{},false).some(s=>s.id===3));
  assert.ok(!frontRequiredSections(SVB_FRONT_WALL_SECTIONS,{},true).some(s=>s.id===3));

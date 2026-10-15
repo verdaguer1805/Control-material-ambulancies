@@ -1,5 +1,5 @@
 export const SVB_RIGHT_ZONE_SECTIONS = [
-  { id: 1, title: "Compartimento 1", items: ["Sábana de un solo uso · 5 unidades"] },
+  { id: 1, title: "Compartimento 1", items: ["Sábana de un solo uso · 8 unidades"] },
   { id: 2, title: "Compartimento 2", items: ["Guantes talla L · 1 caja", "Guantes talla XL · 1 caja"] },
   { id: "2a", title: "Compartimento 2a", items: ["Guantes talla M · 1 caja", "Guantes talla S · 1 caja"] },
   { id: 3, title: "Compartimento 3", items: ["Suero fisiológico de irrigación 100 ml · 6 unidades", "Suero fisiológico de irrigación 250 ml · 4 unidades"] },

@@ -6,7 +6,7 @@ import {auditItems,refreshPendingAudit,auditComplete} from '../src/vehicle-audit
 
 test('door contains only four physical compartments and requested printed quantities',()=>{
  assert.deepEqual(sections.map(s=>s.id),[1,2,3,4]);
- assert.equal(sections[0].items.length,9);
+ assert.equal(sections[0].items.length,10);
  assert.deepEqual(sections[2].items,['Colchón de vacío · 1 unidad']);
  assert.deepEqual(sections[3].items,['Silla de evacuación · 1 unidad','Botella de oxígeno 10 L · 2 unidades']);
  assert.ok(!JSON.stringify(sections).match(/Bomba|férula|funda/i));
@@ -28,7 +28,7 @@ test('door joins audits globally without altering confirmed audits or existing a
  const old={type:'SVB',vehicle:'5439',catalog,answers:Object.fromEntries(catalog.map(i=>[i.id,'ok'])),notes:{}};
  assert.ok(auditComplete(old));const next=refreshPendingAudit(old);
  assert.equal(auditComplete(next),false);assert.deepEqual(next.answers,old.answers);
- assert.equal(next.catalog.length-catalog.length,15);
+ assert.equal(next.catalog.length-catalog.length,16);
  const sent={...old,confirmedAt:'2026-10-10T07:00:00Z'};assert.equal(refreshPendingAudit(sent),sent);
 });
 test('door is submitted, reported, cached, and local preview cannot write operational drafts',()=>{

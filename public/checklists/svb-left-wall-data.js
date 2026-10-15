@@ -98,10 +98,8 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "title": "Compartimento 8",
     "items": [
       "Tensiómetro digital · 1 unidad",
-      "Manguito infantil para tensiómetro · 1 unidad",
       "Equipo de infusión para seroterapia · 1 unidad",
-      "Detector de monóxido para alumno en prácticas · 1 unidad",
-      "Manguito adulto 42–57 cm para tensiómetro · 1 unidad"
+      "Detector de monóxido para alumno en prácticas · 1 unidad"
     ]
   },
   {
@@ -116,7 +114,8 @@ export const SVB_LEFT_WALL_SECTIONS = [
       "Sonda de aspiración controlada nº 16 · 2 unidades",
       "Sonda de aspiración controlada nº 18 · 2 unidades",
       "Cánula Yankauer · 3 unidades",
-      "Bolsa de aspirador de un solo uso · 3 unidades"
+      "Bolsa de aspirador de un solo uso · 3 unidades",
+      "Tubo de silicona para aspirador (1 metro) · 1 unidad"
     ]
   },
   {

@@ -91,12 +91,12 @@ test("the physical fifth drawer keeps loose material and details the IMA bag",()
   assert.equal(SVB_LEFT_WALL_SECTIONS.some(({id})=>id===6),false);
 });
 
-test("updated left contents exclude shoe covers and include three Yankauer and adult cuff",()=>{
+test("updated left contents exclude shoe covers and cuffs and include three Yankauer",()=>{
   assert.ok(!SVB_LEFT_WALL_SECTIONS.find(({id})=>id===2).items.some(item=>item.startsWith("Cubrebotas")));
   assert.ok(!auditItems('SVB').some(item=>item.section.startsWith('Zona izquierda')&&item.label.startsWith('Cubrebotas')));
   assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===2).items.includes("Gafas de protección · 3 unidades"));
   assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===9).items.includes("Canula Yankauer · 3 unidades"));
-  assert.ok(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===8).items.includes("Manguito adulto 42–57 cm para tensiómetro · 1 unidad"));
+  assert.ok(!SVB_LEFT_WALL_SECTIONS.find(({id})=>id===8).items.some(item=>item.startsWith("Manguito")));
 });
 
 test("compartment four includes the pediatric vacuum mattress",()=>{

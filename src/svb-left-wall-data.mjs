@@ -33,14 +33,15 @@ export const SVB_LEFT_WALL_SECTIONS = [
     "Compresa posparto · 1 unidad", "Bolsa para material de rechazo GII · 1 unidad"
   ] },
   { id: 8, title: "Compartimento 8", items: [
-    "Tensiometro digital · 1 unidad", "Manguito infantil para tensiometro · 1 unidad", "Equipo de infusion para seroterapia · 1 unidad",
-    "Detector de monoxido para alumno en practicas · 1 unidad", "Manguito adulto 42–57 cm para tensiómetro · 1 unidad"
+    "Tensiometro digital · 1 unidad", "Equipo de infusion para seroterapia · 1 unidad",
+    "Detector de monoxido para alumno en practicas · 1 unidad"
   ] },
   { id: 9, title: "Compartimento 9", items: [
     "Sonda de aspiracion controlada nº 6 · 2 unidades", "Sonda de aspiracion controlada nº 8 · 2 unidades",
     "Sonda de aspiracion controlada nº 10 · 2 unidades", "Sonda de aspiracion controlada nº 12 · 2 unidades",
     "Sonda de aspiracion controlada nº 14 · 2 unidades", "Sonda de aspiracion controlada nº 16 · 2 unidades",
-    "Sonda de aspiracion controlada nº 18 · 2 unidades", "Canula Yankauer · 3 unidades", "Bolsa de aspirador de un solo uso · 3 unidades"
+    "Sonda de aspiracion controlada nº 18 · 2 unidades", "Canula Yankauer · 3 unidades", "Bolsa de aspirador de un solo uso · 3 unidades",
+    "Tubo de silicona para aspirador (1 metro) · 1 unidad"
   ] },
   { id: 10, title: "Bolsa de férulas", items: [
     "Férula Kramer (hierro + funda) · 3 unidades",
