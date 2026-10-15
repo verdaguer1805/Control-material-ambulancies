@@ -47,6 +47,15 @@ test('a stale screen date cannot close a TSNU shift started today',()=>{
  assert.equal(shouldAutoCloseTsnuShift(completed,new Date('2026-10-02T12:02:42.917Z')),false);
  assert.equal(shouldAutoCloseTsnuShift(completed,new Date(2026,9,3,0,1)),true);
 });
+
+test('an unfinished TSNU guard reopened days later closes at its original midnight as not completed',()=>{
+ const record={...base,service:'TSNU',completed:false,date:'2026-10-12',startedAt:new Date(2026,9,12,8,0).toISOString(),answers:{DEA:'ok'}};
+ const closed=closeTsnuShiftAutomatically(record,new Date(2026,9,15,9,0));
+ assert.equal(closed.endedAt,new Date(2026,9,13,0,0).toISOString());
+ assert.equal(closed.completed,false);assert.equal(closed.automaticCloseResult,'not_completed');
+ assert.deepEqual(closed.answers,{DEA:'ok'});
+ assert.equal(record.endedAt,undefined);
+});
 test('an incomplete previous TSNU checklist closes as not completed without blocking the next guard',()=>{
  const incomplete={...base,service:'TSNU',vehicleType:'TSNU',sessionId:'forgotten',date:'2026-10-01',startedAt:'2026-10-01T07:00:00+02:00',answers:{},completed:false};
  const now=new Date(2026,9,2,0,1);

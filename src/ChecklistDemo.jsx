@@ -24,24 +24,36 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   useEffect(() => { if(!notice) return; const timer=setTimeout(()=>setNotice(""),4000); return ()=>clearTimeout(timer); },[notice]);
   useEffect(()=>{
     if(!production||!daily)return;
+    expireLocalShift();
+    setActiveShift(readTsnuShift(localStorage,unit,lot));
+    const refresh=()=>{expireLocalShift();void syncProduction();};
+    const visible=()=>{if(document.visibilityState==='visible')refresh();};
+    window.addEventListener('online',refresh);
+    window.addEventListener('focus',refresh);
+    document.addEventListener('visibilitychange',visible);
+    const timer=setInterval(()=>{if(expireLocalShift())void syncProduction();},30000);
+    void syncProduction();
+    return()=>{clearInterval(timer);window.removeEventListener('online',refresh);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',visible);};
+  },[production,daily,unit,lot]);
+  function expireLocalShift(){
+    if(!production||!daily)return false;
     const stored=readTsnuShift(localStorage,unit,lot);
     if(shouldAutoCloseTsnuShift(stored)){
       const closed=closeTsnuShiftAutomatically(stored);
       queueTsnuOperation(localStorage,{localId:`finish:auto:${closed.sessionId}`,type:'finish',shiftId:closed.sessionId,at:closed.endedAt,closeSource:'automatic'});
       saveTsnuShift(localStorage,null);
       setActiveShift(null);
+      setDraft(current=>current?.sessionId===closed.sessionId ? null : current);
+      setOpen(false);
+      setCloseOpen(false);
+      setMaterial({});
       setNotice(stored.completed
         ? "La guardia anterior se ha cerrado automáticamente. Ya puedes iniciar el checklist de la nueva guardia."
         : "La guardia anterior se ha cerrado automáticamente como checklist no realizado. Ya puedes iniciar la nueva guardia.");
-    }else{
-      setActiveShift(stored);
-      if(stored && !stored.completed && stored.date < today()) setNotice("Hay un checklist de una guardia anterior sin completar. Revísalo o avisa a supervisión.");
+      return true;
     }
-    const online=()=>void syncProduction();
-    window.addEventListener('online',online);
-    void syncProduction();
-    return()=>window.removeEventListener('online',online);
-  },[production,daily,unit,lot]);
+    return false;
+  }
   async function syncProduction(showResult=false){
     if(!production)return null;
     if(syncLock.current){resyncRequested.current=true;return null;}
@@ -51,8 +63,11 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   }
   function start() {
     try {
-      if (production && daily && activeShift && !activeShift.completed) {
-        setDraft(activeShift);
+      const expired=expireLocalShift();
+      const current=production&&daily ? readTsnuShift(localStorage,unit,lot) : activeShift;
+      if (production && daily && !expired && current && !current.completed) {
+        setActiveShift(current);
+        setDraft(current);
         setOpen(true);
         return;
       }
@@ -60,7 +75,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
       const startedAt = new Date().toISOString();
       const sessionDate = production && daily ? today() : date;
       const identity = { unit,lot,zone,warehouse,date:sessionDate,service: daily ? "TSNU" : "TSU",vehicleType: assignedChecklist || vehicleType,shift: daily ? "" : shift || "07:00",sessionId,startedAt };
-      if(production&&daily){const id=newOperationId(),next={...identity,sessionId:id,id,answers:{},completed:false};queueTsnuOperation(localStorage,{localId:`start:${id}`,type:'start',shiftId:id,at:next.startedAt});saveTsnuShift(localStorage,next);setDraft(next);setOpen(true);void syncProduction();return;}
+      if(production&&daily){const id=newOperationId(),next={...identity,sessionId:id,id,answers:{},completed:false};queueTsnuOperation(localStorage,{localId:`start:${id}`,type:'start',shiftId:id,at:next.startedAt});saveTsnuShift(localStorage,next);setActiveShift(next);setDraft(next);setOpen(true);void syncProduction();return;}
       const existing = daily ? null : readDemo(localStorage).find((r) => demoKey(r) === demoKey(identity));
       const next = { answers: {}, notes: {}, completed:false, ...existing, ...identity, phase: daily ? "open" : phase };
       saveDemo(localStorage,next);
@@ -69,11 +84,14 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     } catch(e) { setNotice(e.message || "No se ha podido guardar la prueba local."); }
   }
   function edit(item,field,value) {
+    if(expireLocalShift()) {void syncProduction();return;}
     const next = {...draft, completed:false, [field]:{...draft[field],[item]:value}};
     setDraft(next);
+    if(production&&daily)setActiveShift(next);
     try { if(production) saveTsnuShift(localStorage,next); else saveDemo(localStorage,next); } catch { setNotice("No se ha podido guardar el borrador en este navegador."); }
   }
   async function finish() {
+    if(expireLocalShift()) {void syncProduction();return;}
     try { const result=completeDemo(draft); if(production){queueTsnuOperation(localStorage,{localId:`checklist:${result.sessionId}`,type:'checklist',shiftId:result.sessionId,answers:result.answers});saveTsnuShift(localStorage,result);}else saveDemo(localStorage,result); setActiveShift(result); setMaterial({}); setOpen(false); if(production){setNotice("Checklist guardado en este dispositivo. Comprobando el envío...");await syncProduction();setNotice(readTsnuOutbox(localStorage).some(row=>row.shiftId===result.sessionId&&row.type==='checklist')?"Checklist pendiente de sincronizar. Todavía no está confirmado.":"Checklist enviado y confirmado correctamente.");}else setNotice("Checklist guardado correctamente"); }
     catch(e) { setNotice(e.message || "No se ha podido guardar la prueba."); }
   }

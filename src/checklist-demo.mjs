@@ -37,7 +37,13 @@ export function closeTsnuShiftAutomatically(record, now = new Date()) {
   if (!record || record.endedAt) throw new Error("Esta guardia ya está finalizada.");
   const endedAt = now instanceof Date ? now : new Date(now);
   if (Number.isNaN(endedAt.getTime())) throw new Error("Hora de cierre inválida.");
-  return { ...record, endedAt: endedAt.toISOString(), automaticCloseResult: record.completed ? "completed" : "not_completed" };
+  // Close at the end of the original calendar day, even if the mobile is
+  // reopened several days later. The result never invents completed answers.
+  const startedDate=record.startedAt ? localCalendarDate(record.startedAt) : record.date;
+  const boundary=new Date(`${startedDate}T00:00:00`);
+  boundary.setDate(boundary.getDate()+1);
+  const closeAt=Number.isFinite(+boundary)&&boundary<=endedAt ? boundary : endedAt;
+  return { ...record, endedAt: closeAt.toISOString(), automaticCloseResult: record.completed ? "completed" : "not_completed" };
 }
 export function checklistStatus(record, now = new Date()) {
   // Completed checklists from before Baliza V-16 must keep their result.

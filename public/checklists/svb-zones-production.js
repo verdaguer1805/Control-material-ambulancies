@@ -1,12 +1,12 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=235";
-import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=235";
-import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=235";
-import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=235";
-import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=235";
-import{cabinStatus}from"./svb-cabin-data.js?v=235";
-import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=235";
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=236";
+import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=236";
+import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=236";
+import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=236";
+import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=236";
+import{cabinStatus}from"./svb-cabin-data.js?v=236";
+import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=236";
 
-document.querySelector(".head h1 small").textContent="v235";
+document.querySelector(".head h1 small").textContent="v236";
 
 const SUPABASE_URL="https://dfnywetqnccykzjyihzq.supabase.co",SUPABASE_KEY="sb_publishable_fjxFCzJNnWQLar26ObYgRw_oK9w3yDI";
 const byId=id=>document.getElementById(id),read=key=>{try{return JSON.parse(localStorage.getItem(key)||"{}")}catch{return{}}};
