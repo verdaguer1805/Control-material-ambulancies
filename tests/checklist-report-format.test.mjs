@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {colorChecklistReportRows,checklistReportWidths,checklistIncidentDetails,addChecklistIncidentDetails,withMissingChecklists,vehicleAuditReport} from '../src/checklist-report-format.mjs';
 import XLSX from 'xlsx-js-style';
+import {unzipSync,strFromU8} from 'fflate';
 
 test('missing units appear white below submitted checklists, including units with no history',()=>{
  const actual=[{unit:'G450',guard_started_at:'2026-10-15T05:00:00Z',submitted_at:'2026-10-15T06:00:00Z',answers:{}}];
@@ -15,21 +16,26 @@ test('missing units appear white below submitted checklists, including units wit
  assert.equal(actual.length,1);
 });
 
-test('audit report has one compact row per audit and separate linked incident sheets',()=>{
+test('audit report keeps all details collapsed in one worksheet',()=>{
  const audits=[{vehicle:'5439',supervisor:'Supervisor Olot',received_at:'2026-10-15',checklist_type:'SVB',items:[{section:'Frontal 2',label:'Gasas',status:'issue',note:'Faltan dos'},{section:'Frontal 3',label:'Filtro',status:'ok'}]},
  {vehicle:'5439',supervisor:'Supervisor Olot',received_at:'2026-10-15',checklist_type:'SVB',items:[{section:'Cabina',label:'Casco',status:'issue'}]},
  {vehicle:'5517',supervisor:'Supervisor Girona',received_at:'2026-10-15',checklist_type:'TSNU',items:[{section:'Cabina',label:'Casco',status:'ok'}]}];
  const {summary,details}=vehicleAuditReport(XLSX,audits);
- const rows=XLSX.utils.sheet_to_json(summary);
+ const rows=XLSX.utils.sheet_to_json(summary,{skipHidden:true});
  assert.equal(rows.length,3);assert.equal(Object.keys(rows[0]).length,7);
- assert.equal(summary.F2.s.fill.fgColor.rgb,'F8CDCD');assert.equal(summary.F4.s.fill.fgColor.rgb,'D9EEDC');
- assert.equal(details.length,2);assert.notEqual(details[0].name,details[1].name);
- assert.deepEqual(details.map(({sheet})=>XLSX.utils.sheet_to_json(sheet).map(row=>row.Material)),[['Gasas'],['Casco']]);
+ assert.equal(summary.F2.s.fill.fgColor.rgb,'F8CDCD');assert.equal(summary.F6.s.fill.fgColor.rgb,'D9EEDC');
+ assert.equal(details.length,0);
+ assert.equal(summary.D3.v,'Material: Gasas');assert.equal(summary.F3.v,'Observaciones: Faltan dos');
+ assert.equal(summary.D5.v,'Material: Casco');
  const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,summary,'Auditorías vehículos');
  details.forEach(({sheet,name})=>XLSX.utils.book_append_sheet(book,sheet,name));
- const saved=XLSX.read(XLSX.write(book,{bookType:'xlsx',type:'buffer'}),{type:'buffer'});
- assert.equal(saved.Sheets['Auditorías vehículos'].G2.l.Target,`#'${details[0].name}'!A2`);
- assert.equal(saved.Sheets[details[1].name].E2.l.Target,"#'Auditorías vehículos'!A3");
+ const saved=XLSX.read(XLSX.write(book,{bookType:'xlsx',type:'buffer'}),{type:'buffer',cellStyles:true});
+ const xml=strFromU8(unzipSync(XLSX.write(book,{bookType:'xlsx',type:'buffer'}))['xl/worksheets/sheet1.xml']);
+ assert.match(xml,/<outlinePr[^>]*summaryBelow="0"/);
+ assert.deepEqual(saved.SheetNames,['Auditorías vehículos']);
+ assert.equal(saved.Sheets['Auditorías vehículos']['!rows'][2].hidden,true);
+ assert.equal(saved.Sheets['Auditorías vehículos']['!rows'][2].level,1);
+ assert.ok(!saved.Sheets['Auditorías vehículos']['!rows'][3].hidden);
 });
 
 test('every actual report column is colored including cabin, sliding door and future zones',()=>{
@@ -56,7 +62,7 @@ test('checklist column widths follow headers including new zones',()=>{
  assert.deepEqual(checklistReportWidths([]),[]);
 });
 
-test('incident links open the matching checklist detail and survive Excel serialization',()=>{
+test('checklist details stay collapsed under their own unit and survive Excel serialization',()=>{
  const records=[
   {answers:{right:{'2a':{'Guantes M':'issue','Guantes S':'ok'},2:{'Guantes L':'issue'}},cabin:{general:{'Baliza':'issue'}}}},
   {answers:{door:{4:{'Silla':'issue'}}}},
@@ -67,41 +73,38 @@ test('incident links open the matching checklist detail and survive Excel serial
  const summary=XLSX.utils.json_to_sheet(rows);
  colorChecklistReportRows(XLSX,summary,rows);
  const details=addChecklistIncidentDetails(XLSX,summary,rows,records,value=>value);
- const detail=details[0].sheet;
  assert.equal(JSON.stringify(records),original);
  assert.equal(checklistIncidentDetails(records).length,4);
- const cells=XLSX.utils.sheet_to_json(detail);
- assert.deepEqual(cells.map(row=>row.Unidad),['G450','G450','G450']);
- assert.deepEqual(cells.filter(row=>row.Zona==='Zona derecha').map(row=>row.Compartimento),['2','2a']);
- assert.equal(XLSX.utils.sheet_to_json(details[1].sheet)[0].Zona,'Puerta corredera izquierda');
- assert.equal(summary.H2.v,'Ver incidencias (3)');
- assert.equal(summary.H2.l.Target,"#'Inc 1 G450'!A2");
- assert.equal(summary.H3.l.Target,"#'Inc 2 G451'!A2");
- assert.equal(summary.H4.l,undefined);
- assert.equal(details[1].sheet.J2.l.Target,"#'Checklist SVB'!A3");
+ assert.deepEqual(details,[]);
+ const cells=XLSX.utils.sheet_to_json(summary,{skipHidden:true});
+ assert.deepEqual(cells.map(row=>row.Unidad),['G450','G451','G452']);
+ assert.equal(summary.H2.v,'+ Desplegar (3)');
+ assert.equal(summary.H6.v,'+ Desplegar (1)');
+ assert.equal(summary.B7.v,'Puerta corredera izquierda · Compartimento 4');
  assert.equal(summary.H2.s.fill.fgColor.rgb,'F8CDCD');
  const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,summary,'Checklist SVB');
  details.forEach(({sheet,name})=>XLSX.utils.book_append_sheet(wb,sheet,name));
  const saved=XLSX.read(XLSX.write(wb,{bookType:'xlsx',type:'buffer'}),{type:'buffer',cellStyles:true});
- assert.equal(saved.Sheets['Checklist SVB'].H3.l.Target,"#'Inc 2 G451'!A2");
- assert.equal(saved.Sheets['Inc 2 G451'].J2.l.Target,"#'Checklist SVB'!A3");
- assert.equal(saved.Sheets['Inc 1 G450']['!autofilter'].ref,'A1:J4');
- assert.deepEqual(XLSX.utils.sheet_to_json(saved.Sheets['Inc 2 G451']).map(row=>row.Unidad),['G451']);
+ assert.deepEqual(saved.SheetNames,['Checklist SVB']);
+ const sheet=saved.Sheets['Checklist SVB'];
+ assert.equal(sheet['!rows'][2].hidden,true);assert.equal(sheet['!rows'][2].level,1);
+ assert.equal(sheet['!rows'][6].hidden,true);assert.ok(!sheet['!rows'][5].hidden);
 });
 
 test('no incidence creates no links or empty detail sheet',()=>{
  assert.deepEqual(addChecklistIncidentDetails(XLSX,{},[],[],value=>value),[]);
 });
 
-test('repeated units on different dates have isolated, uniquely named detail sheets',()=>{
- const rows=['12/10/2026','13/10/2026'].map(Fecha=>({Fecha,Unidad:'G450',Incidencias:'issue'}));
+test('repeated units on different dates keep independently collapsed details',()=>{
+ const rows=['12/10/2026','13/10/2026'].map(Fecha=>({Fecha,Unidad:'G450',Vehículo:'5439',Estado:'Con incidencia',Incidencias:'issue'}));
  const records=['Guantes','Gasas'].map(item=>({answers:{left:{7:{[item]:'issue'}}}}));
  const summary=XLSX.utils.json_to_sheet(rows);
  const details=addChecklistIncidentDetails(XLSX,summary,rows,records);
- assert.notEqual(details[0].name,details[1].name);
- assert.deepEqual(details.map(({sheet})=>XLSX.utils.sheet_to_json(sheet).map(row=>row.Material)),[['Guantes'],['Gasas']]);
- assert.equal(summary.C3.l.Target,`#'${details[1].name}'!A2`);
+ assert.deepEqual(details,[]);
+ assert.equal(summary.E3.v,'Guantes');assert.equal(summary.E5.v,'Gasas');
+ assert.equal(summary.A2.v,'12/10/2026');assert.equal(summary.A4.v,'13/10/2026');
+ assert.equal(summary['!rows'][2].hidden,true);assert.equal(summary['!rows'][4].hidden,true);
 });
 
 test('both TSU and TSNU exports use the shared dynamic formatting',()=>{

@@ -40,36 +40,43 @@ export function withMissingChecklists(records,units,from,to,now=new Date()) {
 }
 
 export function vehicleAuditReport(XLSX,audits,label=value=>value,dateTime=value=>({date:value,time:''})) {
-  const rows=audits.map(audit=>{
+  const rows=[['Fecha','Hora','Supervisor','Vehículo','Checklist','Estado','Incidencias']];
+  const rowOptions=[{hpt:28}],merges=[],summaryIndexes=new Set();
+  audits.forEach(audit=>{
     const issues=(audit.items || []).filter(item=>item.status==='issue');
-    const when=dateTime(audit.received_at);
-    return {Fecha:when.date,Hora:when.time,Supervisor:audit.supervisor,Vehículo:audit.vehicle,Checklist:audit.checklist_type,
-      Estado:issues.length?'Con incidencia':'Correcto',Incidencias:issues.length?`Ver incidencias (${issues.length})`:'—'};
-  });
-  const summary=XLSX.utils.json_to_sheet(rows.length?rows:[{Información:'No hay auditorías en este periodo'}]);
-  summary['!cols']=[14,12,32,16,16,20,25].map(wch=>({wch}));
-  if(summary['!ref'])summary['!autofilter']={ref:summary['!ref']};
-  colorChecklistReportRows(XLSX,summary,rows);
-  const details=[];
-  audits.forEach((audit,index)=>{
-    const issues=(audit.items || []).filter(item=>item.status==='issue');
-    if(!issues.length)return;
-    const name=`Aud ${index+1} ${String(audit.vehicle).replace(/[\\/?*\[\]:']/g,'').slice(0,16)}`;
-    const detailRows=issues.map(item=>({Vehículo:audit.vehicle,Apartado:item.section,Material:label(item.label),Observaciones:item.note || '',Volver:'Volver al resumen'}));
-    const sheet=XLSX.utils.json_to_sheet(detailRows);
-    sheet['!cols']=[16,38,65,65,25].map(wch=>({wch}));
-    sheet['!autofilter']={ref:sheet['!ref']};
-    sheet['!rows']=[{hpt:30},...detailRows.map(()=>({hpt:48}))];
-    detailRows.forEach((_,r)=>{
-      for(let c=0;c<5;c++)sheet[XLSX.utils.encode_cell({r:r+1,c})].s={fill:{fgColor:{rgb:'F8CDCD'}},alignment:{wrapText:true,vertical:'top'}};
-      sheet[`E${r+2}`].l={Target:`#'Auditorías vehículos'!A${index+2}`};
-      sheet[`E${r+2}`].s.font={color:{rgb:'0563C1'},underline:true};
+    const when=dateTime(audit.received_at),index=rows.length;
+    summaryIndexes.add(index);
+    rows.push([when.date,when.time,audit.supervisor,audit.vehicle,audit.checklist_type,
+      issues.length?'Con incidencia':'Correcto',issues.length?`+ Desplegar (${issues.length})`:'—']);
+    rowOptions.push({hpt:32});
+    issues.forEach(item=>{
+      const r=rows.length;
+      rows.push(['Incidencia',`Apartado: ${item.section}`,'',`Material: ${label(item.label)}`,'',item.note?`Observaciones: ${item.note}`:'','']);
+      rowOptions.push({hpt:64,hidden:true,level:1});
+      merges.push({s:{r,c:1},e:{r,c:2}},{s:{r,c:3},e:{r,c:4}},{s:{r,c:5},e:{r,c:6}});
     });
-    summary[`G${index+2}`].l={Target:`#'${name}'!A2`};
-    summary[`G${index+2}`].s.font={color:{rgb:'0563C1'},underline:true};
-    details.push({name,sheet});
   });
-  return {summary,details};
+  if(!audits.length)rows.push(['No hay auditorías en este periodo']);
+  const summary=XLSX.utils.aoa_to_sheet(rows);
+  summary['!cols']=[14,12,32,16,16,20,25].map(wch=>({wch}));
+  summary['!rows']=rowOptions;
+  summary['!merges']=merges;
+  summary['!outline']={above:true};
+  rows.forEach((row,r)=>{
+    for(let c=0;c<7;c++) {
+      const cell=summary[XLSX.utils.encode_cell({r,c})];
+      if(!cell)continue;
+      cell.s={alignment:{wrapText:true,vertical:'top'},fill:{fgColor:{rgb:r===0?'C8102E':summaryIndexes.has(r)&&row[5]==='Correcto'?'D9EEDC':'F8CDCD'}}};
+      if(r===0)cell.s.font={bold:true,color:{rgb:'FFFFFF'}};
+    }
+  });
+  // Excel expands each row group with its native + control. Hyperlinks cannot
+  // unhide worksheets or expand outline groups without macros.
+  summaryIndexes.forEach(r=>{
+    if(rows[r][6]==='—')return;
+    summary[`G${r+1}`].c=[{a:'Control de material',t:'Pulsa el signo + del margen izquierdo de esta fila para desplegar solo sus incidencias. Pulsa − para volver a plegarlas.'}];
+  });
+  return {summary,details:[]};
 }
 
 export function checklistReportWidths(rows) {
@@ -99,51 +106,36 @@ export function addChecklistIncidentDetails(XLSX, summarySheet, summaryRows, rec
     if(!grouped.has(detail.recordIndex))grouped.set(detail.recordIndex,[]);
     grouped.get(detail.recordIndex).push(detail);
   });
-  return [...grouped].map(([recordIndex,items])=>{
-    // The row number guarantees unique, Excel-safe names even for repeated units/dates.
-    const unit=String(summaryRows[recordIndex].Unidad || 'Unidad').replace(/[\\/?*\[\]:']/g,'').slice(0,16);
-    const name=`Inc ${recordIndex+1} ${unit}`.slice(0,31);
-    return {name,sheet:incidentDetailSheet(XLSX,summarySheet,summaryRows,items,name)};
+  if(!summaryRows.length)return [];
+  const headers=Object.keys(summaryRows[0]),rows=[headers],options=[{hpt:30}],merges=[],summaryIndexes=new Set();
+  const incidentColumn=headers.indexOf('Incidencias');
+  const stateColumn=headers.indexOf('Estado');
+  summaryRows.forEach((row,index)=>{
+    const r=rows.length,items=grouped.get(index) || [];
+    summaryIndexes.add(r);
+    const values=headers.map(header=>row[header]);
+    if(items.length)values[incidentColumn]=`+ Desplegar (${items.length})`;
+    rows.push(values);options.push({hpt:36});
+    items.forEach(item=>{
+      const detailRow=rows.length,values=Array(headers.length).fill('');
+      values[0]='Incidencia';values[1]=`${item.zone} · Compartimento ${item.section}`;values[4]=item.material;
+      rows.push(values);options.push({hpt:48,hidden:true,level:1});
+      merges.push({s:{r:detailRow,c:1},e:{r:detailRow,c:3}},{s:{r:detailRow,c:4},e:{r:detailRow,c:headers.length-1}});
+    });
   });
-}
-
-function incidentDetailSheet(XLSX, summarySheet, summaryRows, details, name) {
-  const rows=details.map(detail => {
-    const summary=summaryRows[detail.recordIndex];
-    return {
-      Fecha:summary.Fecha, Unidad:summary.Unidad, Vehículo:summary.Vehículo,
-      'Inicio de guardia':summary['Inicio de guardia'],
-      'Fecha de envío':summary['Fecha de envío'], 'Hora de checklist':summary['Hora de checklist'],
-      Zona:detail.zone, Compartimento:detail.section, Material:detail.material,
-      Volver:'Volver al checklist'
-    };
+  const sheet=XLSX.utils.aoa_to_sheet(rows);
+  sheet['!cols']=summarySheet['!cols'];sheet['!rows']=options;sheet['!merges']=merges;sheet['!outline']={above:true};
+  rows.forEach((row,r)=>{
+    const rgb=r===0?'C8102E':!summaryIndexes.has(r)||row[stateColumn]==='Con incidencia'?'F8CDCD':row[stateColumn]==='Correcto'?'D9EEDC':'FFFFFF';
+    row.forEach((_,c)=>{
+      const cell=sheet[XLSX.utils.encode_cell({r,c})];if(!cell)return;
+      cell.s={alignment:{wrapText:true,vertical:'top'},fill:{fgColor:{rgb}}};
+      if(r===0)cell.s.font={bold:true,color:{rgb:'FFFFFF'}};
+    });
+    if(summaryIndexes.has(r)&&String(row[incidentColumn]).startsWith('+'))
+      sheet[XLSX.utils.encode_cell({r,c:incidentColumn})].c=[{a:'Control de material',t:'Pulsa el signo + del margen izquierdo para desplegar solo las incidencias de este checklist. Pulsa − para plegarlas.'}];
   });
-  const sheet=XLSX.utils.json_to_sheet(rows);
-  sheet['!cols']=[14,14,14,19,18,19,29,19,65,24].map(wch=>({wch}));
-  sheet['!autofilter']={ref:sheet['!ref']};
-  sheet['!rows']=[{hpt:32},...rows.map(()=>({hpt:48}))];
-  const linkStyle={color:{rgb:'0563C1'},underline:true};
-  rows.forEach((row,index) => {
-    for(let c=0;c<Object.keys(row).length;c++) {
-      const cell=sheet[XLSX.utils.encode_cell({r:index+1,c})];
-      if(cell)cell.s={fill:{fgColor:{rgb:'F8CDCD'}},alignment:{vertical:'top',wrapText:true}};
-    }
-    const back=sheet[XLSX.utils.encode_cell({r:index+1,c:9})];
-    back.l={Target:`#'Checklist SVB'!A${details[index].recordIndex+2}`};
-    back.s={...back.s,font:linkStyle};
-  });
-  Object.keys(rows[0]).forEach((_,c)=>{
-    sheet[XLSX.utils.encode_cell({r:0,c})].s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'C8102E'}},alignment:{wrapText:true}};
-  });
-  const firstRows=new Map();
-  details.forEach((detail,index)=>{if(!firstRows.has(detail.recordIndex))firstRows.set(detail.recordIndex,index+2);});
-  firstRows.forEach((target,recordIndex)=>{
-    const column=Object.keys(summaryRows[recordIndex]).indexOf('Incidencias');
-    const cell=summarySheet[XLSX.utils.encode_cell({r:recordIndex+1,c:column})];
-    const count=details.filter(detail=>detail.recordIndex===recordIndex).length;
-    cell.v=`Ver incidencias (${count})`;
-    cell.l={Target:`#'${name}'!A${target}`,Tooltip:'Ver solo las incidencias de este checklist'};
-    cell.s={...cell.s,font:linkStyle};
-  });
-  return sheet;
+  Object.keys(summarySheet).forEach(key=>delete summarySheet[key]);
+  Object.assign(summarySheet,sheet);
+  return [];
 }
