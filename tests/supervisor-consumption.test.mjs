@@ -1,9 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {appendSupervisorConsumption,supervisorDraft} from '../src/supervisor-consumption.mjs';
+import {appendSupervisorConsumption,supervisorDraft,readSupervisorUnsent,saveSupervisorUnsent,clearSupervisorUnsent} from '../src/supervisor-consumption.mjs';
 import {guardSaveRequest} from '../src/guard-recovery-client.mjs';
 
 const baseline=()=>({id:'141026',unit:'Material Supervisor · Olot',lot:'lot5',date:'2026-10-14',guardOccurredAt:'2026-10-13T22:00:00Z',synced:true,recoveryToken:'token',serverMaterials:{Pañuelos:10},entries:[{materials:{Pañuelos:10}}]});
+test('unsent supervisor marks survive a new page instance and stay isolated by lot and unit',()=>{
+ const data=new Map(),storage={getItem:key=>data.get(key)||null,setItem:(key,value)=>data.set(key,value),removeItem:key=>data.delete(key)};
+ saveSupervisorUnsent(storage,'lot5','Supervisor Olot',{Pañuelos:10,Gasa:3});
+ const reloaded={...storage};
+ assert.deepEqual(readSupervisorUnsent(reloaded,'lot5','Supervisor Olot'),{Pañuelos:10,Gasa:3});
+ assert.deepEqual(readSupervisorUnsent(reloaded,'lot5','Supervisor Girona'),{});
+ assert.deepEqual(readSupervisorUnsent(reloaded,'lot2','Supervisor Olot'),{});
+ clearSupervisorUnsent(storage,'lot5','Supervisor Olot');
+ assert.deepEqual(readSupervisorUnsent(reloaded,'lot5','Supervisor Olot'),{});
+});
 test('supervisor starts at zero and consecutive identical withdrawals each increase stock consumption',()=>{
  let record=baseline();
  assert.deepEqual(supervisorDraft(record),{});

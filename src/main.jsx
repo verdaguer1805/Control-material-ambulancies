@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { supervisorDraft, appendSupervisorConsumption } from "./supervisor-consumption.mjs";
+import { supervisorDraft, appendSupervisorConsumption, readSupervisorUnsent, saveSupervisorUnsent, clearSupervisorUnsent } from "./supervisor-consumption.mjs";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
 import { correctionService, tsnuCorrectionRows, consumptionCorrectionRequest } from "./consumption-correction-service.mjs";
 import { cachedDeviceCanQueue } from "./device-auth-continuity.mjs";
@@ -18,7 +18,7 @@ import { writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
 import { compareMaterialLabels } from "./material-order.mjs";
 import { materialDisplayName } from "./material-display.mjs";
 import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
-import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, INCIDENT_DETAIL_SHEET } from "./checklist-report-format.mjs";
+import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, withMissingChecklists, vehicleAuditReport } from "./checklist-report-format.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 const VehicleAudit = React.lazy(() => import("./VehicleAudit.jsx"));
@@ -496,7 +496,9 @@ function App() {
     const activeRecord = getRecords().find(
       (record) => record.unit === currentUnit && record.id === guard.code,
     );
-    setQuantities(isSupervisorMaterial(currentUnit) ? supervisorDraft(activeRecord) : activeRecord ? aggregate(activeRecord) : {});
+    setQuantities(isSupervisorMaterial(currentUnit)
+      ? activeRecord && !activeRecord.synced ? supervisorDraft(activeRecord) : readSupervisorUnsent(localStorage,localStorage.getItem(KEY.lot),currentUnit)
+      : activeRecord ? aggregate(activeRecord) : {});
     setIncident(guard.code);
     setIncidentConfirmed(true);
     setEditingRecord(null);
@@ -969,9 +971,17 @@ function App() {
       // La còpia local manté la llista operativa sense cobertura.
     }
   }
-  const inc = (m) => setQuantities((q) => ({ ...q, [m]: (q[m] || 0) + 1 }));
-  const dec = (m) =>
-    setQuantities((q) => ({ ...q, [m]: Math.max(0, (q[m] || 0) - 1) }));
+  const changeQuantity = (material,delta) => {
+    if(consumptionOperationRef.current) return;
+    setQuantities(current=>{
+      const next={...current,[material]:Math.max(0,(current[material] || 0)+delta)};
+      const currentUnit=localStorage.getItem(KEY.unit);
+      if(isSupervisorMaterial(currentUnit)) saveSupervisorUnsent(localStorage,localStorage.getItem(KEY.lot),currentUnit,next);
+      return next;
+    });
+  };
+  const inc = material => changeQuantity(material,1);
+  const dec = material => changeQuantity(material,-1);
   async function confirmIncident() {
     if (!incident.trim()) return flash("Falta el ID DE INCIDENCIA");
     if (!/^\d{9}$/.test(incident.trim())) return invalidIncident();
@@ -1083,6 +1093,9 @@ function App() {
     // El total queda visible y editable durante toda la guardia. No se suma de
     // nuevo al reenviar: sustituye el total anterior.
     setQuantities({ ...used });
+    // The durable queue now owns this batch. A later day's draft must not
+    // replay it or be erased when this older pending batch synchronizes.
+    if(supervisor) clearSupervisorUnsent(localStorage,rec.lot,currentUnit);
     setSearch("");
     if (!navigator.onLine) {
       setStatus("queued");
@@ -1097,6 +1110,7 @@ function App() {
       rec.synced = true;
       rec.serverMaterials = { ...request.args.p_materials };
       if (supervisor) {
+        clearSupervisorUnsent(localStorage,rec.lot,currentUnit);
         delete rec.supervisorPendingBatch;
         setQuantities({});
         setSearch('');
@@ -1150,7 +1164,9 @@ function App() {
         const { error } = await supabase.rpc(request.name,request.args);
         if (error) throw error;
         rec.serverMaterials = { ...request.args.p_materials };
-        if (isSupervisorMaterial(rec.unit)) delete rec.supervisorPendingBatch;
+        if (isSupervisorMaterial(rec.unit)) {
+          delete rec.supervisorPendingBatch;
+        }
       });
       saveRecords(list);
       setRecords([...list]);
@@ -1242,7 +1258,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v233", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v234", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -1331,8 +1347,9 @@ function App() {
       records: mapAdminRecords(unique, Array.isArray(reportData.submissions) ? reportData.submissions : []),
       submissions: Array.isArray(reportData.submissions) ? reportData.submissions : [],
       svbChecklists: Array.isArray(reportData.svb_checklists) ? reportData.svb_checklists : [],
+      svbRoster: Array.isArray(reportData.svb_roster) ? reportData.svb_roster : null,
       vehicleAudits: Array.isArray(auditResult.data) ? auditResult.data : [],
-      tsnu: tsnuResult.data || { shifts: [], withdrawals: [] },
+      tsnu: {...(tsnuResult.data || { shifts: [], withdrawals: [] }),roster:reportData.tsnu_roster || []},
     };
   }
   function openConsumptionCorrection() {
@@ -1432,7 +1449,7 @@ function App() {
       const selected = await loadSelectedAdminRecords();
       setAdminRecords([]);
       setAdminLoaded(false);
-      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu, selected.svbChecklists, selected.vehicleAudits);
+      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu, selected.svbChecklists, selected.vehicleAudits, selected.svbRoster);
       else exportPdf(selected.records, selected.submissions, selected.tsnu);
     } catch (error) {
       flash("No se pueden cargar los datos seleccionados");
@@ -2403,7 +2420,7 @@ function App() {
     doc.save(`lista_reposicion_${new Date().toISOString().slice(0, 10)}.pdf`);
     flash("Lista de reposición exportada en PDF");
   }
-  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}, svbChecklists = [], vehicleAudits = []) {
+  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}, svbChecklists = [], vehicleAudits = [], svbRoster = null) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
@@ -2576,14 +2593,14 @@ function App() {
         String(a.Hora || "").localeCompare(String(b.Hora || "")) ||
         String(a.Material || "").localeCompare(String(b.Material || ""), "es", { sensitivity: "base", numeric: true })
       ),
-      checklistTsnuRows = tsnuShifts.map((shift) => {
+      checklistTsnuRows = withMissingChecklists(tsnuShifts.map(shift=>({...shift,guard_started_at:shift.started_at,submitted_at:shift.checklist_submitted_at})),tsnuData.roster || [],exportFrom,exportTo).map((shift) => {
         const answers = shift.checklist_answers || {},
           issues = Object.entries(answers).filter(([, value]) => value === "issue").map(([item]) => item);
         return {
-          Fecha: new Date(shift.started_at).toLocaleDateString("es-ES", {day:"2-digit",month:"2-digit",year:"numeric"}),
-          "Inicio de guardia": new Date(shift.started_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+          Fecha: shift.report_date ? shift.report_date.split('-').reverse().join('/') : new Date(shift.started_at).toLocaleDateString("es-ES", {timeZone:'Europe/Madrid',day:"2-digit",month:"2-digit",year:"numeric"}),
+          "Inicio de guardia": shift.started_at ? new Date(shift.started_at).toLocaleTimeString("es-ES", {timeZone:'Europe/Madrid',hour:"2-digit",minute:"2-digit"}) : '',
           Unidad: shift.unit,
-          Almacén: shift.warehouse,
+          Almacén: shift.warehouse || '',
           "Checklist enviado": shift.checklist_submitted_at ? "Sí" : "No",
           "Hora de checklist": shift.checklist_submitted_at ? new Date(shift.checklist_submitted_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "",
           Estado: !shift.checklist_submitted_at ? "No realizado" : issues.length ? "Con incidencia" : "Correcto",
@@ -2591,10 +2608,7 @@ function App() {
           "Guardia finalizada": shift.ended_at ? shift.close_source === "automatic" ? "Sí · Automática" : "Sí · Manual" : "No",
         };
       }),
-      checklistTsuRecords = [...svbChecklists].sort((a, b) =>
-        reportDateKey(a.guard_started_at).localeCompare(reportDateKey(b.guard_started_at)) ||
-        compareUnits(a.unit, b.unit) || new Date(a.guard_started_at) - new Date(b.guard_started_at)
-      ),
+      checklistTsuRecords = withMissingChecklists(svbChecklists,svbRoster || [],exportFrom,exportTo),
       checklistTsuRows = checklistTsuRecords.map((checklist) => {
         const answers = checklist.answers || {},
           zoneNames = { left: "Zona izquierda", front: "Zona frontal", right: "Zona derecha", cabin: "Cabina de conducción", door: "Puerta corredera izquierda" },
@@ -2608,16 +2622,16 @@ function App() {
         );
         const zoneState = (zone) => {
           const values = Object.values(answers[zone] || {}).flatMap((items) => Object.values(items || {}));
-          return values.includes("issue") ? "Con incidencia" : values.length ? "Correcta" : "Sin revisar";
+          return !checklist.submitted_at ? "Sin revisar" : values.includes("issue") ? "Con incidencia" : values.length ? "Correcta" : "Sin revisar";
         };
         return {
-          Fecha: new Date(checklist.guard_started_at).toLocaleDateString("es-ES", {day:"2-digit",month:"2-digit",year:"numeric"}),
-          "Inicio de guardia": new Date(checklist.guard_started_at).toLocaleTimeString("es-ES", {hour:"2-digit",minute:"2-digit"}),
+          Fecha: checklist.report_date ? checklist.report_date.split('-').reverse().join('/') : new Date(checklist.guard_started_at).toLocaleDateString("es-ES", {timeZone:'Europe/Madrid',day:"2-digit",month:"2-digit",year:"numeric"}),
+          "Inicio de guardia": checklist.guard_started_at ? new Date(checklist.guard_started_at).toLocaleTimeString("es-ES", {timeZone:'Europe/Madrid',hour:"2-digit",minute:"2-digit"}) : '',
           Unidad: checklist.unit,
-          Vehículo: checklist.vehicle_label,
-          "Fecha de envío": madridDateTime(checklist.submitted_at).date,
-          "Hora de checklist": madridDateTime(checklist.submitted_at).time,
-          Estado: issues.length ? "Con incidencia" : "Correcto",
+          Vehículo: checklist.vehicle_label || '',
+          "Fecha de envío": checklist.submitted_at ? madridDateTime(checklist.submitted_at).date : '',
+          "Hora de checklist": checklist.submitted_at ? madridDateTime(checklist.submitted_at).time : '',
+          Estado: !checklist.submitted_at ? "No realizado" : issues.length ? "Con incidencia" : "Correcto",
           "Zona izquierda": zoneState("left"),
           "Zona frontal": zoneState("front"),
           "Zona derecha": zoneState("right"),
@@ -2709,19 +2723,11 @@ function App() {
     });
     XLSX.utils.book_append_sheet(wb, wsGeneral, "Resumen general");
     XLSX.utils.book_append_sheet(wb, wsChecklistTsu, "Checklist SVB");
+    if(svbRoster===null) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([{Aviso:'Control de pendientes no disponible: falta actualizar la función de informes. Este listado contiene solo los registros recibidos.'}]),'Aviso pendientes');
     wsChecklistIncidents.forEach(({sheet,name})=>XLSX.utils.book_append_sheet(wb, sheet, name));
-    const auditRows = vehicleAudits.flatMap(audit => audit.items.map(item => ({
-      Fecha: madridDateTime(audit.received_at).date,
-      Hora: madridDateTime(audit.received_at).time,
-      Lote: audit.lot, Zona: audit.zone, Supervisor: audit.supervisor,
-      Vehículo: audit.vehicle, Checklist: audit.checklist_type,
-      Apartado: item.section, Material: materialLabel(item.label),
-      Estado: item.status === "issue" ? "Incidencia" : "Correcto",
-      Observaciones: item.note || "",
-    })));
-    const auditSheet = XLSX.utils.json_to_sheet(auditRows.length ? auditRows : [{Información:"No hay auditorías en este periodo"}]);
-    configure(auditSheet, [14,14,26,20,32,14,14,48,60,18,60]);
-    XLSX.utils.book_append_sheet(wb, auditSheet, "Auditorías vehículos");
+    const auditReport=vehicleAuditReport(XLSX,vehicleAudits,materialLabel,madridDateTime);
+    XLSX.utils.book_append_sheet(wb, auditReport.summary, "Auditorías vehículos");
+    auditReport.details.forEach(({sheet,name})=>XLSX.utils.book_append_sheet(wb,sheet,name));
     XLSX.utils.book_append_sheet(wb, wsTsu, "Consumo TSU");
     XLSX.utils.book_append_sheet(wb, wsTsnu, "Consumo TSNU");
     XLSX.utils.book_append_sheet(wb, ws1, "Resumen guardias TSU");
@@ -3487,7 +3493,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v233</span></h1>
+          <h1>Control de material <span className="app-version">v234</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5320,7 +5326,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=233", {
+    navigator.serviceWorker.register("./sw.js?v=234", {
       updateViaCache: "none",
     }),
   );

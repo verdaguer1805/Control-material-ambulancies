@@ -1,8 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {colorChecklistReportRows,checklistReportWidths,checklistIncidentDetails,addChecklistIncidentDetails,INCIDENT_DETAIL_SHEET} from '../src/checklist-report-format.mjs';
+import {colorChecklistReportRows,checklistReportWidths,checklistIncidentDetails,addChecklistIncidentDetails,withMissingChecklists,vehicleAuditReport} from '../src/checklist-report-format.mjs';
 import XLSX from 'xlsx-js-style';
+
+test('missing units appear white below submitted checklists, including units with no history',()=>{
+ const actual=[{unit:'G450',guard_started_at:'2026-10-15T05:00:00Z',submitted_at:'2026-10-15T06:00:00Z',answers:{}}];
+ const result=withMissingChecklists(actual,[{unit:'G450'},{unit:'G440'},{unit:'G449'}],'2026-10-15','2026-10-16',new Date('2026-10-15T12:00:00Z'));
+ assert.deepEqual(result.map(row=>row.unit),['G450','G440','G449']);
+ assert.ok(result.slice(1).every(row=>!row.submitted_at&&row.report_date==='2026-10-15'));
+ const rows=[{Estado:'Correcto'},{Estado:'Con incidencia'},{Estado:'No realizado'}];
+ const sheet=XLSX.utils.json_to_sheet(rows);colorChecklistReportRows(XLSX,sheet,rows);
+ assert.deepEqual([sheet.A2,sheet.A3,sheet.A4].map(cell=>cell.s.fill.fgColor.rgb),['D9EEDC','F8CDCD','FFFFFF']);
+ assert.equal(actual.length,1);
+});
+
+test('audit report has one compact row per audit and separate linked incident sheets',()=>{
+ const audits=[{vehicle:'5439',supervisor:'Supervisor Olot',received_at:'2026-10-15',checklist_type:'SVB',items:[{section:'Frontal 2',label:'Gasas',status:'issue',note:'Faltan dos'},{section:'Frontal 3',label:'Filtro',status:'ok'}]},
+ {vehicle:'5439',supervisor:'Supervisor Olot',received_at:'2026-10-15',checklist_type:'SVB',items:[{section:'Cabina',label:'Casco',status:'issue'}]},
+ {vehicle:'5517',supervisor:'Supervisor Girona',received_at:'2026-10-15',checklist_type:'TSNU',items:[{section:'Cabina',label:'Casco',status:'ok'}]}];
+ const {summary,details}=vehicleAuditReport(XLSX,audits);
+ const rows=XLSX.utils.sheet_to_json(summary);
+ assert.equal(rows.length,3);assert.equal(Object.keys(rows[0]).length,7);
+ assert.equal(summary.F2.s.fill.fgColor.rgb,'F8CDCD');assert.equal(summary.F4.s.fill.fgColor.rgb,'D9EEDC');
+ assert.equal(details.length,2);assert.notEqual(details[0].name,details[1].name);
+ assert.deepEqual(details.map(({sheet})=>XLSX.utils.sheet_to_json(sheet).map(row=>row.Material)),[['Gasas'],['Casco']]);
+ const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,summary,'Auditorías vehículos');
+ details.forEach(({sheet,name})=>XLSX.utils.book_append_sheet(book,sheet,name));
+ const saved=XLSX.read(XLSX.write(book,{bookType:'xlsx',type:'buffer'}),{type:'buffer'});
+ assert.equal(saved.Sheets['Auditorías vehículos'].G2.l.Target,`#'${details[0].name}'!A2`);
+ assert.equal(saved.Sheets[details[1].name].E2.l.Target,"#'Auditorías vehículos'!A3");
+});
 
 test('every actual report column is colored including cabin, sliding door and future zones',()=>{
  const XLSX={utils:{decode_range:()=>({s:{r:0,c:0},e:{r:2,c:14}}),encode_cell:({r,c})=>`${r}:${c}`}};

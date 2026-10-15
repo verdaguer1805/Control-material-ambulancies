@@ -19,6 +19,8 @@ declare
   v_incidents jsonb;
   v_submissions jsonb;
   v_svb_checklists jsonb;
+  v_svb_roster jsonb;
+  v_tsnu_roster jsonb;
 begin
   if auth.uid() is null then raise exception 'AUTHENTICATION_REQUIRED'; end if;
   if nullif(trim(p_lot), '') is null or nullif(trim(p_zone), '') is null
@@ -67,10 +69,26 @@ begin
   where c.lot = p_lot and c.zone = p_zone
     and c.guard_started_at >= v_from and c.guard_started_at < v_until;
 
+  -- The scoped assignments, including units with no previous submissions,
+  -- are the roster. Supervisors and TSNU have their own report sections.
+  select coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb) into v_svb_roster
+  from (
+    select distinct a.unit
+    from public.unit_warehouse_assignments a
+    join public.warehouses w on w.id=a.warehouse_id
+    where w.lot=p_lot and w.zone=p_zone
+      and a.unit !~* '^(Material supervisor|SUPERVISOR_)'
+      and not exists(select 1 from public.tsnu_units t where t.lot=p_lot and t.unit=a.unit)
+  ) r;
+  select coalesce(jsonb_agg(jsonb_build_object('unit',t.unit)), '[]'::jsonb) into v_tsnu_roster
+  from public.tsnu_units t where t.lot=p_lot and t.zone=p_zone and t.active;
+
   return jsonb_build_object(
     'incidents', v_incidents,
     'submissions', v_submissions,
-    'svb_checklists', v_svb_checklists
+    'svb_checklists', v_svb_checklists,
+    'svb_roster', v_svb_roster,
+    'tsnu_roster', v_tsnu_roster
   );
 end;
 $$;
