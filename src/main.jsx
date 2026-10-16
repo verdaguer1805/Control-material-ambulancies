@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { reportUnitVisible, filterReportUnits } from "./report-unit-visibility.mjs";
 import { supervisorDraft, appendSupervisorConsumption, readSupervisorUnsent, saveSupervisorUnsent, clearSupervisorUnsent } from "./supervisor-consumption.mjs";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
 import { correctionService, tsnuCorrectionRows, consumptionCorrectionRequest } from "./consumption-correction-service.mjs";
@@ -1258,7 +1259,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v237", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v238", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -1343,14 +1344,14 @@ function App() {
     const reportData = reportResult.data || {},
       incidents = Array.isArray(reportData.incidents) ? reportData.incidents : [],
       unique = [...new Map(incidents.map((row) => [row.id, row])).values()];
-    return {
+    return filterReportUnits({
       records: mapAdminRecords(unique, Array.isArray(reportData.submissions) ? reportData.submissions : []),
       submissions: Array.isArray(reportData.submissions) ? reportData.submissions : [],
       svbChecklists: Array.isArray(reportData.svb_checklists) ? reportData.svb_checklists : [],
       svbRoster: Array.isArray(reportData.svb_roster) ? reportData.svb_roster : null,
       vehicleAudits: Array.isArray(auditResult.data) ? auditResult.data : [],
       tsnu: {...(tsnuResult.data || { shifts: [], withdrawals: [] }),roster:reportData.tsnu_roster || []},
-    };
+    },exportLot,exportZone);
   }
   function openConsumptionCorrection() {
     const zone = adminAccess?.role === "supervisor" ? adminAccess.zone || "" : correctionZone;
@@ -2530,6 +2531,7 @@ function App() {
         [year, month, day] = date.split("-"),
         guardCode = `${day}${month}${year.slice(-2)}`;
       Object.keys(SUPERVISIONS[exportZone] || {})
+        .filter(unit=>reportUnitVisible(exportLot,exportZone,unit))
         .filter((unit) => !isSupervisorMaterial(unit))
         .sort((a, b) => a.localeCompare(b))
         .forEach((unit) => {
@@ -2792,6 +2794,7 @@ function App() {
           minute: "2-digit",
         }),
       reportUnitList = Object.keys(SUPERVISIONS[exportZone] || {})
+        .filter(unit=>reportUnitVisible(exportLot,exportZone,unit))
         .filter((unit) => !isSupervisorMaterial(unit))
         .sort((a, b) => a.localeCompare(b)),
       complianceRows = [],
@@ -2869,6 +2872,7 @@ function App() {
       });
     });
     Object.keys(SUPERVISIONS[exportZone] || {})
+      .filter(unit=>reportUnitVisible(exportLot,exportZone,unit))
       .filter((u) => !isSupervisorMaterial(u))
       .forEach((u) => {
         services[u] = services[u] || 0;
@@ -3493,7 +3497,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v237</span></h1>
+          <h1>Control de material <span className="app-version">v238</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5326,7 +5330,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=237", {
+    navigator.serviceWorker.register("./sw.js?v=238", {
       updateViaCache: "none",
     }),
   );

@@ -177,7 +177,6 @@ export const MATERIALS = [
   "Bolsa hielo",
   "Bolsa calor",
   "Sutura cutánea 100x6mm",
-  "Sutura cutánea 100x12mm",
   "Pinzas estériles",
   "Tijeras estériles",
   "Esparadrapo plástico 2,5",
@@ -185,7 +184,6 @@ export const MATERIALS = [
   "Venda crep 10cm x 10m",
   "Venda gasa de 10 x 10",
   "Venda cohesiva 10 x 10",
-  "Malla capelina para cabeza",
   "Suero fisiológico 5 ml",
   "Suero fisiológico 100ml",
 
