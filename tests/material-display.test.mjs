@@ -5,6 +5,21 @@ import {materialDisplayName} from '../src/material-display.mjs';
 import {MATERIALS} from '../src/data.js';
 import {SVB_RIGHT_ZONE_SECTIONS} from '../src/svb-right-zone-data.mjs';
 
+test('lancets are displayed and searched as units without changing stored material keys',()=>{
+ assert.equal(materialDisplayName('Lancetas (caja)'), 'Lancetas (unidades)');
+ assert.equal(materialDisplayName('Lancetas (cajas)'), 'Lancetas (unidades)');
+ assert.equal(materialDisplayName('Lancetas (unidades)'), 'Lancetas (unidades)');
+ assert.equal(materialDisplayName('Lancetas · 20 unidades'), 'Lancetas · 20 unidades');
+ assert.equal(materialDisplayName('Guantes M (caja)'), 'Guantes M (caja)');
+ assert.ok(MATERIALS.includes('Lancetas (caja)'));
+ assert.ok(!MATERIALS.includes('Lancetas (unidades)'));
+ const tsnu=fs.readFileSync(new URL('../src/ChecklistDemo.jsx',import.meta.url),'utf8');
+ assert.ok(tsnu.includes('<span>{materialDisplayName(item)}</span>'));
+ assert.ok(tsnu.includes('materialDisplayName(item).toLowerCase().includes(materialSearch.toLowerCase())'));
+ assert.ok(tsnu.includes('materials:selected'));
+ assert.ok(tsnu.includes('material[item]'));
+});
+
 test('correct dressing size is shown everywhere while historical stock identity stays stable',()=>{
  const original='Apósito 7x2,5';
  assert.equal(materialDisplayName(original),'Apósito 7,2x5');
