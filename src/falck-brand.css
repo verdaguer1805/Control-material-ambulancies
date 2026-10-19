@@ -1,0 +1,15 @@
+/* Current Falck symbol supplied by the project owner. Keep its square ratio. */
+.header {background:#ff1e28;}
+.falck-header-logo {
+  width:112px;
+  height:112px;
+  min-height:0;
+  max-width:28vw;
+  align-self:center;
+  flex:0 0 auto;
+  object-fit:contain;
+  background:transparent;
+}
+@media (max-width:420px) {
+  .falck-header-logo {width:88px;height:88px;}
+}
