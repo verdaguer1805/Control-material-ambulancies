@@ -1,4 +1,4 @@
-import { TSNU_CHECKLIST_GROUPS } from './checklist-demo.mjs';
+import { tsnuChecklistGroups } from './tsnu-checklist-catalog.mjs';
 import { SVB_LEFT_WALL_SECTIONS } from './svb-left-wall-data.mjs';
 import { SVB_FRONT_WALL_SECTIONS } from './svb-front-wall-data.mjs';
 import { SVB_RIGHT_ZONE_SECTIONS } from './svb-right-zone-data.mjs';
@@ -10,8 +10,8 @@ export const AUDIT_STORAGE_KEY = 'cma_supervisor_vehicle_audits_v1';
 export const normalizeAuditVehicle = value => String(value || '').trim().toUpperCase();
 export const validAuditVehicle = value => /^[A-Z0-9][A-Z0-9-]{2,19}$/.test(normalizeAuditVehicle(value));
 export const isAuditSupervisor = value => /^Material supervisor\s*·\s*\S/i.test(value || '') || /^SUPERVISOR_\S/i.test(value || '');
-export function auditGroups(type) {
-  if (type === 'TSNU') return TSNU_CHECKLIST_GROUPS.map(([title, items], index) => ({id:`tsnu-${index}`, title, items}));
+export function auditGroups(type, vehicle='') {
+  if (type === 'TSNU') return tsnuChecklistGroups(vehicle).map(([title, items], index) => ({id:`tsnu-${index}`, title, items}));
   if (type !== 'SVB') return [];
   const groups = [];
   for (const [zone, sections] of [['Zona izquierda', SVB_LEFT_WALL_SECTIONS], ['Zona frontal', SVB_FRONT_WALL_SECTIONS], ['Zona derecha', SVB_RIGHT_ZONE_SECTIONS], ['Puerta corredera izquierda', SVB_DOOR_SECTIONS]]) {
@@ -23,8 +23,8 @@ export function auditGroups(type) {
   groups.push({id:'cabin', title:'Cabina de conducción', items:SVB_CABIN_ITEMS});
   return groups;
 }
-export function auditItems(type) {
-  return auditGroups(type).flatMap(group => group.items.map((label, index) => ({id:`${group.id}:${index}`, label, section:group.title})));
+export function auditItems(type, vehicle='') {
+  return auditGroups(type,vehicle).flatMap(group => group.items.map((label, index) => ({id:`${group.id}:${index}`, label, section:group.title})));
 }
 export function auditComplete(draft) {
   const items = draft?.catalog || [];
@@ -32,7 +32,7 @@ export function auditComplete(draft) {
 }
 export function refreshPendingAudit(draft) {
   if (draft.confirmedAt) return draft;
-  const catalog=auditItems(draft.type),answers={},notes={};
+  const catalog=auditItems(draft.type,draft.vehicle),answers={},notes={};
   for(const item of catalog){
     const previous=draft.catalog.find(old=>old.section===item.section && old.label===item.label);
     if(previous && Object.hasOwn(draft.answers,previous.id))answers[item.id]=draft.answers[previous.id];

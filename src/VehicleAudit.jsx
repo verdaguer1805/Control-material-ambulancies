@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import VehicleAuditMap from './VehicleAuditMap.jsx';
+import { tsnuChecklistLabel } from './tsnu-checklist-catalog.mjs';
 import {AUDIT_TYPES, auditItems, auditComplete, auditRequest, isAuditSupervisor, markAuditGroupCorrect, normalizeAuditVehicle, readAudits, refreshPendingAudit, saveAudit, validAuditVehicle} from './vehicle-audit.mjs';
 
 export default function VehicleAudit({supervisor, lot, zone, authorized, preview=false}) {
@@ -10,7 +11,7 @@ export default function VehicleAudit({supervisor, lot, zone, authorized, preview
   function begin() {
     try {
       if (!validAuditVehicle(vehicle)) throw new Error('Introduce el identificador del vehículo, por ejemplo T1733 o 5438.');
-      const catalog=auditItems(type);
+      const catalog=auditItems(type,vehicle);
       if (!catalog.length) throw new Error('Contenido pendiente para este tipo de checklist.');
       const next={id:crypto.randomUUID(), supervisor,lot,zone,vehicle:normalizeAuditVehicle(vehicle),type,startedAt:new Date().toISOString(),catalog,answers:{},notes:{},confirmedAt:null};
       saveAudit(storage,next);setDraft(next);setNotice('');
@@ -36,6 +37,7 @@ export default function VehicleAudit({supervisor, lot, zone, authorized, preview
     <h2>Auditoría de vehículos</h2>
     <p className="small">Revisión de supervisor independiente. No sustituye el checklist de los técnicos ni modifica el stock.</p>
     {!open ? <><button className="primary full" disabled={!authorized} onClick={()=>{setOpen(true);setDraft(null);setNotice('');}}>Auditar vehículo</button><button className="secondary full" style={{marginTop:8}} disabled={!authorized} onClick={resume}>Continuar auditoría pendiente</button></> : <>
+      {type==='TSNU'&&!draft&&vehicle&&<p>Checklist TSNU · {tsnuChecklistLabel(vehicle)} · Detectado automáticamente</p>}
       {!draft ? <><label>Vehículo<input value={vehicle} maxLength={20} placeholder="T1733, 5517, 5438…" onChange={e=>setVehicle(e.target.value)}/></label><label>Tipo de checklist<select value={type} onChange={e=>setType(e.target.value)}><option value="">Selecciona checklist</option>{AUDIT_TYPES.map(t=><option key={t}>{t}</option>)}</select></label>{['Polivalente','Logística'].includes(type)&&<p>Contenido pendiente. Todavía no se puede realizar esta auditoría.</p>}<button className="primary full" disabled={!authorized || !auditItems(type).length} onClick={begin}>Comenzar auditoría</button></> : <>
         <h3>Vehículo {draft.vehicle} · {draft.type}</h3><p>{draft.supervisor} · {draft.zone}</p>
         {draft.type==='SVB'?<VehicleAuditMap key={draft.id} draft={draft} update={update} busy={busy}/>:groups.map(title=>{const items=draft.catalog.filter(item=>item.section===title);const groupId=items[0].id.slice(0,items[0].id.lastIndexOf(':'));return <details key={title} style={{margin:'12px 0',padding:12,border:'1px solid #aab8bc',borderRadius:10}}><summary>{title} · {items.filter(item=>draft.answers[item.id]).length}/{items.length}</summary><button className="secondary" disabled={busy||!!draft.confirmedAt} onClick={()=>update(markAuditGroupCorrect(draft,groupId))}>Marcar todo correcto</button>{items.map(item=><div key={item.id} style={{marginTop:12}}><label>{item.label}<select aria-label={item.label} value={draft.answers[item.id]||''} disabled={busy||!!draft.confirmedAt} onChange={e=>update({...draft,answers:{...draft.answers,[item.id]:e.target.value},confirmedAt:null})}><option value="">Pendiente</option><option value="ok">Correcto</option><option value="issue">Incidencia</option></select></label>{draft.answers[item.id]==='issue'&&<input aria-label={`Observaciones: ${item.label}`} placeholder="Observaciones de la incidencia" maxLength={1000} disabled={busy||!!draft.confirmedAt} value={draft.notes[item.id]||''} onChange={e=>update({...draft,notes:{...draft.notes,[item.id]:e.target.value},confirmedAt:null})}/>}</div>)}</details>})}

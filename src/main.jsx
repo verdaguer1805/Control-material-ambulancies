@@ -18,6 +18,7 @@ import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisi
 import { writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
 import { compareMaterialLabels } from "./material-order.mjs";
 import { materialDisplayName } from "./material-display.mjs";
+import { tsnuChecklistLabel } from './tsnu-checklist-catalog.mjs';
 import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
 import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, withMissingChecklists, vehicleAuditReport } from "./checklist-report-format.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
@@ -1259,7 +1260,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v239", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v240", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -2999,7 +3000,7 @@ function App() {
         doc.setLineDashPattern([1, 1], 0);
         doc.line(labelEnd, y + 2.5, x + 23, y + 2.5);
         doc.setLineDashPattern([], 0);
-        doc.setFillColor(232, 237, 239);
+        doc.setFillColor(232, 237, 240);
         doc.roundedRect(x + 24, y, 88, 5, 1, 1, "F");
         doc.setFillColor(215, 25, 32);
         doc.roundedRect(x + 24, y, width, 5, 1, 1, "F");
@@ -3057,7 +3058,7 @@ function App() {
           width = (165 * value) / maximum;
         doc.setFontSize(8);
         doc.text(String(label), 15, y + 4, { maxWidth: 66 });
-        doc.setFillColor(232, 237, 239);
+        doc.setFillColor(232, 237, 240);
         doc.roundedRect(86, y, 165, 7, 1, 1, "F");
         doc.setFillColor(...rgb);
         doc.roundedRect(86, y, width, 7, 1, 1, "F");
@@ -3497,7 +3498,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v239</span></h1>
+          <h1>Control de material <span className="app-version">v240</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3718,7 +3719,7 @@ function App() {
                   <UnitSelector value={nextUnit} units={changeService === 'TSU' ? LOTS[changeLot]?.[changeZone] || {} : changeService === 'TSNU' ? TSNU_UNITS[changeLot]?.[changeZone] || {} : {}} onChange={u=>{setNextUnit(u);setChangeWarehouse('');setChangeShiftStart('');setChangeChecklist('');setChangeVehicle('');setShiftPickerOpen(false);}} />
                 </>
               )}
-              {nextUnit && changeService === 'TSNU' && <><label>Almacén asignado</label><select value={changeWarehouse} onChange={e=>setChangeWarehouse(e.target.value)}><option value="">Selecciona el almacén</option>{(getWarehouseScope(changeLot,changeZone)?.warehouses||[]).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Almacén central':'Subalmacén'} · {w.name}</option>)}</select>{changeWarehouse&&<p className="selected-zone">Los consumos futuros se descontarán de este almacén.</p>}</>}
+              {nextUnit && changeService === 'TSNU' && <><p className="selected-zone">Checklist TSNU · {tsnuChecklistLabel(nextUnit)} · Detectado automáticamente</p><label>Almacén asignado</label><select value={changeWarehouse} onChange={e=>setChangeWarehouse(e.target.value)}><option value="">Selecciona el almacén</option>{(getWarehouseScope(changeLot,changeZone)?.warehouses||[]).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Almacén central':'Subalmacén'} · {w.name}</option>)}</select>{changeWarehouse&&<p className="selected-zone">Los consumos futuros se descontarán de este almacén.</p>}</>}
               {nextUnit && !isSupervisorMaterial(nextUnit) && changeService === 'TSU' && <>
                 <label>Checklist asignado</label>
                 <select value={changeChecklist} onChange={e=>{setChangeChecklist(e.target.value);setChangeVehicle('');if(e.target.value){setShiftPickerTarget('change');setShiftPickerOpen(true);}}}>
@@ -4533,7 +4534,7 @@ function App() {
                 {selectedService === 'TSNU' && <p>Checklist TSNU automático, por fecha y sin horario.{!Object.keys(TSNU_UNITS[selectedLot]?.[selectedZone] || {}).length && ' No hay unidades TSNU configuradas en esta zona.'}</p>}
                 <label>Unidad</label>
                 <UnitSelector value={unit} units={selectedService === 'TSU' ? LOTS[selectedLot][selectedZone] : selectedService === 'TSNU' ? TSNU_UNITS[selectedLot]?.[selectedZone] || {} : {}} onChange={u=>{setUnit(u);setSelectedWarehouse('');setSelectedShiftStart('');setSelectedChecklist('');setSelectedVehicle('');setShiftPickerOpen(false);}} />
-                {unit && selectedService === 'TSNU' && <><label>Almacén asignado</label><select value={selectedWarehouse} onChange={e=>setSelectedWarehouse(e.target.value)}><option value="">Selecciona el almacén</option>{(getWarehouseScope(selectedLot,selectedZone)?.warehouses||[]).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Almacén central':'Subalmacén'} · {w.name}</option>)}</select>{selectedWarehouse&&<p className="selected-zone">Los consumos futuros se descontarán de este almacén.</p>}</>}
+                {unit && selectedService === 'TSNU' && <><p className="selected-zone">Checklist TSNU · {tsnuChecklistLabel(unit)} · Detectado automáticamente</p><label>Almacén asignado</label><select value={selectedWarehouse} onChange={e=>setSelectedWarehouse(e.target.value)}><option value="">Selecciona el almacén</option>{(getWarehouseScope(selectedLot,selectedZone)?.warehouses||[]).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Almacén central':'Subalmacén'} · {w.name}</option>)}</select>{selectedWarehouse&&<p className="selected-zone">Los consumos futuros se descontarán de este almacén.</p>}</>}
                 {unit && !isSupervisorMaterial(unit) && selectedService === 'TSU' && <>
                   <label>Checklist asignado</label>
                   <select value={selectedChecklist} onChange={e=>{setSelectedChecklist(e.target.value);setSelectedVehicle('');if(e.target.value){setShiftPickerTarget('initial');setShiftPickerOpen(true);}}}>
@@ -5330,7 +5331,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=239", {
+    navigator.serviceWorker.register("./sw.js?v=240", {
       updateViaCache: "none",
     }),
   );

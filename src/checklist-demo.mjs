@@ -1,20 +1,13 @@
+import { tsnuChecklistGroups, tsnuChecklistItems, currentTsnuAnswers } from './tsnu-checklist-catalog.mjs';
 // Deliberately local-only. No production activation flag or Supabase client.
 export const DEMO_KEY = "cma_checklist_simulation_v1";
 export const VEHICLE_TYPES = ["TSU", "TSNU", "Polivalente", "Logística"];
 export const DEMO_ITEMS = ["Gasas (ejemplo)", "Guantes (ejemplo)", "Suero fisiológico (ejemplo)", "Vendas (ejemplo)"];
-export const TSNU_CHECKLIST_GROUPS = [
-  ["Maleta de intervención", ["Maleta de intervención precintada"]],
-  ["Cajón n.º 1", ["DEA", "Mantas de un solo uso"]],
-  ["Cajón n.º 2", ["Contenedor de agujas grande", "Bolsas de vómito", "Sonda de aspiración", "Aspirador manual", "Empapadores"]],
-  ["Cajón n.º 3", ["Cuña de hombre", "Cuña de mujer"]],
-  ["Cajón n.º 4", ["Bata EPI o mono de protección", "Bolsas de residuos GII", "Bolsas de basura negras", "Gafas de protección EPI", "Guantes de protección EPI"]],
-  ["Parte trasera del vehículo", ["Oxígeno disponible y con carga suficiente"]],
-  ["Parte delantera del vehículo", ["Guantes de nitrilo de diferentes tallas", "Cadenas de nieve", "Cizallas", "Pata de cabra", "Tarjeta de gasóleo", "Tarjeta Trueta", "Baliza V-16"]],
-];
+export const TSNU_CHECKLIST_GROUPS = tsnuChecklistGroups('T');
 export const TSNU_CHECKLIST_ITEMS = TSNU_CHECKLIST_GROUPS.flatMap(([, items]) => items);
 export const canDemoChecklist = (auth, unit) => Boolean(auth?.checked && auth?.enforcement && !auth?.authorized && unit && !/^Material supervisor/i.test(unit));
 export const demoKey = (r) => JSON.stringify([r.lot, r.zone, r.unit, r.date, r.vehicleType || "TSU", r.sessionId || "legacy"]);
-export const checklistItems = (record) => isDailyChecklist(record) ? TSNU_CHECKLIST_ITEMS : DEMO_ITEMS;
+export const checklistItems = (record) => isDailyChecklist(record) ? tsnuChecklistItems(record.unit) : DEMO_ITEMS;
 export function validDemoDate(date) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
 }
@@ -47,9 +40,12 @@ export function closeTsnuShiftAutomatically(record, now = new Date()) {
 }
 export function checklistStatus(record, now = new Date()) {
   // Completed checklists from before Baliza V-16 must keep their result.
-  const items = record.completed && isDailyChecklist(record) && !Object.hasOwn(record.answers || {}, "Baliza V-16")
-    ? TSNU_CHECKLIST_ITEMS.filter((item) => item !== "Baliza V-16")
-    : checklistItems(record);
+  // A confirmed old K/KE may contain tool incidents: keep its original result.
+  let items = record.completed && isDailyChecklist(record) &&
+    ['Cizallas','Pata de cabra'].some(item=>Object.hasOwn(record.answers || {},item))
+      ? TSNU_CHECKLIST_ITEMS : checklistItems(record);
+  if(record.completed && isDailyChecklist(record) && !Object.hasOwn(record.answers || {},'Baliza V-16'))
+    items=items.filter(item=>item!=='Baliza V-16');
   if (record.completed && items.every((m) => ["ok", "issue"].includes(record.answers?.[m])))
     return items.some((m) => record.answers[m] === "issue") ? "Incidencia" : "Correcto";
   if (isDailyChecklist(record)) {
@@ -77,7 +73,7 @@ export function saveDemo(storage, record) {
 export function completeDemo(record) {
   if (!isDailyChecklist(record) && record.phase !== "open") throw new Error("El checklist solo puede realizarse durante las dos primeras horas de la guardia.");
   if (!checklistItems(record).every((m) => ["ok", "issue"].includes(record.answers?.[m]))) throw new Error("Revisa todos los materiales antes de guardar.");
-  return { ...record, completed: true, savedAt: new Date().toISOString(), startedAt: record.startedAt || new Date().toISOString() };
+  return { ...record, ...(isDailyChecklist(record)?{answers:currentTsnuAnswers(record)}:{}), completed: true, savedAt: new Date().toISOString(), startedAt: record.startedAt || new Date().toISOString() };
 }
 export function closeDemoShift(record, pendingMaterial = false) {
   if (!record?.completed) throw new Error("Primero debes enviar el checklist.");
