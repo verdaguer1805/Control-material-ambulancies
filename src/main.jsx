@@ -23,6 +23,7 @@ import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./repo
 import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, withMissingChecklists, vehicleAuditReport } from "./checklist-report-format.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
+import { tsnuReportedItemLabel } from './tsnu-checklist-catalog.mjs';
 const VehicleAudit = React.lazy(() => import("./VehicleAudit.jsx"));
 import { createRoot } from "react-dom/client";
 import { saveAs } from "file-saver";
@@ -1260,7 +1261,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v241", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v242", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -2598,7 +2599,7 @@ function App() {
       ),
       checklistTsnuRows = withMissingChecklists(tsnuShifts.map(shift=>({...shift,guard_started_at:shift.started_at,submitted_at:shift.checklist_submitted_at})),tsnuData.roster || [],exportFrom,exportTo).map((shift) => {
         const answers = shift.checklist_answers || {},
-          issues = Object.entries(answers).filter(([, value]) => value === "issue").map(([item]) => item);
+          issues = Object.entries(answers).filter(([, value]) => value === "issue").map(([item]) => tsnuReportedItemLabel(item,answers));
         return {
           Fecha: shift.report_date ? shift.report_date.split('-').reverse().join('/') : new Date(shift.started_at).toLocaleDateString("es-ES", {timeZone:'Europe/Madrid',day:"2-digit",month:"2-digit",year:"numeric"}),
           "Inicio de guardia": shift.started_at ? new Date(shift.started_at).toLocaleTimeString("es-ES", {timeZone:'Europe/Madrid',hour:"2-digit",minute:"2-digit"}) : '',
@@ -3278,7 +3279,7 @@ function App() {
     const tsnuChecklistPages = (shifts) => {
       const rows = shifts.map((shift) => {
           const answers = shift.checklist_answers || {},
-            issues = Object.entries(answers).filter(([, value]) => value === "issue").map(([item]) => item),
+            issues = Object.entries(answers).filter(([, value]) => value === "issue").map(([item]) => tsnuReportedItemLabel(item,answers)),
             started = new Date(shift.started_at),
             submitted = shift.checklist_submitted_at ? new Date(shift.checklist_submitted_at) : null;
           return {
@@ -3496,7 +3497,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v241</span></h1>
+          <h1>Control de material <span className="app-version">v242</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5329,7 +5330,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=241", {
+    navigator.serviceWorker.register("./sw.js?v=242", {
       updateViaCache: "none",
     }),
   );

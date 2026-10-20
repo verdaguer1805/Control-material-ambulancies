@@ -1,4 +1,4 @@
-import { tsnuChecklistGroups, tsnuChecklistItems, currentTsnuAnswers } from './tsnu-checklist-catalog.mjs';
+import { tsnuChecklistGroups, tsnuChecklistItems, currentTsnuAnswers, TSNU_NEW_FRONT_ITEMS } from './tsnu-checklist-catalog.mjs';
 // Deliberately local-only. No production activation flag or Supabase client.
 export const DEMO_KEY = "cma_checklist_simulation_v1";
 export const VEHICLE_TYPES = ["TSU", "TSNU", "Polivalente", "Logística"];
@@ -46,6 +46,8 @@ export function checklistStatus(record, now = new Date()) {
       ? TSNU_CHECKLIST_ITEMS : checklistItems(record);
   if(record.completed && isDailyChecklist(record) && !Object.hasOwn(record.answers || {},'Baliza V-16'))
     items=items.filter(item=>item!=='Baliza V-16');
+  if(record.completed && isDailyChecklist(record) && !TSNU_NEW_FRONT_ITEMS.some(item=>Object.hasOwn(record.answers || {},item)))
+    items=items.filter(item=>!TSNU_NEW_FRONT_ITEMS.includes(item));
   if (record.completed && items.every((m) => ["ok", "issue"].includes(record.answers?.[m])))
     return items.some((m) => record.answers[m] === "issue") ? "Incidencia" : "Correcto";
   if (isDailyChecklist(record)) {

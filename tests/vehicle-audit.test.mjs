@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {AUDIT_STORAGE_KEY, auditGroups,auditItems,auditComplete,auditRequest,markAuditGroupCorrect,normalizeAuditVehicle,validAuditVehicle,isAuditSupervisor,saveAudit,readAudits,refreshPendingAudit} from '../src/vehicle-audit.mjs';
 import {TSNU_CHECKLIST_ITEMS} from '../src/checklist-demo.mjs';
+import {tsnuChecklistItemLabel} from '../src/tsnu-checklist-catalog.mjs';
 import {SVB_FRONT_WALL_SECTIONS,frontSectionItems} from '../src/svb-front-wall-data.mjs';
 import {SVB_PHOTO_LAYOUT} from '../src/svb-photo-layout.mjs';
 
@@ -20,7 +21,7 @@ test('SVB audit photos and marker positions match the operational unit checklist
  assert.match(component,/preview \? sessionStorage : localStorage/);
 });
 test('audits use production catalogs including nested bags and cabin; pending types have no fake checklist',()=>{
- assert.deepEqual(auditItems('TSNU').map(x=>x.label),TSNU_CHECKLIST_ITEMS);
+ assert.deepEqual(auditItems('TSNU').map(x=>x.label),TSNU_CHECKLIST_ITEMS.map(tsnuChecklistItemLabel));
  const svb=auditItems('SVB');assert.equal(new Set(svb.map(x=>x.id)).size,svb.length);
  for(const section of SVB_FRONT_WALL_SECTIONS.filter(s=>!s.pendingDefinition))for(const item of frontSectionItems(section))assert.ok(svb.some(x=>x.label===item));
  assert.ok(auditGroups('SVB').some(x=>x.title==='Cabina de conducción'));

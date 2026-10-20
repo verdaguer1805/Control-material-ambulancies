@@ -59,5 +59,6 @@ test('server migration is scoped, strict, compatible with old clients, and canno
  assert.match(sql,/where id=p_shift_id returning/);
  assert.match(sql,/array_remove\(array_remove\(v_required,'Cizallas'\),'Pata de cabra'\)/);
  assert.doesNotMatch(sql,/(update|insert into|delete from) public\.(stock|incidents|tsnu_unit_assignments|device_authorizations)/i);
- for(const item of TSNU_CHECKLIST_ITEMS)assert.ok(sql.includes(`'${item}'`));
+ const equipmentSql=fs.readFileSync(new URL('../sql/tsnu-checklist-equipment-v3.sql',import.meta.url),'utf8');
+ for(const item of TSNU_CHECKLIST_ITEMS)assert.ok((sql+equipmentSql).includes(`'${item}'`));
 });

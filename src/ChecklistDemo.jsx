@@ -4,7 +4,7 @@ import { ensureAnonymousSession, supabase } from "./supabase.js";
 import { newOperationId, queueTsnuOperation, readTsnuOutbox, readTsnuShift, saveTsnuShift, rpcForTsnuOperation, syncTsnuOutbox, removeTsnuShiftOperations, isTsnuConnectivityError } from "./tsnu-outbox.mjs";
 import "./checklist-demo.css";
 import { materialDisplayName } from "./material-display.mjs";
-import { tsnuChecklistGroups, tsnuChecklistLabel } from './tsnu-checklist-catalog.mjs';
+import { tsnuChecklistGroups, tsnuChecklistLabel, tsnuChecklistItemLabel } from './tsnu-checklist-catalog.mjs';
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 function Modal({ title, children, close, footer }) {
@@ -153,7 +153,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     </div>}
     {open && draft && <Modal title={`Checklist de material${production?'':' · PRUEBA'}`} close={()=>setOpen(false)} footer={<button className="primary" onClick={finish}>{production?'Enviar checklist':'Guardar checklist de prueba'}</button>}>
       <p><strong>{unit} · {draft.date} · {daily ? `TSNU · ${tsnuChecklistLabel(draft.unit)}` : draft.vehicleType === "TSU" ? "SVB" : draft.vehicleType}</strong><br/>{production?'Comprueba todos los elementos antes de enviar.':'Lista provisional de prueba.'}</p>
-      {(daily ? tsnuChecklistGroups(draft.unit) : [["Material",DEMO_ITEMS]]).map(([group,items])=><section key={group}><h3 className="checklist-group-title">{group}</h3>{items.map(item=><div className={`checklist-item ${draft.answers[item]==='ok'?'checklist-row-ok':draft.answers[item]==='issue'?'checklist-row-issue':''}`} key={item}><strong>{item}</strong><div className="checklist-choices">
+      {(daily ? tsnuChecklistGroups(draft.unit) : [["Material",DEMO_ITEMS]]).map(([group,items])=><section key={group}><h3 className="checklist-group-title">{group}</h3>{items.map(item=><div className={`checklist-item ${draft.answers[item]==='ok'?'checklist-row-ok':draft.answers[item]==='issue'?'checklist-row-issue':''}`} key={item}><strong>{daily ? tsnuChecklistItemLabel(item) : item}</strong><div className="checklist-choices">
         <button title="Correcto" aria-label={`${item}: correcto`} aria-pressed={draft.answers[item]==="ok"} className={draft.answers[item]==="ok"?"checklist-ok":"checklist-ok checklist-unselected"} onClick={()=>edit(item,"answers","ok")}>✓</button>
         <button title="Incidencia" aria-label={`${item}: incidencia`} aria-pressed={draft.answers[item]==="issue"} className={draft.answers[item]==="issue"?"checklist-issue":"checklist-issue checklist-unselected"} onClick={()=>edit(item,"answers","issue")}>✕</button>
       </div></div>)}</section>)}

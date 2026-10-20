@@ -1,4 +1,4 @@
-import { tsnuChecklistGroups } from './tsnu-checklist-catalog.mjs';
+import { tsnuChecklistGroups, tsnuChecklistItemLabel } from './tsnu-checklist-catalog.mjs';
 import { SVB_LEFT_WALL_SECTIONS } from './svb-left-wall-data.mjs';
 import { SVB_FRONT_WALL_SECTIONS } from './svb-front-wall-data.mjs';
 import { SVB_RIGHT_ZONE_SECTIONS } from './svb-right-zone-data.mjs';
@@ -11,7 +11,7 @@ export const normalizeAuditVehicle = value => String(value || '').trim().toUpper
 export const validAuditVehicle = value => /^[A-Z0-9][A-Z0-9-]{2,19}$/.test(normalizeAuditVehicle(value));
 export const isAuditSupervisor = value => /^Material supervisor\s*·\s*\S/i.test(value || '') || /^SUPERVISOR_\S/i.test(value || '');
 export function auditGroups(type, vehicle='') {
-  if (type === 'TSNU') return tsnuChecklistGroups(vehicle).map(([title, items], index) => ({id:`tsnu-${index}`, title, items}));
+  if (type === 'TSNU') return tsnuChecklistGroups(vehicle).map(([title, items], index) => ({id:`tsnu-${index}`, title, items:items.map(tsnuChecklistItemLabel)}));
   if (type !== 'SVB') return [];
   const groups = [];
   for (const [zone, sections] of [['Zona izquierda', SVB_LEFT_WALL_SECTIONS], ['Zona frontal', SVB_FRONT_WALL_SECTIONS], ['Zona derecha', SVB_RIGHT_ZONE_SECTIONS], ['Puerta corredera izquierda', SVB_DOOR_SECTIONS]]) {
