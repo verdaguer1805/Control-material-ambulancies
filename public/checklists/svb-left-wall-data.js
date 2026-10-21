@@ -115,7 +115,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
       "Sonda de aspiración controlada nº 18 · 2 unidades",
       "Cánula Yankauer · 3 unidades",
       "Bolsa de aspirador de un solo uso · 3 unidades",
-      "Tubo de silicona para aspirador (1 metro) · 1 unidad"
+      "Tubo de silicona para aspirador (1 metro) · 3 unidades"
     ]
   },
   {
@@ -140,6 +140,8 @@ export function sectionStatus(section, answers) {
 
 export function leftRequiredSections(sections, answers, confirmed) {
   return sections.flatMap(section => {
+    if(section.id===9 && confirmed && Object.hasOwn(answers?.[9] || {},'Tubo de silicona para aspirador (1 metro) · 1 unidad') && !Object.hasOwn(answers?.[9] || {},'Tubo de silicona para aspirador (1 metro) · 3 unidades'))
+      return [{...section,items:section.items.map(item=>item==='Tubo de silicona para aspirador (1 metro) · 3 unidades'?'Tubo de silicona para aspirador (1 metro) · 1 unidad':item)}];
     if(section.id!==11 || !confirmed)return [section];
     if(!Object.hasOwn(answers || {},'11'))return [];
     if(Object.hasOwn(answers[11] || {},'Aspirador') && !section.items.some(item=>Object.hasOwn(answers[11],item)))return [{...section,items:['Aspirador']}];

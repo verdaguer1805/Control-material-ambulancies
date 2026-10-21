@@ -1,0 +1,21 @@
+/* The header/send action stay visible. Only zones scroll on short screens. */
+html,body{height:100%;overflow:hidden}
+body .app{height:100vh;height:100dvh;display:flex;flex-direction:column;padding:12px 12px 0;overflow:hidden}
+.checklist-fixed{flex:0 0 auto}
+.head h1{font-size:21px;margin:12px 0}
+.head h1 small{font-size:14px;color:#5e6a70}
+.head .back{font-size:14px}
+.head .tag,.head h2{display:none}
+.app .vehicle{padding:12px;margin-bottom:0}
+.app .change-vehicle{font-size:12px}
+.app .submit-checklist{margin-top:12px;padding:15px 10px}
+#submitStatus{margin:9px 0 12px;font-size:14px;color:#704f00}
+#submitStatus.sent{color:#126a35}
+#guardInfo{font-size:12px;margin:4px 0 9px!important;padding:5px!important;border-width:1px!important}
+#guardInfo:empty{display:none}
+.checklist-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+.app .zones{gap:8px}
+.app .zone{padding:10px 12px;gap:10px;min-height:62px}
+.app .zone strong{font-size:17px}
+.app .zone small{font-size:12px}
+.app .legend{margin:10px 0 4px;padding:8px;font-size:12px}
