@@ -1,6 +1,6 @@
 Named auditors implementation - 2026-10-22
 
-Production remains v244. New auditor SQL has NOT been executed; UI NOT published.
+Release v245 approved for publication on 2026-10-22. User confirmed SQL execution: Success, no rows returned.
 Prepared SQL editor: https://supabase.com/dashboard/project/dfnywetqnccykzjyihzq/sql/8e749492-db09-4282-ab77-8a220f5d9b0f
 Migration: sql/named-auditors-v1.sql (additive; no reset/backfill).
 Local demo: http://127.0.0.1:5181/named-auditor-preview.html
@@ -28,12 +28,12 @@ Verification:
 - Production build succeeds. Browser demo checks material -> blocked zone change -> send -> zero,
   then change Olot to Figueres and SVB photo-based vehicle audit.
 
-Before publish:
-1. User executes the prepared SQL and confirms success.
-2. Verify installed RPCs/schema read-only. Perform no real consumption without explicit test approval.
-3. Bump all release routes/cache/main/tests consistently (next expected v245).
+Release checks:
+1. User executed the prepared SQL and confirmed success.
+2. Perform no real consumption without explicit test approval.
+3. Bumped all release routes/cache/main/tests consistently to v245.
    Include the AuditorPortal version prop in src/main.jsx; its standalone default is local-only.
-4. Full release tests + build, then explicit user publication approval and public deployment checks.
+4. All 228 release tests, isolated database integration tests and production build passed. User approved publication; public deployment verification follows push.
 5. Exclude user-owned public/falck-eagle-admin.png and unrelated untracked drafts/build folders.
 
 Not implemented/needs separate confirmation:

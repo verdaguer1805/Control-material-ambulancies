@@ -15,7 +15,7 @@ async function productionCall(name,args={}){
 }
 const readWork=storage=>{try{return JSON.parse(storage.getItem(AUDITOR_WORK_KEY)||'null');}catch{return null;}};
 const newWork=revision=>({id:crypto.randomUUID(),revision,version:0,materials:{}});
-export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v244'}){
+export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v245'}){
  const call=rpc;
  const [closeUnitRequired,setCloseUnitRequired]=useState(false),[closeUnitConfirmed,setCloseUnitConfirmed]=useState(false);
  const [profile,setProfile]=useState(null),[verified,setVerified]=useState(false),[loading,setLoading]=useState(true),[options,setOptions]=useState([]),[setup,setSetup]=useState(false),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[name,setName]=useState(''),[lot,setLot]=useState(''),[zone,setZone]=useState(''),[warehouse,setWarehouse]=useState(''),[code,setCode]=useState(''),[work,setWork]=useState(()=>readWork(localStorage)),[search,setSearch]=useState(''),[pending,setPending]=useState([]),[materialNames,setMaterialNames]=useState([]);
