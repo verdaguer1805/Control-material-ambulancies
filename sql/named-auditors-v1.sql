@@ -73,7 +73,7 @@ declare old public.auditor_devices%rowtype; code_row app_private.admin_access_co
  select * into a from public.auditor_access_attempts where user_id=auth.uid() for update;
  if a.blocked_until>clock_timestamp() then return jsonb_build_object('error','AUDITOR_ACCESS_LOCKED'); end if;
  if a.blocked_until is not null then update public.auditor_access_attempts set failures=0,blocked_until=null where user_id=auth.uid(); a.failures:=0; end if;
- if p_code is not null and length(p_code) between 6 and 64 then
+ if p_code is not null and length(p_code) between 1 and 128 then
  select * into code_row from app_private.admin_access_codes
  where (role='owner' or (role='supervisor' and zone=p_zone)) and extensions.crypt(p_code,code_hash)=code_hash limit 1;
  end if;

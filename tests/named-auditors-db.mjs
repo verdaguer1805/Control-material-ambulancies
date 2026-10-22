@@ -25,7 +25,10 @@ try{
  insert into warehouse_inventory(warehouse_id,material,quantity) values('olot-c','Gasas',20),('fig-c','Gasas',100),('lot-b-c','Gasas',200);
  create table stock_movements(id bigint generated always as identity,warehouse_id text,unit text,material text,delta int,movement_type text,operation_id uuid,performed_role text,performed_zone text,actor_user_id uuid);
  create table supervisor_vehicle_audits(id uuid primary key,lot text,zone text,supervisor text,auditor_id uuid,vehicle text,checklist_type text,items jsonb,received_at timestamptz default clock_timestamp());`);
- await db.exec(fs.readFileSync(new URL('../sql/named-auditors-v1.sql',import.meta.url),'utf8'));
+ // Exercise the upgrade from the previously deployed definition, including retries.
+ await db.exec(fs.readFileSync(new URL('../sql/named-auditors-v1.sql',import.meta.url),'utf8').replace('length(p_code) between 1 and 128','length(p_code) between 6 and 64'));
+ const compatibilityFix=fs.readFileSync(new URL('../sql/named-auditors-code-compatibility.sql',import.meta.url),'utf8');
+ await db.exec(compatibilityFix);await db.exec(compatibilityFix);
  const actor=uid=>db.query("select set_config('test.uid',$1,false)",[uid]);
  const scalar=async(sql,args=[])=>Object.values((await db.query(sql,args)).rows[0])[0];
  const authorize=(code,name,zone,warehouse,lot='Lot A')=>scalar('select authorize_mobile_auditor($1,$2,$3,$4,$5)',[code,name,lot,zone,warehouse]);
@@ -38,7 +41,11 @@ try{
  assert.equal(await scalar('select count(*)::int from admin_access_sessions where user_id=$1',[two]),0);
  assert.equal(await scalar('select active from device_authorizations where user_id=$1',[two]),false);
  assert.equal(await scalar('select active from device_authorizations where user_id=$1',[one]),true);
- await actor(three);assert.equal((await authorize('test-owner','Jordi Puig','Olot','olot-c')).verified,true);
+ await actor(three);
+ // Existing configured codes must work regardless of an invented six-character minimum.
+ await db.query("update app_private.admin_access_codes set code_hash='demo' where role='owner'");
+ assert.equal((await authorize('demo','Jordi Puig','Olot','olot-c')).verified,true);
+ await db.query("update app_private.admin_access_codes set code_hash='test-owner' where role='owner'");
  assert.equal(await scalar("select count(*)::int from auditor_devices where zone='Olot' and active"),2);
  await actor(two);
  const catalog=[{id:'section:0',label:'Gasas · 2 unidades',section:'Vehicle'}],audit=id(100),audit2=id(101);

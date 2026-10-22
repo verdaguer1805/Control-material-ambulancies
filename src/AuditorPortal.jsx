@@ -15,7 +15,16 @@ async function productionCall(name,args={}){
 }
 const readWork=storage=>{try{return JSON.parse(storage.getItem(AUDITOR_WORK_KEY)||'null');}catch{return null;}};
 const newWork=revision=>({id:crypto.randomUUID(),revision,version:0,materials:{}});
-export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v245'}){
+function AuditorNotice({message,busy,onClose}){
+ const dialog=useRef(null);
+ useEffect(()=>{const node=dialog.current;if(!node.open)node.showModal();return()=>{if(node.open)node.close();};},[]);
+ return <dialog ref={dialog} className="auditor-notice-dialog" aria-labelledby="auditor-notice-title" aria-describedby="auditor-notice-message" aria-busy={busy} onCancel={event=>{event.preventDefault();if(!busy)onClose();}}>
+  <h2 id="auditor-notice-title">{busy?'Verificando...':'Aviso'}</h2>
+  <p id="auditor-notice-message" role="status" aria-live="polite" aria-atomic="true">{message}</p>
+  {!busy&&<button type="button" className="primary full" autoFocus onClick={onClose}>Aceptar</button>}
+ </dialog>;
+}
+export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v246'}){
  const call=rpc;
  const [closeUnitRequired,setCloseUnitRequired]=useState(false),[closeUnitConfirmed,setCloseUnitConfirmed]=useState(false);
  const [profile,setProfile]=useState(null),[verified,setVerified]=useState(false),[loading,setLoading]=useState(true),[options,setOptions]=useState([]),[setup,setSetup]=useState(false),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[name,setName]=useState(''),[lot,setLot]=useState(''),[zone,setZone]=useState(''),[warehouse,setWarehouse]=useState(''),[code,setCode]=useState(''),[work,setWork]=useState(()=>readWork(localStorage)),[search,setSearch]=useState(''),[pending,setPending]=useState([]),[materialNames,setMaterialNames]=useState([]);
@@ -104,7 +113,7 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
  };
  return <div className="app auditor-mobile"><header className="header"><div className="header-copy"><h1>Control de material <span className="app-version">{version}</span></h1><small>Auditorías y consumo de material</small>{profile&&<><div className="unit-header">{profile.full_name}</div><div>{profile.lot} · {profile.zone}</div></>}</div><img className="falck-header-logo" src="./falck-symbol-2026.png" alt="Falck"/></header><main>
   <div className="auditor-toolbar"><button className="secondary" disabled={busy||loading} onClick={openSetup}>Cambiar zona</button><button className="secondary" disabled={busy||loading} onClick={leave}>Cambiar perfil</button></div>
-  {notice&&<p className="auditor-notice" role="status">{notice}</p>}
+  {notice&&<AuditorNotice message={notice} busy={busy} onClose={()=>setNotice('')}/>}
   {simulation&&<div className="auditor-notice">SIMULACIÓN LOCAL · Datos ficticios. No envía datos, no autoriza móviles ni modifica estoc real. La confirmación real solo se habilitará tras instalar y verificar el SQL.</div>}
   {setup&&closeUnitRequired&&<label className="card"><input type="checkbox" checked={closeUnitConfirmed} onChange={e=>setCloseUnitConfirmed(e.target.checked)}/> Confirmo el cierre de la guardia anterior de este móvil. Si su checklist no se envió, seguirá como «No realizado»; no se marcará como completado.</label>}
   {loading?<div className="card">Verificando autorización y almacén...</div>:!setup&&profile&&<section className={`card auditor-confirmation ${verified?'confirmed':''}`} role="status"><strong>{verified?(simulation?'Simulación · Asignación validada del ejemplo':'✓ Almacén confirmado por el servidor'):'Almacén no verificado · Envío bloqueado'}</strong><p>{profile.warehouse_name||profile.warehouse_id}</p><small>{profile.lot} · {profile.zone}</small>{!verified&&<button className="secondary full" onClick={verify}>Volver a verificar</button>}</section>}

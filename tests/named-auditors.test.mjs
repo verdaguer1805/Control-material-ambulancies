@@ -4,6 +4,15 @@ import fs from 'node:fs';
 import {confirmedAuditorProfile,auditorReportRecords,auditorTransitionIssue,sameAuditorMaterials,AUDITOR_WORK_KEY} from '../src/auditor-client.mjs';
 const read=file=>fs.readFileSync(new URL(`../${file}`,import.meta.url),'utf8');
 const profile={user_id:'user',full_name:'Marc Serra',lot:'Any lot',zone:'Figueres',warehouse_id:'fig-central',warehouse_name:'Central Figueres',revision:2,active:true,verified:true};
+
+test('auditor feedback opens a centered modal that prevents repeated background clicks',()=>{
+ const portal=read('src/AuditorPortal.jsx');
+ assert.match(portal,/node.showModal\(\)/);
+ assert.match(portal,/notice&&<AuditorNotice message=\{notice\} busy=\{busy\}/);
+ assert.match(portal,/!busy&&<button[^>]+autoFocus[^>]+>Aceptar/);
+ assert.match(portal,/if\(!busy\)onClose\(\)/);
+ assert.match(read('src/auditor-portal.css'),/\.auditor-notice-dialog\{position:fixed;inset:0;margin:auto/);
+});
 test('warehouse confirmation requires the actual server scope, active identity and revision',()=>{
  assert.deepEqual(confirmedAuditorProfile(profile),profile);
  for(const key of ['verified','active','warehouse_id','warehouse_name','revision','user_id'])assert.equal(confirmedAuditorProfile({...profile,[key]:null}),null);

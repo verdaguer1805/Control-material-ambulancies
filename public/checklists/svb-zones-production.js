@@ -1,12 +1,12 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=245";
-import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=245";
-import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=245";
-import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=245";
-import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=245";
-import{cabinStatus}from"./svb-cabin-data.js?v=245";
-import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=245";
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=246";
+import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=246";
+import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=246";
+import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=246";
+import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=246";
+import{cabinStatus}from"./svb-cabin-data.js?v=246";
+import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=246";
 
-document.querySelector(".head h1 small").textContent="v245";
+document.querySelector(".head h1 small").textContent="v246";
 
 // Retain the existing controls/handlers while making the send action prominent.
 const fixedPanel=document.createElement('section'),scrollPanel=document.createElement('section');
