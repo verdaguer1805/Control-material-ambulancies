@@ -1,4 +1,4 @@
-Auditor lifecycle repair - local only, not published
+Auditor lifecycle repair - v247 publication approved on 2026-10-22
 
 Reproduced: after leaving, the server profile is inactive. Reentering previously
 displayed an authorization warning but did not reopen setup. The first demo
@@ -32,4 +32,6 @@ another principal supervisor phone remains active. Client storage tests cover
 auditor -> unit route cleanup and canceled unit -> auditor entry preservation.
 
 No real vehicle assignment, consumption, audit, inventory or permission was
-changed during these tests. Live old blocked device recovery awaits publication.
+changed during these tests. 231 release tests, isolated database integration and
+the v247 production build passed before push. Public deployment verification
+follows the release commit. No additional SQL migration is needed for this fix.
