@@ -19,7 +19,7 @@ create table if not exists public.unit_warehouse_assignments (
 create table if not exists public.warehouse_inventory (
   warehouse_id text not null references public.warehouses(id),
   material text not null,
-  quantity integer not null default 300,
+  quantity integer not null default 0,
   updated_at timestamptz not null default now(),
   primary key (warehouse_id, material)
 );
@@ -269,7 +269,7 @@ begin
     perform pg_advisory_xact_lock(hashtextextended(p_warehouse_id || ':' || v_material, 1));
     insert into public.warehouse_inventory
       (warehouse_id, material, quantity, updated_at)
-    values (p_warehouse_id, v_material, 300 + v_quantity, now())
+    values (p_warehouse_id, v_material, v_quantity, now())
     on conflict (warehouse_id, material) do update
       set quantity = public.warehouse_inventory.quantity + v_quantity,
           updated_at = now();
