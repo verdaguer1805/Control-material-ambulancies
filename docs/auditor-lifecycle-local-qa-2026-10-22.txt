@@ -1,0 +1,35 @@
+Auditor lifecycle repair - local only, not published
+
+Reproduced: after leaving, the server profile is inactive. Reentering previously
+displayed an authorization warning but did not reopen setup. The first demo
+incorrectly reset its state on exit, masking the inactive-profile lifecycle.
+
+Repairs:
+- Inactive/no profile opens setup; active verified profile exits setup.
+- Ignore background/focus verification while editing setup or leaving.
+- Discard stale verification results when authorization/exit changes identity.
+- Release busy state on every exit path; local IndexedDB recovery cleanup does
+  not prevent navigation. Network/auth RPC deadline is 20 seconds with abort.
+- A metadata connection error blocks material editing, with recoverable verify.
+- Exiting auditor clears only auditor identity, preserving history and the
+  normal unit selector; canceling auditor entry preserves an existing unit.
+- Preview now keeps inactive server state on exit and offers simulated outage.
+
+Browser checks (isolated local simulation, no real stock/authorization writes):
+PASS leave -> profile chooser -> reenter inactive -> setup -> authorize -> ready.
+PASS change zone -> cancel -> original assignment retained.
+PASS Olot -> Figueres -> warehouse label matches Figueres central.
+PASS simulated connection error -> centered error -> controls blocked ->
+     restore connection -> Volver a verificar -> controls enabled.
+PASS select material -> Cambiar perfil blocked with explicit pending warning.
+PASS minus/plus -> send simulated consumption -> counters zero.
+PASS TSNU vehicle KE1384 -> start -> mark group -> close -> continue -> mark
+     remaining groups -> individual incident + note -> submit -> confirmed.
+
+Automated isolated database checks additionally exercise real SQL leave ->
+inactive profile -> refused work -> reauthorize -> active, and confirm that
+another principal supervisor phone remains active. Client storage tests cover
+auditor -> unit route cleanup and canceled unit -> auditor entry preservation.
+
+No real vehicle assignment, consumption, audit, inventory or permission was
+changed during these tests. Live old blocked device recovery awaits publication.

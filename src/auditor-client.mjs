@@ -1,6 +1,14 @@
 import {madridDateTime} from './report-datetime.mjs';
 export const AUDITOR_MODE_KEY='cma_mobile_role_v1';
 export const AUDITOR_WORK_KEY='cma_auditor_material_draft_v1';
+export const auditorNeedsSetup=value=>!value||value.active!==true;
+export function clearAuditorLocalProfile(storage){
+ storage.removeItem(AUDITOR_MODE_KEY);storage.removeItem(AUDITOR_WORK_KEY);
+ // Canceling entry to the auditor must not remove an existing operational unit.
+ const wasAuditor=String(storage.getItem('cma_unit')||'').startsWith('Auditor ·');
+ if(wasAuditor){storage.removeItem('cma_unit');storage.removeItem('cma_authorized_auth_identity_v1');}
+ return wasAuditor;
+}
 export const sameAuditorMaterials=(a={},b={})=>{
  const ak=Object.keys(a).sort(),bk=Object.keys(b).sort();
  return ak.length===bk.length&&ak.every((key,index)=>key===bk[index]&&a[key]===b[key]);
@@ -44,6 +52,7 @@ export function auditorError(error){
  for(const [code,text] of Object.entries({
   AUDITOR_PENDING_WORK:'Termina y envía las auditorías y consumos pendientes antes de cambiar de zona.',
   AUDITOR_NOT_AUTHORIZED:'Este móvil no tiene autorización de auditor o su acceso ha sido revocado.',
+  AUDITOR_REQUEST_TIMEOUT:'No se ha recibido confirmación a tiempo. Los datos siguen guardados. Vuelve a verificar antes de repetir la operación.',
   AUDITOR_ASSIGNMENT_CHANGED:'La asignación ha cambiado. Verifica de nuevo el almacén antes de enviar.',
   AUDITOR_WAREHOUSE_MISMATCH:'El almacén no coincide con la asignación validada. No se ha descontado material.',
   INVALID_AUDITOR_AUTHORIZATION:'Código incorrecto o sin permiso para esta zona.',

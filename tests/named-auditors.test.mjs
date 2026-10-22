@@ -1,9 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {confirmedAuditorProfile,auditorReportRecords,auditorTransitionIssue,sameAuditorMaterials,AUDITOR_WORK_KEY} from '../src/auditor-client.mjs';
+import {confirmedAuditorProfile,auditorReportRecords,auditorTransitionIssue,sameAuditorMaterials,AUDITOR_WORK_KEY,auditorNeedsSetup,clearAuditorLocalProfile} from '../src/auditor-client.mjs';
 const read=file=>fs.readFileSync(new URL(`../${file}`,import.meta.url),'utf8');
 const profile={user_id:'user',full_name:'Marc Serra',lot:'Any lot',zone:'Figueres',warehouse_id:'fig-central',warehouse_name:'Central Figueres',revision:2,active:true,verified:true};
+
+test('auditor to unit clears the auditor route, while canceled unit to auditor preserves the unit and history',()=>{
+ for(const unit of ['Auditor · Olot · Marc Serra','G450','T1733']){
+  const values=new Map([['cma_unit',unit],['cma_mobile_role_v1','auditor'],['cma_authorized_auth_identity_v1','identity'],['cma_records','history']]);
+  const storage={getItem:key=>values.get(key)||null,removeItem:key=>values.delete(key)};
+  const wasAuditor=clearAuditorLocalProfile(storage);
+  assert.equal(wasAuditor,unit.startsWith('Auditor ·'));
+  assert.equal(storage.getItem('cma_mobile_role_v1'),null);
+  assert.equal(storage.getItem('cma_records'),'history');
+  assert.equal(storage.getItem('cma_unit'),wasAuditor?null:unit);
+  assert.equal(storage.getItem('cma_authorized_auth_identity_v1'),wasAuditor?null:'identity');
+ }
+});
+
+test('leaving and reentering an inactive auditor opens reauthorization instead of a dead end',()=>{
+ assert.equal(auditorNeedsSetup(null),true);
+ assert.equal(auditorNeedsSetup({...profile,active:false,verified:false}),true);
+ assert.equal(auditorNeedsSetup(profile),false);
+ const portal=read('src/AuditorPortal.jsx');
+ assert.match(portal,/if\(auditorNeedsSetup\(raw\)\)/);
+ assert.match(portal,/leaving.current=true;verifyRun.current\+\+/);
+ assert.match(portal,/finally\{leaving.current=false;setBusy\(false\);\}/);
+ assert.doesNotMatch(portal,/await forgetRecoverySession/);
+ assert.match(portal,/\.abortSignal\(controller.signal\)/);
+ assert.match(portal,/AUDITOR_REQUEST_TIMEOUT/);
+ assert.match(portal,/!document.hidden&&!setupMode.current/);
+});
 
 test('auditor feedback opens a centered modal that prevents repeated background clicks',()=>{
  const portal=read('src/AuditorPortal.jsx');

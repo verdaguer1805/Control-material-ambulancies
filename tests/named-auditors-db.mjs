@@ -108,6 +108,13 @@ try{
  await assert.rejects(authorize('test-owner','Other Auditor','Olot','olot-c'),/UNIT_SHIFT_MUST_BE_CLOSED/);
  await scalar("select authorize_mobile_auditor('test-owner','Other Auditor','Lot A','Olot','olot-c',true)");
  assert.equal(await scalar('select checklist_answers is null and ended_at is not null from tsnu_shift_sessions where user_id=$1',[wrong]),true);
+ await actor(three);
+ await scalar('select leave_mobile_auditor()');
+ assert.equal((await scalar('select get_my_auditor_profile()')).active,false);
+ await assert.rejects(scalar('select get_my_auditor_pending_audits()'),/NOT_AUTHORIZED/);
+ assert.equal((await authorize('test-owner','Jordi Puig','Olot','olot-c')).verified,true);
+ assert.equal((await scalar('select get_my_auditor_pending_audits()')).length,0);
+ assert.equal(await scalar('select active from device_authorizations where user_id=$1',[one]),true);
  await db.exec("select set_config('test.uid','',false)");await assert.rejects(scalar('select get_my_auditor_profile()'),/Authentication/);
  console.log('PASS: multiple auditors, supervisor phone preserved, no admin session, warehouse/lot/revision binding, exact-once consumption, scoped reports, pending-work block, immutable audit history, revocation/reactivation and persistent code-attempt limits.');
 }catch(error){console.error(error.message,error.where||'',error.query||'');process.exitCode=1;}finally{await db.close();}
