@@ -1261,7 +1261,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v243", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v244", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -2318,16 +2318,15 @@ function App() {
         "Stock actual": item.quantity,
         "Mínimo": item.minimum,
         [group.location === STOCK_DEMO_CENTRAL ? "Pedir / recibir" : "Llevar desde central"]: item.replenish,
-        "Consumo pendiente": item.pending,
         Prioridad: item.urgent ? "BAJO MÍNIMO" : "CONSUMO PENDIENTE",
       }));
       const sheet = XLSX.utils.aoa_to_sheet([[group.location], ["Qué llevar a cada almacén"]]);
       XLSX.utils.sheet_add_json(sheet, rows, { origin: "A4" });
-      sheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }];
+      sheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }];
       sheet.A1.s = { font: { bold: true, sz: 18, color: { rgb: "C8102E" } }, alignment: { horizontal: "center", vertical: "center" } };
       sheet.A2.s = { font: { sz: 12 }, alignment: { horizontal: "center", vertical: "center" } };
       sheet["!rows"] = [{ hpt: 30 }, { hpt: 22 }, { hpt: 10 }, { hpt: 30 }];
-      sheet["!cols"] = [{ wch: 46 }, { wch: 14 }, { wch: 12 }, { wch: 23 }, { wch: 20 }, { wch: 22 }];
+      sheet["!cols"] = [{ wch: 46 }, { wch: 14 }, { wch: 12 }, { wch: 23 }, { wch: 22 }];
       const range = XLSX.utils.decode_range(sheet["!ref"] || "A1:E1");
       for (let column = range.s.c; column <= range.e.c; column += 1) {
         const cell = sheet[XLSX.utils.encode_cell({ r: 3, c: column })];
@@ -3497,7 +3496,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v243</span></h1>
+          <h1>Control de material <span className="app-version">v244</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5330,7 +5329,7 @@ function App() {
 createRoot(document.getElementById("root")).render(<App />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=243", {
+    navigator.serviceWorker.register("./sw.js?v=244", {
       updateViaCache: "none",
     }),
   );
