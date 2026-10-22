@@ -1,0 +1,42 @@
+Named auditors implementation - 2026-10-22
+
+Production remains v244. New auditor SQL has NOT been executed; UI NOT published.
+Prepared SQL editor: https://supabase.com/dashboard/project/dfnywetqnccykzjyihzq/sql/8e749492-db09-4282-ab77-8a220f5d9b0f
+Migration: sql/named-auditors-v1.sql (additive; no reset/backfill).
+Local demo: http://127.0.0.1:5181/named-auditor-preview.html
+Demo is isolated simulation; no backend calls or production authorization.
+Vite local exec session 35635 serves port 5181. Existing port 5180 served a stale fallback.
+
+Implemented:
+- Auditor branch in initial worker setup and Cambiar unidad, separate from admin.
+- Full name, lot, zone and warehouse authorized using owner or target-zone supervisor code.
+- No admin session is granted. Independent auditor devices; original supervisor phone untouched.
+- Verified server profile required before editing/sending; exact requested-scope confirmation.
+- Server-assigned warehouse/revision bound to consumption; idempotent operation UUID.
+- Immutable scope/name snapshots for audits and withdrawals; reports stay in the original auditor zone.
+- Local drafts persist; server tracks pending audit and material work; no reassignment with pending work.
+- Explicit confirmation to close a previous TSNU guard when switching roles; never invent completed answers.
+- Admin owner/supervisor can revoke/reactivate in scope. Revocation leaves history intact.
+- Existing operational supervisor path keeps its original submit_vehicle_audit RPC.
+
+Verification:
+- 228 node release tests (223 existing + 5 named-auditor tests).
+- tests/named-auditors-db.mjs uses isolated PGlite; no live stock or credentials.
+- Covers cross-zone/cross-lot warehouse injection, old revisions, retries, pending work, reports,
+  multiple devices, main phone preserved, no admin session, revoked accounts, direct table access,
+  persistent failed-code lock, and explicit incomplete-guard closure.
+- Production build succeeds. Browser demo checks material -> blocked zone change -> send -> zero,
+  then change Olot to Figueres and SVB photo-based vehicle audit.
+
+Before publish:
+1. User executes the prepared SQL and confirms success.
+2. Verify installed RPCs/schema read-only. Perform no real consumption without explicit test approval.
+3. Bump all release routes/cache/main/tests consistently (next expected v245).
+   Include the AuditorPortal version prop in src/main.jsx; its standalone default is local-only.
+4. Full release tests + build, then explicit user publication approval and public deployment checks.
+5. Exclude user-owned public/falck-eagle-admin.png and unrelated untracked drafts/build folders.
+
+Not implemented/needs separate confirmation:
+- A global single-in-progress-audit lock per vehicle. User discussed it, but later final structure
+  left this point unconfirmed. Audit IDs already prevent overwriting/duplicate retries.
+- Cancellation/deletion of server audit drafts; current policy requires completion/submission.

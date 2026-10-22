@@ -1,0 +1,9 @@
+import React,{useState} from 'react';
+import {supabase} from './supabase';
+export default function AuditorManager({access}){
+ const [open,setOpen]=useState(false),[rows,setRows]=useState([]),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
+ if(!['owner','supervisor'].includes(access?.role))return null;
+ async function load(){setBusy(true);setOpen(true);try{const {data,error}=await supabase.rpc('list_mobile_auditors');if(error)throw error;setRows(data||[]);setNotice('');}catch{setNotice('No se han podido cargar los móviles auditores.');}finally{setBusy(false);}}
+ async function toggle(row){if(!window.confirm(`${row.active?'Revocar':'Reactivar'} el acceso de ${row.full_name} · ${row.zone}?`))return;setBusy(true);try{const {error}=await supabase.rpc(row.active?'revoke_mobile_auditor':'enable_mobile_auditor',{p_user_id:row.user_id});if(error)throw error;await load();}catch{setNotice('No se ha podido modificar el acceso.');setBusy(false);}}
+ return <section className="card"><button className="secondary" onClick={load} disabled={busy}>Móviles auditores</button>{open&&<><h3>Auditores autorizados</h3><p>Revocar un móvil no elimina sus auditorías ni sus consumos enviados.</p>{notice&&<p role="status">{notice}</p>}{rows.length?<div style={{overflowX:'auto'}}><table><thead><tr><th>Nombre y apellidos</th><th>Lote / zona</th><th>Almacén</th><th>Estado</th><th>Acceso</th></tr></thead><tbody>{rows.map(row=><tr key={row.user_id}><td>{row.full_name}<small style={{display:'block'}}>Móvil {row.user_id.slice(0,8)}</small></td><td>{row.lot} · {row.zone}</td><td>{row.warehouse_name}</td><td>{row.active?'Activo':'Revocado'}</td><td><button disabled={busy} className={row.active?'danger':'secondary'} onClick={()=>toggle(row)}>{row.active?'Revocar':'Reactivar'}</button></td></tr>)}</tbody></table></div>:<p>No hay móviles auditores en tu ámbito.</p>}<button className="secondary" onClick={()=>setOpen(false)}>Cerrar</button></>}</section>;
+}

@@ -12,6 +12,9 @@ import { isRecoverableGuardSyncError, syncPendingIndependently } from "./pending
 import { isolateGuardPending, recoverGuardPendingTransaction } from "./guard-pending-recovery.mjs";
 import { databaseCapacity } from "./database-capacity.mjs";
 import UnitSelector from "./UnitSelector.jsx";
+import {AUDITOR_MODE_KEY,auditorTransitionIssue,auditorReportRecords} from './auditor-client.mjs';
+const AuditorPortal=React.lazy(()=>import('./AuditorPortal.jsx'));
+const AuditorManager=React.lazy(()=>import('./AuditorManager.jsx'));
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, attachRecoveryToPendingRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
 import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone, tsnuWarehouse } from "./unit-checklist-config.mjs";
 import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisibility, saveMaterialVisibility } from "./material-visibility.mjs";
@@ -167,6 +170,7 @@ const unitZone = (u) =>
         Object.hasOwn(SUPERVISIONS[z], u),
       ) || "";
 const recordZone = (r) => {
+  if(r.origin==='Auditor')return r.zone || '';
   const match = /^Material supervisor · (.+)$/i.exec(r.unit);
   if (!match) return unitZone(r.unit);
   const zone = match[1].trim();
@@ -866,6 +870,12 @@ function App() {
     setAssignmentAdminPin(enteredPin);
     setZoneOpen(true);
   }
+  function chooseAuditorProfile(){
+    const issue=auditorTransitionIssue(localStorage,quantities);
+    if(issue)return flash(issue,5000);
+    localStorage.setItem(AUDITOR_MODE_KEY,'auditor');
+    window.dispatchEvent(new Event('cma-mobile-role-changed'));
+  }
   async function saveUnit() {
     let config;
     try {
@@ -1323,7 +1333,7 @@ function App() {
   }
   const mapAdminRecords = mapReportRecords;
   async function loadSelectedAdminRecords() {
-    const [reportResult, tsnuResult, auditResult] = await Promise.all([
+    const [reportResult, tsnuResult, auditResult, auditorConsumption] = await Promise.all([
         supabase.rpc("get_admin_report_data", {
           p_lot: exportLot,
           p_zone: exportZone,
@@ -1339,15 +1349,19 @@ function App() {
         supabase.rpc("get_vehicle_audits_report", {
           p_lot: exportLot, p_zone: exportZone, p_from: exportFrom, p_to: exportTo,
         }),
+        supabase.rpc('get_auditor_consumption_report',{
+          p_lot:exportLot,p_zone:exportZone,p_from:exportFrom,p_to:exportTo,
+        }),
       ]);
     if (reportResult.error) throw reportResult.error;
     if (tsnuResult.error) throw tsnuResult.error;
     if (auditResult.error) throw auditResult.error;
+    if(auditorConsumption.error && !['PGRST202','42883'].includes(auditorConsumption.error.code))throw auditorConsumption.error;
     const reportData = reportResult.data || {},
       incidents = Array.isArray(reportData.incidents) ? reportData.incidents : [],
       unique = [...new Map(incidents.map((row) => [row.id, row])).values()];
     return filterReportUnits({
-      records: mapAdminRecords(unique, Array.isArray(reportData.submissions) ? reportData.submissions : []),
+      records: [...mapAdminRecords(unique, Array.isArray(reportData.submissions) ? reportData.submissions : []),...auditorReportRecords(Array.isArray(auditorConsumption.data)?auditorConsumption.data:[])],
       submissions: Array.isArray(reportData.submissions) ? reportData.submissions : [],
       svbChecklists: Array.isArray(reportData.svb_checklists) ? reportData.svb_checklists : [],
       svbRoster: Array.isArray(reportData.svb_roster) ? reportData.svb_roster : null,
@@ -2446,7 +2460,7 @@ function App() {
           r.date <= exportTo,
       ),
       origin = (r) =>
-        /^Material supervisor · /i.test(r.unit) ? "Supervisor" : "Unidad",
+        r.origin==='Auditor'?'Auditor':/^Material supervisor · /i.test(r.unit) ? "Supervisor" : "Unidad",
       rows = selected.map((r) => {
         const a = aggregate(r);
         return {
@@ -2773,7 +2787,7 @@ function App() {
       tsnuShiftById = new Map(tsnuShifts.map((shift) => [shift.id, shift])),
       tsnuWarehouseByUnit = new Map(tsnuShifts.map((shift) => [shift.unit, shift.warehouse || ""])),
       unitWithBase = (u) =>
-        /^Material supervisor · /i.test(u)
+        /^(Material supervisor|Auditor) · /i.test(u)
           ? u
           : u + " — " + (unitWarehouse(u) || tsnuWarehouseByUnit.get(u) || ""),
       selected = source.filter(
@@ -2831,7 +2845,7 @@ function App() {
       complianceDay.setDate(complianceDay.getDate() + 1);
     }
     selected.forEach((r) => {
-      const isSupervisor = /^Material supervisor · /i.test(r.unit),
+      const isSupervisor = r.origin==='Auditor'||/^Material supervisor · /i.test(r.unit),
         used = aggregate(r);
       if (!isSupervisor) {
         services[r.unit] = (services[r.unit] || 0) + 1;
@@ -3653,6 +3667,7 @@ function App() {
           <div className="modal-backdrop unit-backdrop">
             <div className="card export-modal unit-modal assignment-modal">
               <h2>Cambiar unidad</h2>
+              <button className="secondary full" onClick={chooseAuditorProfile}>Cambiar este móvil al perfil Auditor</button>
               <div className="assignment-modal-body">
               <p className="muted">
                 Introduce el PIN de administrador para reasignar este móvil.
@@ -4485,6 +4500,7 @@ function App() {
         {mode === "worker" && !currentUnit && (
           <div className="card">
             <h2>Configuración inicial del móvil</h2>
+            <div className="card"><strong>Perfil del móvil</strong><p>Unidad o Material de supervisión: configuración habitual. Para un auditor personal, utiliza esta opción:</p><button className="secondary full" onClick={chooseAuditorProfile}>Soy Auditor · Nombre y apellidos</button></div>
             <p className="muted">
               Solo la persona administradora puede asignar la unidad.
             </p>
@@ -4741,6 +4757,7 @@ function App() {
         )}
         {mode === "admin" && adminOk && (
           <>
+            <React.Suspense fallback={null}><AuditorManager access={adminAccess}/></React.Suspense>
             <div className="card">
               <h2>Panel de administración</h2>
               <div className="admin-access-summary">
@@ -5326,7 +5343,13 @@ function App() {
     </div>
   );
 }
-createRoot(document.getElementById("root")).render(<App />);
+function MobileAppRouter(){
+ const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
+ React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v244" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ return <App/>;
+}
+createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
     navigator.serviceWorker.register("./sw.js?v=244", {
