@@ -4,6 +4,12 @@ import {appendSupervisorConsumption,supervisorDraft,readSupervisorUnsent,saveSup
 import {guardSaveRequest} from '../src/guard-recovery-client.mjs';
 import fs from 'node:fs';
 
+test('shared unit and administration component uses a bound React ref hook',()=>{
+ const main=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
+ assert.match(main,/const liveQuantities=React\.useRef\(quantities\)/);
+ assert.doesNotMatch(main,/(?<!\.)\buseRef\(/);
+});
+
 test('confirmed supervisor sends clear the active draft scope and never persist via a replayable state updater',()=>{
  const main=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
  const change=main.slice(main.indexOf('const changeQuantity ='),main.indexOf('const inc = material'));
