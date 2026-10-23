@@ -1,4 +1,4 @@
-Local changes - not published
+Release v248 - publication approved 2026-10-23
 
 Reported: Material supervisor on v247 displayed already-sent material again
 minutes after an Enviado confirmation. No phone-local diagnostic data was
@@ -27,4 +27,5 @@ Verification:
   scroll; last material remains above it at maximum scroll. Simulated send from
   this button returns counters to zero. No real stock or consumption changed.
 
-Await explicit publication approval and real-phone follow-up after deployment.
+User approved publication. Real-phone follow-up remains necessary to confirm
+the originally reported supervisor symptom does not recur. No SQL migration.
