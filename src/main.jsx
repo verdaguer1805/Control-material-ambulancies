@@ -984,14 +984,16 @@ function App() {
       // La còpia local manté la llista operativa sense cobertura.
     }
   }
+  const liveQuantities=useRef(quantities);
+  React.useLayoutEffect(()=>{liveQuantities.current=quantities;},[quantities]);
   const changeQuantity = (material,delta) => {
     if(consumptionOperationRef.current) return;
-    setQuantities(current=>{
-      const next={...current,[material]:Math.max(0,(current[material] || 0)+delta)};
-      const currentUnit=localStorage.getItem(KEY.unit);
-      if(isSupervisorMaterial(currentUnit)) saveSupervisorUnsent(localStorage,localStorage.getItem(KEY.lot),currentUnit,next);
-      return next;
-    });
+    // Persist an explicit user action, never a React state-updater replay.
+    const current=liveQuantities.current;
+    const next={...current,[material]:Math.max(0,(current[material] || 0)+delta)};
+    const currentUnit=localStorage.getItem(KEY.unit);
+    if(isSupervisorMaterial(currentUnit)) saveSupervisorUnsent(localStorage,localStorage.getItem(KEY.lot),currentUnit,next);
+    liveQuantities.current=next;setQuantities(next);
   };
   const inc = material => changeQuantity(material,1);
   const dec = material => changeQuantity(material,-1);
@@ -1049,6 +1051,7 @@ function App() {
       : Object.fromEntries(Object.entries(quantities).filter(([, n]) => n > 0));
     const previousRecord = getRecords().find((r) => r.id === id && r.unit === currentUnit);
     const supervisor = isSupervisorMaterial(currentUnit);
+    const supervisorDraftLot=localStorage.getItem(KEY.lot) || lot;
     if (supervisor && previousRecord && !previousRecord.synced)
       return flash('Hay un consumo pendiente. Pulsa Sincronizar pendientes antes de enviar otro consumo.',5000);
     if (supervisor && !Object.keys(used).length)
@@ -1108,7 +1111,10 @@ function App() {
     setQuantities({ ...used });
     // The durable queue now owns this batch. A later day's draft must not
     // replay it or be erased when this older pending batch synchronizes.
-    if(supervisor) clearSupervisorUnsent(localStorage,rec.lot,currentUnit);
+    if(supervisor) {
+      clearSupervisorUnsent(localStorage,supervisorDraftLot,currentUnit);
+      if(rec.lot!==supervisorDraftLot)clearSupervisorUnsent(localStorage,rec.lot,currentUnit);
+    }
     setSearch("");
     if (!navigator.onLine) {
       setStatus("queued");
@@ -1123,8 +1129,10 @@ function App() {
       rec.synced = true;
       rec.serverMaterials = { ...request.args.p_materials };
       if (supervisor) {
+        clearSupervisorUnsent(localStorage,supervisorDraftLot,currentUnit);
         clearSupervisorUnsent(localStorage,rec.lot,currentUnit);
         delete rec.supervisorPendingBatch;
+        liveQuantities.current={};
         setQuantities({});
         setSearch('');
       }
@@ -1184,7 +1192,8 @@ function App() {
       saveRecords(list);
       setRecords([...list]);
       if (isSupervisorMaterial(localStorage.getItem(KEY.unit)) && syncResult.synced.some(record=>record.unit===localStorage.getItem(KEY.unit) && record.id===guardState(record.unit,localStorage.getItem(KEY.shift)).code)) {
-        setQuantities({});
+        const unsent=readSupervisorUnsent(localStorage,localStorage.getItem(KEY.lot),localStorage.getItem(KEY.unit));
+        liveQuantities.current=unsent;setQuantities(unsent);
         setSearch('');
       }
       if (syncResult.conflict) {

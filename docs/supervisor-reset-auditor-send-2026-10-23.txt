@@ -1,0 +1,30 @@
+Local changes - not published
+
+Reported: Material supervisor on v247 displayed already-sent material again
+minutes after an Enviado confirmation. No phone-local diagnostic data was
+available, so the exact trigger of that incident is not proven.
+
+Hardening implemented:
+- Save draft only in the explicit quantity action, not a React updater that may
+  be replayed. Keep rapid consecutive clicks coherent with a live quantity ref.
+- Clear the captured active lot's draft as well as the record lot's key after
+  a confirmed supervisor send; do not assume legacy record scope is identical.
+- Reset the live quantity ref and rendered selection together on confirmation.
+- When an older queued supervisor record synchronizes, restore only genuinely
+  unsent current draft selection, never the confirmed daily aggregate.
+- Preserve historical entries, stock RPC behavior and ordinary unit totals.
+
+Auditor UI: Enviar consumo moved to fixed bottom bar, with safe-area padding
+and extra page space so the final material is not covered.
+
+Verification:
+- 233 release tests passed; production build passed.
+- Existing supervisor data-model tests cover zero after confirmation, reload,
+  identical consecutive withdrawals, pending retries, lot/unit isolation.
+- New regression checks prohibit persistence inside a replayable updater and
+  require clearing the captured active lot on supervisor confirmation.
+- Local browser: fixed footer is position:fixed, viewport bottom before/after
+  scroll; last material remains above it at maximum scroll. Simulated send from
+  this button returns counters to zero. No real stock or consumption changed.
+
+Await explicit publication approval and real-phone follow-up after deployment.

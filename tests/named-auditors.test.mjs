@@ -5,6 +5,14 @@ import {confirmedAuditorProfile,auditorReportRecords,auditorTransitionIssue,same
 const read=file=>fs.readFileSync(new URL(`../${file}`,import.meta.url),'utf8');
 const profile={user_id:'user',full_name:'Marc Serra',lot:'Any lot',zone:'Figueres',warehouse_id:'fig-central',warehouse_name:'Central Figueres',revision:2,active:true,verified:true};
 
+test('auditor consumption send remains fixed at the viewport bottom without covering the last material',()=>{
+ const portal=read('src/AuditorPortal.jsx'),css=read('src/auditor-portal.css');
+ assert.match(portal,/<footer className="auditor-send-bar"/);
+ assert.match(css,/\.auditor-send-bar\{position:fixed;bottom:0;left:0;right:0/);
+ assert.match(css,/padding-bottom:calc\(120px \+ env\(safe-area-inset-bottom/);
+ assert.match(portal,/disabled=\{!verified\|\|busy\|\|!Object.values\(work\?\.materials/);
+});
+
 test('auditor to unit clears the auditor route, while canceled unit to auditor preserves the unit and history',()=>{
  for(const unit of ['Auditor · Olot · Marc Serra','G450','T1733']){
   const values=new Map([['cma_unit',unit],['cma_mobile_role_v1','auditor'],['cma_authorized_auth_identity_v1','identity'],['cma_records','history']]);

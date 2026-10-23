@@ -2,6 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {appendSupervisorConsumption,supervisorDraft,readSupervisorUnsent,saveSupervisorUnsent,clearSupervisorUnsent} from '../src/supervisor-consumption.mjs';
 import {guardSaveRequest} from '../src/guard-recovery-client.mjs';
+import fs from 'node:fs';
+
+test('confirmed supervisor sends clear the active draft scope and never persist via a replayable state updater',()=>{
+ const main=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
+ const change=main.slice(main.indexOf('const changeQuantity ='),main.indexOf('const inc = material'));
+ assert.doesNotMatch(change,/setQuantities\(current\s*=>/);
+ assert.match(change,/liveQuantities.current=next;setQuantities\(next\)/);
+ assert.match(main,/clearSupervisorUnsent\(localStorage,supervisorDraftLot,currentUnit\)/);
+ assert.match(main,/liveQuantities.current=\{\};\s*setQuantities\(\{\}\)/);
+});
 
 const baseline=()=>({id:'141026',unit:'Material Supervisor · Olot',lot:'lot5',date:'2026-10-14',guardOccurredAt:'2026-10-13T22:00:00Z',synced:true,recoveryToken:'token',serverMaterials:{Pañuelos:10},entries:[{materials:{Pañuelos:10}}]});
 test('unsent supervisor marks survive a new page instance and stay isolated by lot and unit',()=>{
