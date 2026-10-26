@@ -1,4 +1,4 @@
-Named auditor offline review - local implementation, NOT published
+Named auditor offline review - v250 publication approved 2026-10-26
 
 Issue evidenced by user video: failed warehouse reverification disabled all
 answer controls although the auditor's existing profile was already authorized.
@@ -33,6 +33,7 @@ Verification:
   Marcar todo correcto -> all six rows green while offline notice stays visible.
 - Compiled main unit and admin entrypoints render without console errors.
 - Production build passed. No database migration is required.
+- User approved deployment; release tests and server tests are rerun for v250.
 
 Limit: current v249 clients have no offline-profile cache yet; after upgrading,
 they need one successful online verification before a cold offline reopening.

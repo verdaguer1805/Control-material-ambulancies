@@ -31,7 +31,7 @@ function AuditorNotice({message,busy,onClose}){
   {!busy&&<button type="button" className="primary full" autoFocus onClick={onClose}>Aceptar</button>}
  </dialog>;
 }
-export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v249'}){
+export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v250'}){
  const call=rpc;
  const [cachedProfile]=useState(()=>readOfflineAuditor(localStorage));
  const [canReview,setCanReview]=useState(!!cachedProfile),[connectionNote,setConnectionNote]=useState(cachedProfile?'Revisión local disponible. Comprobando conexión para el envío...':'');
