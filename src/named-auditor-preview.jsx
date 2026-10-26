@@ -4,10 +4,11 @@ import AuditorPortal from './AuditorPortal.jsx';
 import './styles.css';import './overrides.css';import './falck-brand.css';
 const prefix='cma_named_auditor_demo:';
 const storage={getItem:key=>sessionStorage.getItem(prefix+key),setItem:(key,value)=>sessionStorage.setItem(prefix+key,value),removeItem:key=>sessionStorage.removeItem(prefix+key)};
-let profile={user_id:'local-example',full_name:'Marc Serra',lot:'Lot 5 · Girona - Alt Maresme',zone:'Olot',warehouse_id:'example-olot',warehouse_name:'Olot central',revision:1,active:true,verified:true};
+const savedServer=JSON.parse(sessionStorage.getItem(prefix+'server')||'null');
+let profile=savedServer?.profile||{user_id:'local-example',full_name:'Marc Serra',lot:'Lot 5 · Girona - Alt Maresme',zone:'Olot',warehouse_id:'example-olot',warehouse_name:'Olot central',revision:1,active:true,verified:true};
 const warehouses=[{id:'example-olot',name:'Olot central',lot:profile.lot,zone:'Olot',kind:'central'},{id:'example-fig',name:'Figueres central',lot:profile.lot,zone:'Figueres',kind:'central'}];
-let materialDraft=null,offline=false;const audits=[],receipts=new Map();
-async function rpc(name,p={}){
+let materialDraft=savedServer?.materialDraft||null,offline=sessionStorage.getItem(prefix+'offline')==='true';const audits=savedServer?.audits||[],receipts=new Map(savedServer?.receipts||[]);
+async function fakeRpc(name,p={}){
  if(offline)throw new Error('LOCAL_SIMULATED_CONNECTION_FAILURE');
  if(name==='get_my_auditor_profile')return {...profile,verified:profile.active};
  if(name==='get_auditor_warehouse_options')return warehouses;
@@ -22,16 +23,17 @@ async function rpc(name,p={}){
  }
  if(name==='save_mobile_auditor_materials'){materialDraft={id:p.p_id,materials:p.p_items,edit_version:p.p_version,profile_revision:p.p_revision};return true;}
  if(name==='submit_mobile_auditor_consumption'){if(p.p_warehouse_id!==profile.warehouse_id)throw new Error('AUDITOR_WAREHOUSE_MISMATCH');const r={id:p.p_id,warehouse_id:profile.warehouse_id,profile_revision:profile.revision,materials:p.p_items};receipts.set(p.p_id,r);materialDraft=null;return r;}
- if(name==='begin_mobile_auditor_audit'){audits.push({id:p.p_id,full_name:profile.full_name,zone:profile.zone,lot:profile.lot,warehouse_id:profile.warehouse_id,vehicle:p.p_vehicle,checklist_type:p.p_type,catalog:p.p_catalog,answers:{},notes:{},edit_version:0,started_at:new Date().toISOString()});return audits.at(-1);}
+ if(name==='begin_mobile_auditor_audit'){const existing=audits.find(a=>a.id===p.p_id);if(existing)return existing;audits.push({id:p.p_id,user_id:profile.user_id,profile_revision:profile.revision,full_name:profile.full_name,zone:profile.zone,lot:profile.lot,warehouse_id:profile.warehouse_id,vehicle:p.p_vehicle,checklist_type:p.p_type,catalog:p.p_catalog,answers:{},notes:{},edit_version:0,started_at:new Date().toISOString()});return audits.at(-1);}
  if(name==='save_mobile_auditor_draft'){const d=audits.find(a=>a.id===p.p_id);Object.assign(d,{answers:p.p_answers,notes:p.p_notes,edit_version:p.p_version});return true;}
  if(name==='submit_mobile_auditor_audit'){const d=audits.find(a=>a.id===p.p_id);d.submitted_at=new Date().toISOString();return {received_at:d.submitted_at};}
  if(name==='leave_mobile_auditor'){profile={...profile,active:false,verified:false};return true;}
  throw new Error('Unsupported local simulation');
 }
+async function rpc(name,p={}){const result=await fakeRpc(name,p);sessionStorage.setItem(prefix+'server',JSON.stringify({profile,materialDraft,audits,receipts:[...receipts]}));return result;}
 function resetExample(){for(const key of Object.keys(sessionStorage))if(key.startsWith(prefix))sessionStorage.removeItem(key);location.reload();}
 function Example(){
  const [left,setLeft]=useState(false);
- const [connection,setConnection]=useState(true);
- return <><div style={{padding:8,background:'#fff4c3',textAlign:'center'}}><button onClick={resetExample}>Reiniciar solo el ejemplo local</button><button onClick={()=>{offline=!offline;setConnection(!offline);}}>{connection?'Simular fallo de conexión':'Restablecer conexión simulada'}</button></div>{left?<section className="card"><h2>Selector de perfil · Simulación local</h2><p>Se ha salido del perfil auditor. El servidor conserva el historial y la asignación queda inactiva.</p><button onClick={()=>setLeft(false)}>Volver al perfil Auditor</button></section>:<AuditorPortal rpc={rpc} storage={storage} simulation onLeave={()=>setLeft(true)}/>}</>;
+ const [connection,setConnection]=useState(!offline);
+ return <><div style={{padding:8,background:'#fff4c3',textAlign:'center'}}><button onClick={resetExample}>Reiniciar solo el ejemplo local</button><button onClick={()=>{offline=!offline;sessionStorage.setItem(prefix+'offline',String(offline));setConnection(!offline);window.dispatchEvent(new Event(offline?'offline':'online'));}}>{connection?'Simular fallo de conexión':'Restablecer conexión simulada'}</button></div>{left?<section className="card"><h2>Selector de perfil · Simulación local</h2><p>Se ha salido del perfil auditor. El servidor conserva el historial y la asignación queda inactiva.</p><button onClick={()=>setLeft(false)}>Volver al perfil Auditor</button></section>:<AuditorPortal rpc={rpc} storage={storage} simulation onLeave={()=>setLeft(true)}/>}</>;
 }
 createRoot(document.getElementById('root')).render(<Example/>);

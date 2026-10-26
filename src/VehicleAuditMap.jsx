@@ -12,7 +12,7 @@ function status(draft,items) {
   if(!items.length || items.some(item=>!['ok','issue'].includes(draft.answers[item.id])))return 'pending';
   return items.some(item=>draft.answers[item.id]==='issue')?'issue':'ok';
 }
-export default function VehicleAuditMap({draft,update,busy}) {
+export default function VehicleAuditMap({draft,update,busy,offlineReview=false}) {
   const [zone,setZone]=useState(null),[point,setPoint]=useState(null);
   const locked=busy||!!draft.confirmedAt,layout=SVB_PHOTO_LAYOUT[zone];
   const items=point===null?[]:auditPhotoItems(draft,zone,point);
@@ -41,7 +41,7 @@ export default function VehicleAuditMap({draft,update,busy}) {
     </>}
     {point!==null&&zone!=='cabin'&&<div className="audit-backdrop"><section className="audit-sheet" role="dialog" aria-modal="true" aria-label={`${layout.title} · Compartimento ${point}`}>
       <header><div><small>{layout.title}</small><h3>Compartimento {point}{layout.labels?.[point]?` · ${layout.labels[point]}`:""}</h3></div><button type="button" className="secondary" aria-label="Cerrar compartimento" onClick={()=>setPoint(null)}>×</button></header>
-      <div className="audit-items">{items.length?<><button type="button" className="secondary full" disabled={locked} onClick={markAll}>✓ Marcar todo correcto</button>{[...new Set(items.map(item=>item.section))].map(title=><div key={title}><h4>{title.split(' · ').slice(2).join(' · ')||title}</h4>{items.filter(item=>item.section===title).map(row)}</div>)}</>:<p>Contenido pendiente de definir.</p>}</div>
+      <div className="audit-items">{offlineReview&&<p role="status">Modo local · Las marcas se guardan en este móvil. Pendiente de conexión para enviar.</p>}{items.length?<><button type="button" className="secondary full" disabled={locked} onClick={markAll}>✓ Marcar todo correcto</button>{[...new Set(items.map(item=>item.section))].map(title=><div key={title}><h4>{title.split(' · ').slice(2).join(' · ')||title}</h4>{items.filter(item=>item.section===title).map(row)}</div>)}</>:<p>Contenido pendiente de definir.</p>}</div>
       <footer><button type="button" className="primary full" onClick={()=>setPoint(null)}>Volver a la fotografía</button></footer>
     </section></div>}
   </div>;

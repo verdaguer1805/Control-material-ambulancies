@@ -8,8 +8,10 @@ import {rememberAuthorizedIdentity} from './auth-session-diagnostic.mjs';
 import {rememberRecoverySession,forgetRecoverySession} from './device-session-recovery.mjs';
 import {AUDITOR_MODE_KEY,AUDITOR_WORK_KEY,confirmedAuditorProfile,auditorError,mapServerAuditorDraft,sameAuditorMaterials,auditorNeedsSetup,clearAuditorLocalProfile} from './auditor-client.mjs';
 import './auditor-portal.css';
+import {AUDITOR_OFFLINE_KEY,readOfflineAuditor,rememberOfflineAuditor,auditorConnectionFailure,requireAuditScope} from './auditor-offline.mjs';
 
 async function productionCall(name,args={}){
+ if(navigator.onLine===false)throw new Error('AUDITOR_OFFLINE');
  const controller=new AbortController();let timer;
  const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('AUDITOR_REQUEST_TIMEOUT'));},20000);});
  try{return await Promise.race([(async()=>{
@@ -31,22 +33,40 @@ function AuditorNotice({message,busy,onClose}){
 }
 export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v249'}){
  const call=rpc;
+ const [cachedProfile]=useState(()=>readOfflineAuditor(localStorage));
+ const [canReview,setCanReview]=useState(!!cachedProfile),[connectionNote,setConnectionNote]=useState(cachedProfile?'Revisión local disponible. Comprobando conexión para el envío...':'');
  const [closeUnitRequired,setCloseUnitRequired]=useState(false),[closeUnitConfirmed,setCloseUnitConfirmed]=useState(false);
  const [profile,setProfile]=useState(null),[verified,setVerified]=useState(false),[loading,setLoading]=useState(true),[options,setOptions]=useState([]),[setup,setSetup]=useState(false),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[name,setName]=useState(''),[lot,setLot]=useState(''),[zone,setZone]=useState(''),[warehouse,setWarehouse]=useState(''),[code,setCode]=useState(''),[work,setWork]=useState(()=>readWork(localStorage)),[search,setSearch]=useState(''),[pending,setPending]=useState([]),[materialNames,setMaterialNames]=useState([]);
  const saveQueue=useRef(Promise.resolve()),currentWork=useRef(work),verifyRun=useRef(0),leaving=useRef(false),setupMode=useRef(false);
+ const profileNow=useRef(cachedProfile),lastVerifyError=useRef(null),registeredDrafts=useRef(new Set());
+ useEffect(()=>{if(cachedProfile){setProfile(cachedProfile);setLoading(false);}},[]);
+ function verificationFailure(error){
+  lastVerifyError.current=error;
+  setVerified(false);
+  if(auditorConnectionFailure(error)&&readOfflineAuditor(localStorage)){
+   setCanReview(true);setConnectionNote('Sin conexión confirmada. Puedes seguir revisando; las marcas se guardan en este móvil. La auditoría no se enviará sin confirmación.');
+  }else{setCanReview(false);localStorage.removeItem(AUDITOR_OFFLINE_KEY);setNotice(auditorError(error));}
+ }
  useEffect(()=>{setupMode.current=setup;},[setup]);
  async function verify(){
   if(leaving.current)return;
-  const run=++verifyRun.current;setVerified(false);
+  const run=++verifyRun.current;setVerified(false);lastVerifyError.current=null;
   try{
    const raw=await call('get_my_auditor_profile');if(run!==verifyRun.current)return;
    const p=confirmedAuditorProfile(raw);setProfile(raw);
    if(auditorNeedsSetup(raw)){
+    lastVerifyError.current=new Error('AUDITOR_NOT_AUTHORIZED');
+    setCanReview(false);localStorage.removeItem(AUDITOR_OFFLINE_KEY);profileNow.current=null;
     setName(raw?.full_name||'');setLot(raw?.lot||'');setZone(raw?.zone||'');setWarehouse(raw?.warehouse_id||'');setCode('');setupMode.current=true;setSetup(true);
     if(raw)setNotice('Este perfil auditor está inactivo. Autorízalo de nuevo con el código del propietario o supervisor de la zona.');
     return;
    }
-   if(!p){setNotice('Acceso no autorizado. Contacta con el propietario o la supervisión.');return;}
+   if(!p){lastVerifyError.current=new Error('AUDITOR_NOT_AUTHORIZED');profileNow.current=null;setCanReview(false);localStorage.removeItem(AUDITOR_OFFLINE_KEY);setNotice('Acceso no autorizado. Contacta con el propietario o la supervisión.');return;}
+   for(const draft of readAudits(localStorage).filter(d=>!d.confirmedAt&&d.supervisor?.startsWith('Auditor ·')))requireAuditScope(draft,p);
+   profileNow.current=p;
+   // Server-confirmed profile can authorize local editing, not an upload.
+   if(simulation){localStorage.setItem('cma_mobile_role_v1','auditor');localStorage.setItem('cma_unit',`Auditor · ${p.zone} · ${p.full_name}`);localStorage.setItem('cma_lot',p.lot);rememberAuthorizedIdentity(localStorage,p.user_id);}
+   rememberOfflineAuditor(localStorage,p);setCanReview(true);
    const [remoteDrafts,remoteWork,names]=await Promise.all([call('get_my_auditor_pending_audits'),call('get_my_auditor_materials'),call('get_my_auditor_material_options')]);
    if(run!==verifyRun.current)return;
    setPending(remoteDrafts||[]);setMaterialNames(names||[]);
@@ -60,13 +80,15 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
    if(!local||local.revision!==p.revision)next=remoteWork?{id:remoteWork.id,revision:remoteWork.profile_revision,version:Number(remoteWork.edit_version),materials:remoteWork.materials}:newWork(p.revision);
    else if(remoteWork&&remoteWork.id===local.id&&Number(remoteWork.edit_version)>local.version)next={id:remoteWork.id,revision:p.revision,version:Number(remoteWork.edit_version),materials:remoteWork.materials};
    if(run!==verifyRun.current)return;
-   currentWork.current=next;setWork(next);localStorage.setItem(AUDITOR_WORK_KEY,JSON.stringify(next));setupMode.current=false;setSetup(false);setVerified(true);setNotice('');return true;
-  }catch(error){if(run===verifyRun.current){setVerified(false);setNotice(auditorError(error));}}
+   currentWork.current=next;setWork(next);localStorage.setItem(AUDITOR_WORK_KEY,JSON.stringify(next));setupMode.current=false;setSetup(false);setVerified(true);setConnectionNote('');setNotice('');return true;
+  }catch(error){if(run===verifyRun.current)verificationFailure(error);}
   finally{if(run===verifyRun.current)setLoading(false);}
  }
- useEffect(()=>{void verify();void call('get_auditor_warehouse_options').then(setOptions).catch(error=>setNotice(auditorError(error)));
-  const refresh=()=>{if(!document.hidden&&!setupMode.current)void verify();};window.addEventListener('online',refresh);window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
-  return()=>{verifyRun.current++;window.removeEventListener('online',refresh);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
+ useEffect(()=>{void verify();void call('get_auditor_warehouse_options').then(setOptions).catch(error=>{if(!auditorConnectionFailure(error))setNotice(auditorError(error));});
+  const refresh=()=>{if(!document.hidden&&!setupMode.current)void verify();};
+  const offline=()=>{setVerified(false);setConnectionNote('Sin conexión. Puedes seguir revisando en este móvil. El envío queda pendiente de conexión.');};
+  window.addEventListener('offline',offline);window.addEventListener('online',refresh);window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
+  return()=>{verifyRun.current++;window.removeEventListener('offline',offline);window.removeEventListener('online',refresh);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
  },[]);
  function hasLocalPending(){
   try{return Object.values(currentWork.current?.materials||{}).some(Number)||readAudits(localStorage).some(row=>row.supervisor?.startsWith('Auditor ·')&&!row.confirmedAt);}catch{return true;}
@@ -106,6 +128,7 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
   if(!verified||busy||!Object.values(work?.materials||{}).some(Number))return;
   setBusy(true);const selected=structuredClone(currentWork.current);
   try{
+   if(!await verify())throw lastVerifyError.current||new Error('AUDITOR_REQUEST_TIMEOUT');
    await saveQueue.current.catch(()=>{});
    try{await call('save_mobile_auditor_materials',{p_id:selected.id,p_revision:selected.revision,p_version:selected.version,p_items:selected.materials});}
    catch(error){if(!String(error.message).includes('AUDITOR_CONSUMPTION_ALREADY_SENT'))throw error;}
@@ -120,21 +143,50 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
   leaving.current=true;verifyRun.current++;setBusy(true);
   try{await saveQueue.current;if(profile?.active)await call('leave_mobile_auditor');const wasAuditor=clearAuditorLocalProfile(localStorage);if(wasAuditor&&!simulation)void forgetRecoverySession().catch(()=>{});onLeave();}catch(error){setNotice(auditorError(error));}finally{leaving.current=false;setBusy(false);}
  }
+ async function registerDraft(draft,p=profileNow.current){
+  requireAuditScope(draft,p);
+  const key=`${p.user_id}:${p.revision}:${draft.id}`;if(registeredDrafts.current.has(key))return;
+  const result=await call('begin_mobile_auditor_audit',{p_id:draft.id,p_revision:p.revision,p_vehicle:draft.vehicle,p_type:draft.type,p_catalog:draft.catalog});
+  registeredDrafts.current.add(key);return result;
+ }
  const service=profile&&{
-  begin:async draft=>{await call('begin_mobile_auditor_audit',{p_id:draft.id,p_revision:profile.revision,p_vehicle:draft.vehicle,p_type:draft.type,p_catalog:draft.catalog});setPending(old=>[...old,{id:draft.id,vehicle:draft.vehicle}]);},
-  save:draft=>call('save_mobile_auditor_draft',{p_id:draft.id,p_revision:profile.revision,p_version:draft.editVersion,p_answers:draft.answers,p_notes:draft.notes}),
-  submit:async draft=>{const items=draft.catalog.map(item=>({...item,status:draft.answers[item.id],note:String(draft.notes?.[item.id]||'').slice(0,1000)}));const result=await call('submit_mobile_auditor_audit',{p_id:draft.id,p_revision:profile.revision,p_vehicle:draft.vehicle,p_type:draft.type,p_items:items});setPending(old=>old.filter(row=>row.id!==draft.id));return result;},
-  pending:async()=>{const rows=await call('get_my_auditor_pending_audits');setPending(rows||[]);return (rows||[]).map(mapServerAuditorDraft);},
+  begin:async draft=>{
+   if(!canReview)throw new Error('AUDITOR_NOT_AUTHORIZED');
+   Object.assign(draft,{auditorUserId:profile.user_id,profileRevision:profile.revision,warehouseId:profile.warehouse_id});
+   if(!verified){setPending(old=>[...old,{id:draft.id,vehicle:draft.vehicle}]);return;}
+   try{await registerDraft(draft);}catch(error){verificationFailure(error);if(!auditorConnectionFailure(error))throw error;}
+   setPending(old=>[...old,{id:draft.id,vehicle:draft.vehicle}]);
+  },
+  save:async draft=>{
+   if(!verified)return false;
+   try{await registerDraft(draft);return await call('save_mobile_auditor_draft',{p_id:draft.id,p_revision:profile.revision,p_version:draft.editVersion,p_answers:draft.answers,p_notes:draft.notes});}
+   catch(error){verificationFailure(error);if(!auditorConnectionFailure(error))throw error;return false;}
+  },
+  submit:async draft=>{
+   if(!await verify())throw lastVerifyError.current||new Error('AUDITOR_REQUEST_TIMEOUT');
+   const p=profileNow.current;requireAuditScope(draft,p);
+   await registerDraft(draft,p);
+   await call('save_mobile_auditor_draft',{p_id:draft.id,p_revision:p.revision,p_version:draft.editVersion||1,p_answers:draft.answers,p_notes:draft.notes||{}});
+   const items=draft.catalog.map(item=>({...item,status:draft.answers[item.id],note:String(draft.notes?.[item.id]||'').slice(0,1000)}));
+   const result=await call('submit_mobile_auditor_audit',{p_id:draft.id,p_revision:p.revision,p_vehicle:draft.vehicle,p_type:draft.type,p_items:items});
+   setPending(old=>old.filter(row=>row.id!==draft.id));return result;
+  },
+  pending:async()=>{
+   if(!verified)return [];
+   try{const rows=await call('get_my_auditor_pending_audits');setPending(rows||[]);return (rows||[]).map(mapServerAuditorDraft);}
+   catch(error){verificationFailure(error);if(auditorConnectionFailure(error))return [];throw error;}
+  },
  };
  return <div className="app auditor-mobile"><header className="header"><div className="header-copy"><h1>Control de material <span className="app-version">{version}</span></h1><small>Auditorías y consumo de material</small>{profile&&<><div className="unit-header">{profile.full_name}</div><div>{profile.lot} · {profile.zone}</div></>}</div><img className="falck-header-logo" src="./falck-symbol-2026.png" alt="Falck"/></header><main>
   <div className="auditor-toolbar"><button className="secondary" disabled={busy||loading} onClick={openSetup}>Cambiar zona</button><button className="secondary" disabled={busy||loading} onClick={leave}>Cambiar perfil</button></div>
   {notice&&<AuditorNotice message={notice} busy={busy} onClose={()=>setNotice('')}/>}
+  {connectionNote&&<p className="auditor-notice" role="status">{connectionNote}</p>}
   {simulation&&<div className="auditor-notice">SIMULACIÓN LOCAL · Datos ficticios. No envía datos, no autoriza móviles ni modifica estoc real. La confirmación real solo se habilitará tras instalar y verificar el SQL.</div>}
   {!loading&&!verified&&(!profile||setup)&&<button type="button" className="secondary full" disabled={busy} onClick={()=>{void verify();void call('get_auditor_warehouse_options').then(setOptions).catch(error=>setNotice(auditorError(error)));}}>Volver a verificar</button>}
   {setup&&closeUnitRequired&&<label className="card"><input type="checkbox" checked={closeUnitConfirmed} onChange={e=>setCloseUnitConfirmed(e.target.checked)}/> Confirmo el cierre de la guardia anterior de este móvil. Si su checklist no se envió, seguirá como «No realizado»; no se marcará como completado.</label>}
   {loading?<div className="card">Verificando autorización y almacén...</div>:!setup&&profile&&<section className={`card auditor-confirmation ${verified?'confirmed':''}`} role="status"><strong>{verified?(simulation?'Simulación · Asignación validada del ejemplo':'✓ Almacén confirmado por el servidor'):'Almacén no verificado · Envío bloqueado'}</strong><p>{profile.warehouse_name||profile.warehouse_id}</p><small>{profile.lot} · {profile.zone}</small>{!verified&&<button className="secondary full" onClick={verify}>Volver a verificar</button>}</section>}
   {setup&&<form className="card" onSubmit={authorize}><h2>{profile?'Cambiar asignación':'Configurar móvil auditor'}</h2><label>Nombre y apellidos<input required maxLength={100} value={name} onChange={e=>setName(e.target.value)} autoComplete="name"/></label><label>Lote<select required value={lot} onChange={e=>{setLot(e.target.value);setZone('');setWarehouse('');}}><option value="">Selecciona...</option>{[...new Set(options.map(w=>w.lot))].sort().map(l=><option key={l}>{l}</option>)}</select></label><label>Zona<select required value={zone} onChange={e=>{setZone(e.target.value);setWarehouse('');}}><option value="">Selecciona...</option>{[...new Set(options.filter(w=>w.lot===lot).map(w=>w.zone))].sort().map(z=><option key={z}>{z}</option>)}</select></label><label>Almacén de retirada de material<select required value={warehouse} onChange={e=>setWarehouse(e.target.value)}><option value="">Selecciona...</option>{options.filter(w=>w.lot===lot&&w.zone===zone).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Central':'Subalmacén'} · {w.name}</option>)}</select></label><label>Código del propietario o supervisor de esta zona<input required type="password" value={code} autoComplete="off" onChange={e=>setCode(e.target.value)}/></label><p className="muted">El código autoriza solo este perfil. No abre administración ni sustituye otros móviles.</p><button disabled={busy} className="primary full">{busy?'Verificando...':'Autorizar y confirmar almacén'}</button>{profile&&<button type="button" disabled={busy} className="secondary full" onClick={()=>{setSetup(false);setCode('');void verify();}}>Cancelar</button>}</form>}
-  {!setup&&profile&&<><VehicleAudit key={`${profile.user_id}:${profile.revision}`} supervisor={`Auditor · ${profile.zone} · ${profile.full_name}`} lot={profile.lot} zone={profile.zone} authorized={verified} auditorService={service} storageOverride={localStorage}/>
+  {!setup&&profile&&<><VehicleAudit key={`${profile.user_id}:${profile.revision}`} supervisor={`Auditor · ${profile.zone} · ${profile.full_name}`} lot={profile.lot} zone={profile.zone} authorized={canReview} sendAuthorized={verified} auditorService={service} storageOverride={localStorage} onAlert={setNotice}/>
   <section className="card"><h2>Material retirado</h2><p>Se descontará de <strong>{profile.warehouse_name}</strong> al enviar y confirmar el consumo.</p><label>Buscar material<input value={search} onChange={e=>setSearch(e.target.value)}/></label>{(materialNames.length?materialNames:[]).filter(m=>MATERIALS.includes(m)&&materialDisplayName(m).toLowerCase().includes(search.toLowerCase())).map(m=><div className="material" key={m}><span>{materialDisplayName(m)}</span><div className="counter"><button disabled={!verified||busy} onClick={()=>edit(m,-1)}>−</button><span className="qty">{work?.materials?.[m]||0}</span><button disabled={!verified||busy} onClick={()=>edit(m,1)}>+</button></div></div>)}</section>
   <footer className="auditor-send-bar" aria-label="Envío de consumo de auditor"><button type="button" className="primary" disabled={!verified||busy||!Object.values(work?.materials||{}).some(Number)} onClick={send}>{busy?'Confirmando...':'Enviar consumo'}</button></footer></>}
  </main></div>;

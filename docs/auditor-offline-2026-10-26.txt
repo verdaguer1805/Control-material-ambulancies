@@ -1,0 +1,38 @@
+Named auditor offline review - local implementation, NOT published
+
+Issue evidenced by user video: failed warehouse reverification disabled all
+answer controls although the auditor's existing profile was already authorized.
+Figueres audit 5442 was confirmed at 17:14:20 Europe/Madrid on 2026-10-26.
+No production audit, consumption, warehouse or authorization was changed here.
+
+Implementation:
+- Cache only a server-confirmed auditor profile. Require matching local role,
+  authenticated identity marker, full name, lot, zone and warehouse scope.
+- A network/timeout failure retains local review permission, not upload rights.
+  An explicit inactive/revoked/mismatched profile removes the offline cache and
+  blocks editing. No first-time offline authorization or offline zone changes.
+- Every answer/note persists synchronously to the existing local audit store.
+  Resuming merges local and server pending drafts without discarding newer work.
+- Offline beginning preserves a stable audit UUID and original profile revision.
+- Submit freshly verifies profile and warehouse, registers/saves that same UUID,
+  then calls the existing idempotent submit RPC. A failed send keeps a durable
+  pending-send marker, centered warning and manual Reintentar envio button.
+- Pending does NOT mean received. Only server received_at marks an audit sent.
+- No automatic sending in the background is promised. The OS may suspend the
+  app; saved drafts recover on reopening and the auditor manually retries.
+- Material consumption remains separately server-verified. No offline stock
+  decrement. Existing unit/supervisor behavior is unchanged by default props.
+
+Verification:
+- 239 release tests pass; isolated database integration tests pass.
+- Compiled browser test: create TSNU KE9999 while simulated offline, complete
+  answers plus incident/note, attempt send -> pending, reload still offline ->
+  same ID/answers/note/pending restored, restore connection -> manual retry ->
+  server-adapter confirmation. No real network or stock write in this simulation.
+- Compiled SVB browser test: offline vehicle 9999, right zone compartment 9,
+  Marcar todo correcto -> all six rows green while offline notice stays visible.
+- Compiled main unit and admin entrypoints render without console errors.
+- Production build passed. No database migration is required.
+
+Limit: current v249 clients have no offline-profile cache yet; after upgrading,
+they need one successful online verification before a cold offline reopening.

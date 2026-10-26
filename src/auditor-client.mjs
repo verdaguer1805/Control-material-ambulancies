@@ -3,7 +3,7 @@ export const AUDITOR_MODE_KEY='cma_mobile_role_v1';
 export const AUDITOR_WORK_KEY='cma_auditor_material_draft_v1';
 export const auditorNeedsSetup=value=>!value||value.active!==true;
 export function clearAuditorLocalProfile(storage){
- storage.removeItem(AUDITOR_MODE_KEY);storage.removeItem(AUDITOR_WORK_KEY);
+ storage.removeItem(AUDITOR_MODE_KEY);storage.removeItem(AUDITOR_WORK_KEY);storage.removeItem('cma_auditor_verified_profile_v1');
  // Canceling entry to the auditor must not remove an existing operational unit.
  const wasAuditor=String(storage.getItem('cma_unit')||'').startsWith('Auditor ·');
  if(wasAuditor){storage.removeItem('cma_unit');storage.removeItem('cma_authorized_auth_identity_v1');}
@@ -64,5 +64,5 @@ export function auditorError(error){
  return 'No se ha podido confirmar con el servidor. Los datos siguen guardados; vuelve a intentarlo.';
 }
 export function mapServerAuditorDraft(row){
- return {id:row.id,supervisor:`Auditor · ${row.zone} · ${row.full_name}`,lot:row.lot,zone:row.zone,vehicle:row.vehicle,type:row.checklist_type,startedAt:row.started_at,catalog:row.catalog,answers:row.answers||{},notes:row.notes||{},confirmedAt:row.submitted_at,editVersion:Number(row.edit_version||0)};
+  return {id:row.id,auditorUserId:row.user_id,profileRevision:row.profile_revision,warehouseId:row.warehouse_id,supervisor:`Auditor · ${row.zone} · ${row.full_name}`,lot:row.lot,zone:row.zone,vehicle:row.vehicle,type:row.checklist_type,startedAt:row.started_at,catalog:row.catalog,answers:row.answers||{},notes:row.notes||{},confirmedAt:row.submitted_at,editVersion:Number(row.edit_version||0)};
 }
