@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { stockEntryQuantity } from "./stock-entry-quantity.mjs";
 import { reportUnitVisible, filterReportUnits } from "./report-unit-visibility.mjs";
 import { supervisorDraft, appendSupervisorConsumption, readSupervisorUnsent, saveSupervisorUnsent, clearSupervisorUnsent } from "./supervisor-consumption.mjs";
 import { confirmedDeviceAuthorization } from "./device-authorization.mjs";
@@ -1280,7 +1281,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v250", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v251", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -1833,7 +1834,7 @@ function App() {
   function changeStockPickerQuantity(material, amount) {
     setStockPickerQuantities((current) => ({
       ...current,
-      [material]: Math.max(0, (current[material] || 0) + amount),
+      [material]: Math.max(0, Number(current[material] || 0) + amount),
     }));
   }
   async function applyStockPicker() {
@@ -3519,7 +3520,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v250</span></h1>
+          <h1>Control de material <span className="app-version">v251</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5063,7 +5064,7 @@ function App() {
                             : "Consumo simulado"}
                       </h2>
                       <p className="muted">
-                        Usa el buscador y los botones + / −. Puedes seleccionar
+                        {stockPickerOpen === "entry" ? "Escribe la cantidad recibida o usa los botones + / −." : "Usa el buscador y los botones + / −."} Puedes seleccionar
                         varios artículos en la misma operación.
                       </p>
                       {stockPickerOpen === "transfer" && (
@@ -5091,7 +5092,22 @@ function App() {
                             <span>{materialLabel(material)}</span>
                             <div className="counter">
                               <button onClick={() => changeStockPickerQuantity(material, -1)}>-</button>
-                              <span className="qty">{stockPickerQuantities[material] || 0}</span>
+                              {stockPickerOpen === "entry" ? (
+                                <input
+                                  className="stock-entry-quantity"
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  aria-label={`Cantidad recibida de ${materialLabel(material)}`}
+                                  value={stockPickerQuantities[material] ?? 0}
+                                  onFocus={(event) => event.target.select()}
+                                  onChange={(event) => {
+                                    const quantity = stockEntryQuantity(event.target.value);
+                                    if (quantity !== null) setStockPickerQuantities((current) => ({ ...current, [material]: quantity }));
+                                  }}
+                                  onBlur={() => setStockPickerQuantities((current) => ({ ...current, [material]: Number(current[material] || 0) }))}
+                                />
+                              ) : <span className="qty">{stockPickerQuantities[material] || 0}</span>}
                               <button onClick={() => changeStockPickerQuantity(material, 1)}>+</button>
                             </div>
                           </div>
@@ -5355,13 +5371,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v250" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v251" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=250", {
+    navigator.serviceWorker.register("./sw.js?v=251", {
       updateViaCache: "none",
     }),
   );
