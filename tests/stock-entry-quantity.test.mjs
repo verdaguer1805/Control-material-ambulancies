@@ -15,10 +15,23 @@ test('entrada directa: no acepta negativos, decimales, exponentes ni cantidades 
   }
 });
 
-test('solo material recibido usa edición directa; conserva la recepción remota existente', () => {
+test('material recibido y reposición permiten edición directa sin cambiar consumos', () => {
   const source = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
-  assert.match(source, /stockPickerOpen === "entry" \? \(\s*<input\s*className="stock-entry-quantity"/);
+  assert.match(source, /stockPickerOpen === "entry" \|\| stockPickerOpen === "transfer" \? \(\s*<input\s*className="stock-entry-quantity"/);
+  assert.match(source, /Cantidad para reponer de/);
   assert.match(source, /inputMode="numeric"/);
   assert.match(source, /Number\(current\[material\] \|\| 0\) \+ amount/);
   assert.match(source, /supabase\.rpc\("receive_central_stock"/);
+});
+
+test('la reposición conserva destino, control de existencias y transferencia registrada', () => {
+  const source = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
+  const apply = source.slice(source.indexOf('async function applyStockPicker()'), source.indexOf('async function applyStockPicker()') + 6500);
+  assert.match(apply, /STOCK_DEMO_LOCATIONS\.slice\(1\)\.includes\(stockPickerTarget\)/);
+  assert.match(apply, /remaining: current - requested/);
+  assert.match(apply, /if \(insufficientMaterials\.length\)/);
+  assert.match(apply, /if \(belowMinimumMaterials\.length\)/);
+  assert.match(apply, /supabase\.rpc\("transfer_stock_recorded"/);
+  assert.match(apply, /p_origin_id: STOCK_REMOTE_IDS\[STOCK_DEMO_CENTRAL\]/);
+  assert.match(apply, /p_destination_id: STOCK_REMOTE_IDS\[stockPickerTarget\]/);
 });
