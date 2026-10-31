@@ -33,7 +33,8 @@ test('door joins audits globally without altering confirmed audits or existing a
 });
 test('door is submitted, reported, cached, and local preview cannot write operational drafts',()=>{
  const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
- assert.match(read('public/checklists/svb-zones-production.js'),/door:zoneAnswers\("door"\)/);
+ assert.match(read('public/checklists/svb-zones-production.js'),/p_answers:answers/);
+ assert.match(read('public/checklists/svb-send-reminder.js'),/'left', 'front', 'right', 'cabin', 'door'/);
  assert.match(read('public/svb-zones.html'),/id="door"/);
  assert.match(read('src/main.jsx'),/"Puerta corredera izquierda": zoneState\("door"\)/);
  assert.match(read('public/sw.js'),/svb-puerta-izquierda-mobile.jpg/);

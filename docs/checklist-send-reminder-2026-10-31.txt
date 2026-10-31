@@ -1,0 +1,38 @@
+Recordatorio de envío de checklist · Versión v252
+
+SVB:
+- Aviso modal nativo centrado al completar todos los elementos de las cinco zonas,
+  tanto correctos como con incidencia. Funciona desde la última fotografía/cabina.
+- «Enviar checklist» conduce al envío existente, revalidando guardia, vehículo y
+  completitud. «Seguir revisando» conserva todas las marcas.
+- Las confirmaciones guardan una huella exacta de las respuestas enviadas.
+- Al volver al menú de zonas tras modificar un SVB confirmado se ofrece reenviar.
+  No interrumpe cada corrección ni se repite sin cambios, incluso al volver atrás.
+- Confirmados anteriores sin huella adoptan la situación inicial como referencia;
+  no se inventa una modificación ni se invalida un envío antiguo.
+- Clics duplicados protegidos. No marca envío confirmado hasta respuesta correcta.
+- Fallo de red: respuestas conservadas, mensaje pendiente; reintento manual.
+- Sin cambio de reglas de guardia, almacenes, inventario, permisos ni auditorías.
+
+TSNU T/K/KE:
+- Mismo aviso al completar la lista, con ambos colores.
+- Usa el envío/outbox existente y bloqueo de doble clic.
+- El flujo TSNU actual no permite reabrir para editar un checklist ya confirmado;
+  no se introduce esa capacidad ni cambios SQL en esta mejora.
+
+Pruebas:
+- 249 pruebas node aprobadas y build compilado correcto.
+- Navegador local aislado 127.0.0.1:5193: última marca roja del SVB dispara aviso;
+  cancelar conserva marcas; envío desde modal confirma; corrección posterior no
+  interrumpe el marcado y al volver a zonas ofrece reenviar; envío sin cobertura
+  muestra pendiente sin cambiar confirmación previa; TSNU Tango también probado.
+- Todos los envíos de esa prueba son simulados por tmp/reminder-qa-server.mjs;
+  no hay escrituras reales en servidor ni stock.
+- Capturas tmp/checklist-send-reminder.png y tmp/checklist-resend-reminder.png.
+- Los tres módulos nuevos se precargan en el service worker.
+
+Preparación de publicación:
+- Versión conjunta v252; 249 pruebas aprobadas y build dist-v252-check correcto.
+- Arranque real compilado de unidades y administración comprobado en navegador.
+- Build de producción sin entradas QA ni mocks de red.
+- public/falck-eagle-admin.png es un cambio ajeno y no se incluye.

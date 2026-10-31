@@ -1,7 +1,8 @@
-const CACHE = "cma-v251";
+const CACHE = "cma-v252";
 const APP_SHELL = ["./", "./index.html", "./admin.html", "./admin/", "./admin/manifest.webmanifest", "./icon.svg", "./falck-symbol-2026.png", "./svb-zones.html", "./svb-door-preview.html", "./checklists/svb-door-data.js", "./checklists/svb-puerta-izquierda-mobile.jpg", "./svb-cabin.html", "./checklists/svb-cabin.js", "./checklists/svb-cabin-data.js", "./svb-preview.html", "./svb-front-preview.html", "./svb-right-preview.html", "./checklists/svb-paret-lateral-esquerre-mobile.jpg", "./checklists/svb-paret-frontal-mobile.jpg", "./checklists/svb-zona-derecha-mobile.jpg", "./checklists/svb-front-wall-data.js", "./checklists/svb-left-wall-data.js", "./checklists/svb-right-zone-data.js", "./checklists/svb-vehicle-assignment.js", "./checklists/svb-guard-window.js", "./checklists/svb-zones-production.js"];
 
 APP_SHELL.push("./checklists/svb-zones-layout.css");
+APP_SHELL.push("./checklists/checklist-send-reminder.js", "./checklists/svb-send-reminder.js", "./checklists/svb-send-reminder-page.js");
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL.map(url => new Request(url, { cache: "reload" })))));
