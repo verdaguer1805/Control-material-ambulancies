@@ -1,0 +1,85 @@
+INOPERATIVIDADES · Preparación de publicación v254
+
+SQL ejecutado por el usuario con Success el 2026-11-02. Verificación de solo
+lectura: 104 vehículos, perfil reports_viewer creado, TSNU excluidas, permiso de
+informe correcto, stock no ampliado, RLS activo; todas las comprobaciones true.
+Consulta: https://supabase.com/dashboard/project/dfnywetqnccykzjyihzq/sql/2dfbaa67-94f4-4555-9001-be7b3094a18f
+260 tests y ambas pruebas PGlite aprobadas; build y arranque main/admin v254 OK.
+
+DECISIÓN POSTERIOR CONFIRMADA: solo TSU, BP y LS/SLS. TSNU no pueden declarar
+inoperatividad por ahora. No se requieren sus matrículas en esta fase.
+La UI y el helper SQL rechazan TSNU (por servicio/catálogo/prefijo global).
+
+Decisiones confirmadas por el usuario:
+- Indicativo de unidad con estado operativo verde/inoperativo rojo.
+- Confirmación y formulario antes de modificar el estado; cancelar no declara nada.
+- Cinco motivos sin repetir reposición/cambio de material.
+- Inicio, recuperación, lote, zona, unidad, vehículo, matrícula, descripción,
+  resolución, sí/no asistiendo o trasladando a un afectado y justificación.
+- Sin hora teórica, hora calculada ni duración (campos tachados).
+- Una unidad puede cambiar de vehículo dentro de su guardia.
+- Matrícula vinculada al vehículo, NO a la unidad; nunca visible en pantalla móvil.
+  Solo se presenta en el informe de inoperatividades de administración.
+- La matrícula del vehículo elegido puede guardarse oculta en caché local para
+  trabajar sin cobertura. La confirmación de comunicación requiere servidor.
+- El estado no se reinicia al cambiar de día/guardia y no bloquea checklist/consumos.
+- Catálogo facilitado: 104 vehículos únicos Lot 5, cuatro zonas, 32 de reserva sin
+  unidad. Referencias de unidad NO cambian las asignaciones operativas existentes.
+- Vehículo 5307 (3424NKP): usuario confirma referencia Olot, aunque primera columna
+  de origen diga Figueres. Se conserva el origen y se usa zona Olot.
+
+Implementación:
+- UnitOperability.jsx en cabecera de unidad, no en perfiles de material supervisor
+  ni auditor. Estado inicial no verificado; verde solo después de confirmación.
+- Modal nativo centrado en capa superior; persistencia local por lote/unidad.
+- Cola de acciones start/close con UUID estable, ordenadas, sin borrar hasta ACK.
+  Permite guardar inicio y recuperación sin cobertura y recuperar tras reapertura.
+- Ámbar = comunicación pendiente, nunca un falso envío confirmado.
+- Datos de vehículo cacheados por lote/vehículo, no por unidad. Si faltan, se guarda
+  la comunicación pendiente y se verifica con el catálogo en la sincronización.
+- La matrícula del registro final siempre la obtiene el servidor del catálogo;
+  no confía en una matrícula manipulable enviada por un móvil.
+- La fotografía del registro no cambia por reasignaciones/actualizaciones de flota.
+- Se guardan hora comunicada y hora real de recepción separadas para trazabilidad.
+- No hay integración ni envío automático al CECOS. Formulario lo indica.
+- Reporte Excel nuevo con filtros lote/zona/fechas, paginación y permisos de sesión
+  administrativa existentes (owner/supervisor/logistics). Sin nuevo perfil inspector.
+
+SQL preparado, NO EJECUTADO EN PRODUCCIÓN:
+1 sql/unit-operability-v1.sql: tablas nuevas con RLS y RPCs limitadas por dispositivo
+  activo/versionado, unidad y lote; zona derivada de asignación del servidor.
+  Reporte limitado a rol administrativo y zona. Idempotencia y una incidencia
+  abierta por lote/unidad. No modifica stock, checklists, guardias ni dispositivos.
+2 sql/unit-operability-fleet-lot5.sql: carga del catálogo facilitado. Repetirlo NO
+  sobrescribe filas existentes ni asigna vehículos a unidades.
+
+Pruebas completadas:
+- 257 tests node aprobados, incluyendo catálogo, caché, sí/no, fotos históricas,
+  ámbitos lote/unidad, no campos tachados y fechas Europe/Madrid con DST.
+- tests/unit-operability-db.mjs (PGlite aislado): migración/semilla repetibles,
+  UUID/reintentos, rechazo de conflictos, aislamiento de lotes/unidades/zonas,
+  autorización administrativa, RLS y stock/checklists sin cambios.
+- Build de producción dist-operability-check correcto.
+- Vista compilada aislada en http://127.0.0.1:5196/unit-operability-preview.html
+  con servidor simulado en sessionStorage, SIN tráfico RPC real ni stock real.
+- Navegador: verde->confirmación->formulario->rojo, cambio 5439 a 5438 conserva
+  el incidente 5439 y matrícula 0879NLG; informe la muestra y móvil no.
+- Recuperación sin cobertura: ámbar/pendiente, sobrevive recarga y reintenta al
+  recuperar conexión, terminando verde sin duplicar el registro.
+
+Antes de activar:
+- Usuario debe revisar la vista local y aprobar los SQL antes de Run/publicación.
+- TSNU excluidas de esta fase por decisión expresa. No pedir sus matrículas para
+  este despliegue y no inventar ni deducir matrículas.
+- Comprobar SQL en proyecto real con autorización y revisar respuesta, sin pruebas
+  de inoperatividad reales sobre unidades que están trabajando.
+- Incrementar versión conjunta, repetir build y arranques main/admin y verificar
+  despliegue de GitHub/Pages. No incluir public/falck-eagle-admin.png (cambio ajeno).
+
+SQL preparado en editor (NO EJECUTADO):
+https://supabase.com/dashboard/project/dfnywetqnccykzjyihzq/sql/ab58cf65-7468-4a04-8226-d61b7b15750e
+Script único transaccional: tablas/RPC, flota, perfil reports_viewer y activación.
+En la línea 316 el usuario debe sustituir ESCRIU_EL_CODI por su código privado
+dentro de las comillas y pulsar Run (no Run selected). No se ha pegado el código
+secreto en el editor. Esperar Success antes de publicar app/versión conjunta.
+260 tests aprobados + dos pruebas PGlite incluyendo el informe real con rol nuevo.

@@ -1,0 +1,48 @@
+SOTS-CAP PICORNELL · Perfil de Administración · Publicación v254
+
+SQL y activación ejecutados por el usuario con Success el 2026-11-02.
+Verificación de solo lectura confirma perfil creado y permisos de stock intactos.
+260 tests + ambas pruebas de base de datos aprobados antes del despliegue.
+
+Petición del usuario:
+- Acceso por código propio a la misma app de ADMIN, no perfil móvil de unidades.
+- Solo «Descargar informe» e «Inoperatividades · Informe».
+- Consulta de informes por lote, zona y fechas, todos los ámbitos.
+- Sin stock, almacenes, correcciones, códigos, dispositivos ni otras gestiones.
+
+Implementación:
+- Rol reports_viewer; nombre visible SOTS-CAP PICORNELL.
+- Permiso de informe global separado de adminCanAccessAllZones (gestión).
+- SQL añade rol permitido en códigos y sesiones; conserva el login existente y
+  su limitación de intentos. Código cifrado con el mismo mecanismo bcrypt.
+- NO cambia admin_can_access_zone ni admin_has_role. RLS y RPC de stock/gestión
+  siguen rechazando este rol.
+- Una función de permiso exclusiva para informes se usa SOLO en cinco RPC de
+  exportación enumeradas. Migración aborta si falta alguna o cambia el patrón.
+- UI oculta correcciones y stock, el gestor de auditores ya rechaza este rol y
+  los permisos owner/logistics no se amplían. Limpia estado anterior al entrar.
+- Inoperatividades mantiene botón propio y admite este rol en consulta.
+- No se han alterado unidades activas, stocks ni permisos de otros roles.
+
+Credenciales:
+- El código indicado por el usuario está solo en el archivo PRIVADO local
+  tmp/admin-reports-viewer-credentials.sql, ignorado por Git explícitamente.
+- Nunca incluir ese archivo en commits ni publicar, pegar en documentación o
+  incorporar el código al JavaScript de la app.
+- La activación privada solo cambia el acceso Picornell, no códigos existentes.
+- El procedimiento de rotación requiere sesión owner y revoca solo sesiones
+  reports_viewer, no sesiones de propietario/supervisión/logística.
+
+Pruebas:
+- tests/admin-reports-viewer.test.mjs: capacidades y restricciones de UI/globalidad.
+- tests/admin-reports-viewer-db.mjs: PGlite sin producción: mismo login, todas las
+  RPC de informe, roles stock/gestión denegados, RLS, expiración y ámbitos antiguos
+  owner/supervisor intactos. Se usan credenciales ficticias, nunca la real.
+
+NO ACTIVADO EN PRODUCCIÓN, NI PUBLICADO:
+Orden previsto, tras revisión y autorización Run del usuario:
+1 sql/unit-operability-v1.sql
+2 sql/unit-operability-fleet-lot5.sql
+3 sql/admin-reports-viewer-v1.sql
+4 tmp/admin-reports-viewer-credentials.sql (privado, usuario ejecuta Run)
+Después repetir pruebas, publicar versión conjunta y verificar Pages.

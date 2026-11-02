@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from "react";
+import {isReportsOnlyAccess,canReadAllReportZones,adminAccessLabel} from './admin-report-access.mjs';
+import {canUnitDeclareInoperability} from './unit-operability.mjs';
 import { stockEntryQuantity } from "./stock-entry-quantity.mjs";
 import { reportUnitVisible, filterReportUnits } from "./report-unit-visibility.mjs";
 import { supervisorDraft, appendSupervisorConsumption, readSupervisorUnsent, saveSupervisorUnsent, clearSupervisorUnsent } from "./supervisor-consumption.mjs";
@@ -16,10 +18,12 @@ import UnitSelector from "./UnitSelector.jsx";
 import {AUDITOR_MODE_KEY,auditorTransitionIssue,auditorReportRecords} from './auditor-client.mjs';
 const AuditorPortal=React.lazy(()=>import('./AuditorPortal.jsx'));
 const AuditorManager=React.lazy(()=>import('./AuditorManager.jsx'));
+const UnitOperability=React.lazy(()=>import('./UnitOperability.jsx'));
+const UnitOperabilityReport=React.lazy(()=>import('./UnitOperabilityReport.jsx'));
 import { GUARD_HANDOFF_KEY, restoreGuardRecord, attachRecoveryToPendingRecord, guardSaveRequest, recoveryErrorMessage } from "./guard-recovery-client.mjs";
 import { UNIT_CHECKLIST_KEY, TSU_CHECKLISTS, TSNU_UNITS, validateUnitChecklist, readUnitChecklist, deviceServiceLabel, filterManagedDevices, managedDeviceZone, tsnuWarehouse } from "./unit-checklist-config.mjs";
 import { defaultMaterialVisibility, materialVisibilityFromRows, readMaterialVisibility, saveMaterialVisibility } from "./material-visibility.mjs";
-import { writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
+import { readSvbVehicleAssignment, writeSvbVehicleAssignment } from "./svb-vehicle-assignment.mjs";
 import { compareMaterialLabels } from "./material-order.mjs";
 import { materialDisplayName } from "./material-display.mjs";
 import { tsnuChecklistLabel } from './tsnu-checklist-catalog.mjs';
@@ -1240,6 +1244,9 @@ function App() {
       if (data?.authorized !== true) return flash(accessAttemptMessage(data, "Código de acceso incorrecto"), 5000);
       setAdminRecords([]);
       setAdminLoaded(false);
+      setStockDemoOpen(false);
+      setCorrectionOpen(false);
+      setSystemStatus(null);
       setAdminAccess(data);
       setAdminOk(true);
       if (data.role === "supervisor" && data.zone) {
@@ -1281,7 +1288,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v253", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v254", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -3446,6 +3453,8 @@ function App() {
       (record) => record.unit === currentUnit && record.id === currentGuard.code && (!record.recoveredBaseline || record.serverIncidentId),
     ),
     pending = records.filter((r) => !r.synced).length,
+    adminReportOnly = isReportsOnlyAccess(adminAccess),
+    adminCanAccessAllReportZones = canReadAllReportZones(adminAccess),
     adminCanAccessAllZones = ["owner", "logistics"].includes(adminAccess?.role),
     adminCanManageCodes = adminAccess?.role === "owner",
     adminCanManageDevices = adminAccess?.role === "owner",
@@ -3459,7 +3468,7 @@ function App() {
       .map((material) => [material, Number(selectedCorrectionRecord?.materials?.[material] || 0)]),
     selectedCorrectionPrevious = Number(selectedCorrectionRecord?.materials?.[correctionMaterial] || 0),
     adminZones = Object.keys(SUPERVISIONS)
-      .filter((zone) => adminCanAccessAllZones || zone === adminAccess?.zone)
+      .filter((zone) => adminCanAccessAllReportZones || zone === adminAccess?.zone)
       .sort((a, b) => a.localeCompare(b)),
     stockDemoReady = stockScopeAllowed,
     stockReplenishmentGroups = (() => {
@@ -3520,13 +3529,13 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v253</span></h1>
+          <h1>Control de material <span className="app-version">v254</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
           {mode === "worker" && currentUnit && (
             <>
-              <div className="unit-header">{displayUnit(currentUnit)}</div>
+              {!canUnitDeclareInoperability(displayUnit(currentUnit),currentChecklistConfig.service) ? <div className="unit-header">{displayUnit(currentUnit)}</div> : <React.Suspense fallback={<div className="unit-header">{displayUnit(currentUnit)}</div>}><UnitOperability key={`${lot}:${currentUnit}`} lot={localStorage.getItem(KEY.lot)||lot} unit={displayUnit(currentUnit)} service={currentChecklistConfig.service} initialVehicle={readSvbVehicleAssignment(localStorage,displayUnit(currentUnit))} authorized={deviceAuth.checked&&deviceAuth.authorized}/></React.Suspense>}
               <button
                 className="change-unit-button"
                 onClick={() => {
@@ -3961,7 +3970,7 @@ function App() {
             </div>
           </div>
         )}
-        {correctionOpen && (
+        {correctionOpen && !adminReportOnly && (
           <div className="modal-backdrop">
             <div className="card export-modal consumption-correction-modal">
               <h2>Corregir un consumo</h2>
@@ -4768,18 +4777,15 @@ function App() {
         {mode === "admin" && adminOk && (
           <>
             <React.Suspense fallback={null}><AuditorManager access={adminAccess}/></React.Suspense>
+            <React.Suspense fallback={null}><UnitOperabilityReport access={adminAccess} lots={LOTS}/></React.Suspense>
             <div className="card">
               <h2>Panel de administración</h2>
               <div className="admin-access-summary">
                 <strong>
-                  {adminAccess?.role === "owner"
-                    ? "Propietario"
-                    : adminAccess?.role === "logistics"
-                      ? "Logística"
-                      : `Supervisión ${adminAccess?.zone || ""}`}
+                  {adminAccessLabel(adminAccess)}
                 </strong>
                 <span>
-                  {adminCanAccessAllZones ? "Acceso a todas las zonas" : "Acceso limitado a su zona"}
+                  {adminReportOnly ? "Solo consulta y descarga de informes · Todos los lotes y zonas" : adminCanAccessAllZones ? "Acceso a todas las zonas" : "Acceso limitado a su zona"}
                 </span>
               </div>
               <div className="toolbar">
@@ -4789,9 +4795,9 @@ function App() {
                 >
                   Descargar informe
                 </button>
-                <button className="secondary" onClick={openConsumptionCorrection}>
+                {!adminReportOnly && <button className="secondary" onClick={openConsumptionCorrection}>
                   Corregir consumo
-                </button>
+                </button>}
                 {adminCanManageCodes && (
                   <button className="secondary" onClick={changePin}>Cambiar PIN de unidades</button>
                 )}
@@ -4811,7 +4817,7 @@ function App() {
                     Gestionar dispositivos
                   </button>
                 )}
-                <button
+                {!adminReportOnly && <button
                   className="secondary"
                   onClick={() => {
                     const opening = !stockDemoOpen;
@@ -4822,10 +4828,10 @@ function App() {
                   }}
                 >
                   {stockDemoOpen ? "Cerrar STOCK" : "STOCK"}
-                </button>
+                </button>}
               </div>
             </div>
-            {stockDemoOpen && (
+            {stockDemoOpen && !adminReportOnly && (
               <section className="card stock-demo">
                 <div className="stock-demo-title">
                   <div>
@@ -5371,13 +5377,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v253" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v254" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=253", {
+    navigator.serviceWorker.register("./sw.js?v=254", {
       updateViaCache: "none",
     }),
   );
