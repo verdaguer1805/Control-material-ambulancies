@@ -58,6 +58,7 @@ import "./stock-demo.css";
 import "./guard.css";
 import "./device-security.css";
 import "./consumption-corrections.css";
+import './admin-report-actions.css';
 import './falck-brand.css';
 const KEY = {
   unit: "cma_unit",
@@ -294,6 +295,7 @@ function App() {
     deviceAuthSequence = React.useRef(0),
     [syncing, setSyncing] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
+    [inoperabilityReportOpen,setInoperabilityReportOpen] = useState(false),
     [exportLotOpen, setExportLotOpen] = useState(false),
     [exportLot, setExportLot] = useState("Lot 5 · Girona - Alt Maresme"),
     [exportZoneOpen, setExportZoneOpen] = useState(false),
@@ -1246,6 +1248,7 @@ function App() {
       setAdminLoaded(false);
       setStockDemoOpen(false);
       setCorrectionOpen(false);
+      setInoperabilityReportOpen(false);
       setSystemStatus(null);
       setAdminAccess(data);
       setAdminOk(true);
@@ -1288,7 +1291,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v254", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v255", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -3529,7 +3532,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v254</span></h1>
+          <h1>Control de material <span className="app-version">v255</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4777,7 +4780,7 @@ function App() {
         {mode === "admin" && adminOk && (
           <>
             <React.Suspense fallback={null}><AuditorManager access={adminAccess}/></React.Suspense>
-            <React.Suspense fallback={null}><UnitOperabilityReport access={adminAccess} lots={LOTS}/></React.Suspense>
+            <React.Suspense fallback={null}><UnitOperabilityReport access={adminAccess} lots={LOTS} open={inoperabilityReportOpen} onClose={()=>setInoperabilityReportOpen(false)}/></React.Suspense>
             <div className="card">
               <h2>Panel de administración</h2>
               <div className="admin-access-summary">
@@ -4789,12 +4792,17 @@ function App() {
                 </span>
               </div>
               <div className="toolbar">
+                <div className="admin-report-actions">
                 <button
-                  className="secondary"
+                  className="admin-report-general"
                   onClick={() => setExportLotOpen(true)}
                 >
                   Descargar informe
                 </button>
+                <button className="admin-report-inoperability" onClick={()=>setInoperabilityReportOpen(true)}>
+                  Informe de inoperatividades
+                </button>
+                </div>
                 {!adminReportOnly && <button className="secondary" onClick={openConsumptionCorrection}>
                   Corregir consumo
                 </button>}
@@ -5377,13 +5385,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v254" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v255" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=254", {
+    navigator.serviceWorker.register("./sw.js?v=255", {
       updateViaCache: "none",
     }),
   );

@@ -4,8 +4,10 @@ import {saveAs} from 'file-saver';
 import {madridDateTime} from './report-datetime.mjs';
 import {inoperabilityReportRows,madridDayStart} from './unit-operability-report.mjs';
 import {canReadAdminReports} from './admin-report-access.mjs';
-export default function UnitOperabilityReport({access,lots,transport}){
-  const [open,setOpen]=useState(false),[lot,setLot]=useState(''),[zone,setZone]=useState(access?.zone||''),[from,setFrom]=useState(()=>madridDateTime(new Date()).date),[to,setTo]=useState(()=>madridDateTime(new Date()).date),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+export default function UnitOperabilityReport({access,lots,transport,open:controlledOpen,onClose}){
+  const [internalOpen,setInternalOpen]=useState(false),[lot,setLot]=useState(''),[zone,setZone]=useState(access?.zone||''),[from,setFrom]=useState(()=>madridDateTime(new Date()).date),[to,setTo]=useState(()=>madridDateTime(new Date()).date),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+  const controlled=typeof controlledOpen==='boolean',open=controlled?controlledOpen:internalOpen;
+  const close=()=>controlled?onClose?.():setInternalOpen(false);
   if(!canReadAdminReports(access))return null;
   const zones=Object.keys(lots[lot]||{}).filter(value=>access.role!=='supervisor'||access.zone===value);
   async function download(){
@@ -34,11 +36,13 @@ export default function UnitOperabilityReport({access,lots,transport}){
     }catch(error){setMessage(/PGRST202|does not exist/.test(String(error?.message||''))?'Los informes de inoperatividad todavía no están activados en el servidor.':error.message||'No se ha podido obtener el informe.');}
     finally{setBusy(false);}
   }
-  return <section className="card"><button className="secondary" onClick={()=>setOpen(!open)}>{open?'Cerrar inoperatividades':'Inoperatividades · Informe'}</button>{open&&<>
+  if(controlled&&!open)return null;
+  const content=<>
     <h2>Informe de inoperatividades</h2><p>Unidad, vehículo y matrícula conservados tal como eran en cada comunicación.</p>
     <label>Lote<select value={lot} disabled={busy} onChange={e=>{setLot(e.target.value);setZone(access.role==='supervisor'?access.zone:'');}}><option value="">Selecciona...</option>{Object.keys(lots).map(value=><option key={value}>{value}</option>)}</select></label>
     <label>Zona<select value={zone} disabled={busy} onChange={e=>setZone(e.target.value)}><option value="">Selecciona...</option>{zones.map(value=><option key={value}>{value}</option>)}</select></label>
     <label>Desde<input type="date" value={from} disabled={busy} onChange={e=>setFrom(e.target.value)}/></label><label>Hasta<input type="date" value={to} disabled={busy} onChange={e=>setTo(e.target.value)}/></label>
     <button className="primary" onClick={download} disabled={busy}>{busy?'Preparando...':'Descargar informe de inoperatividades'}</button>{message&&<p role="status">{message}</p>}
-  </>}</section>;
+  </>;
+  return controlled?<div className="modal-backdrop"><section className="card export-modal inoperability-report-modal" role="dialog" aria-modal="true" aria-label="Informe de inoperatividades">{content}<button className="secondary full" onClick={close} style={{marginTop:12}}>Cerrar</button></section></div>:<section className="card"><button className="secondary" onClick={()=>setInternalOpen(!open)}>{open?'Cerrar inoperatividades':'Inoperatividades · Informe'}</button>{open&&content}</section>;
 }

@@ -22,3 +22,14 @@ test('la interfaz separa informe global de gestión; código secreto no en clien
  assert.match(sql,/REPORT_RPC_MISSING/);assert.match(sql,/extensions\.crypt/);
  assert.match(fs.readFileSync(new URL('../.gitignore',import.meta.url),'utf8'),/tmp\/admin-reports-viewer-credentials.sql/);
 });
+test('ambos botones juntos, inoperatividades destacado en rojo y formulario controlado sin ampliar permisos',()=>{
+ const source=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
+ const toolbar=source.slice(source.indexOf('<div className="admin-report-actions">'),source.indexOf('{!adminReportOnly && <button className="secondary" onClick={openConsumptionCorrection}'));
+ assert.match(toolbar,/Descargar informe/);assert.match(toolbar,/Informe de inoperatividades/);
+ assert.match(toolbar,/setInoperabilityReportOpen\(true\)/);
+ assert.match(source,/open=\{inoperabilityReportOpen\} onClose=/);
+ const css=fs.readFileSync(new URL('../src/admin-report-actions.css',import.meta.url),'utf8');
+ assert.match(css,/grid-template-columns:repeat\(2/);assert.match(css,/admin-report-inoperability\{background:#b91c1c;color:#fff/);
+ const report=fs.readFileSync(new URL('../src/UnitOperabilityReport.jsx',import.meta.url),'utf8');
+ assert.match(report,/if\(!canReadAdminReports\(access\)\)return null/);assert.match(report,/if\(controlled&&!open\)return null/);
+});
