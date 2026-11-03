@@ -27,6 +27,7 @@ try{
  create table svb_checklist_submissions(id integer);insert into svb_checklist_submissions values(99);`);
  const migration=fs.readFileSync(new URL('../sql/unit-operability-v1.sql',import.meta.url),'utf8');
  await db.exec(migration);await db.exec(migration);
+ const incidentMigration=fs.readFileSync(new URL('../sql/unit-operability-incident-reference-v2.sql',import.meta.url),'utf8');await db.exec(incidentMigration);await db.exec(incidentMigration);
  const seed=fs.readFileSync(new URL('../sql/unit-operability-fleet-lot5.sql',import.meta.url),'utf8');await db.exec(seed);await db.exec(seed);
  const actor=uid=>db.query("select set_config('test.uid',$1,false)",[uid]);
  const scalar=async(sql,args=[])=>Object.values((await db.query(sql,args)).rows[0])[0];
@@ -70,5 +71,12 @@ try{
  await db.query("insert into admin_access_sessions(user_id,role,zone)values($1,'reports_viewer',null)",[id(6)]);
  await actor(id(6));assert.equal((await scalar('select get_unit_inoperability_report($1,$2,$3,$4)',[lot,'Olot',new Date(Date.now()-86400000).toISOString(),new Date(Date.now()+86400000).toISOString()])).length,2);
  assert.equal(await scalar('select admin_can_access_zone($1)',['Olot']),false);
+ await actor(device);await close(id(14),id(16));
+ const startV2=reference=>scalar('select start_my_unit_inoperability_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[lot,'G450',id(50),'5438','material',true,'Prueba','Prueba',now,reference]);
+ await assert.rejects(startV2(''),/INCIDENT_ID_REQUIRED/);
+ await startV2('000123');await startV2('000123');await assert.rejects(startV2('000124'),/OPERABILITY_OPERATION_CONFLICT/);
+ assert.equal(await scalar('select external_incident_id from unit_operability_incidents where id=$1',[id(50)]),'000123');
+ assert.equal(await scalar('select question_version from unit_operability_incidents where id=$1',[id(50)]),2);
+ assert.equal(await scalar('select question_version from unit_operability_incidents where id=$1',[id(10)]),1);
  console.log('Unit operability DB: PASS · TSU-only, idempotence, snapshots, cache lookup, scope/RLS, actual reports-viewer migration, unchanged stock/checklists.');
 }finally{await db.close();}

@@ -8,7 +8,8 @@ export function inoperabilityReportRows(records) {
     'Tipo de inoperatividad':names[row.reason]||row.reason,'Indicativo CECOS / unidad':row.unit,
     'Indicativo vehículo':row.vehicle,'Matrícula vehículo':row.plate,
     'Descripción de la inoperatividad':row.description||'','Resolución':row.resolution||'',
-    'Asistiendo o trasladando a algún afectado':row.has_patient?'Sí':'No',
+    'Contexto de la pregunta':row.question_version>=2?'Activados, asistiendo o trasladando':'Asistiendo o trasladando',
+    'Respuesta':row.has_patient?'Sí':'No','ID del incidente':row.external_incident_id||'',
     'Justificación':row.justification||'',
     'Comunicación recibida':timestamp(row.received_at),'Recuperación recibida':timestamp(row.closed_received_at),
   }));

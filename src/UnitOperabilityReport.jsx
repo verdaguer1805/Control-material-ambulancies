@@ -27,7 +27,7 @@ export default function UnitOperabilityReport({access,lots,transport,open:contro
       const rows=inoperabilityReportRows([...new Map(records.map(row=>[row.id,row])).values()]);
       const XLSX=await import('xlsx-js-style');
       const sheet=XLSX.utils.json_to_sheet(rows),book=XLSX.utils.book_new();
-      sheet['!cols']=[12,16,23,23,38,25,20,20,48,48,28,48,23,23].map(wch=>({wch}));
+      sheet['!cols']=[12,16,23,23,38,25,20,20,48,48,38,12,24,48,23,23].map(wch=>({wch}));
       sheet['!autofilter']={ref:sheet['!ref']};
       for(const [key,cell] of Object.entries(sheet))if(!key.startsWith('!'))cell.s={alignment:{vertical:'top',wrapText:true},...(key.match(/\d+$/)?.[0]==='1'?{font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'006477'}}}:{})};
       XLSX.utils.book_append_sheet(book,sheet,'Inoperatividades');

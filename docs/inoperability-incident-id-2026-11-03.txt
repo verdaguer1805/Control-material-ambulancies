@@ -1,0 +1,27 @@
+Cambio aprobado · versión v256 · 2026-11-03
+
+Pregunta: «¿Se ha producido estando activados, asistiendo o trasladando a algún
+afectado?» Respuesta Sí muestra Número ID del incidente, obligatorio antes de
+confirmar. Respuesta No oculta el campo y descarta su valor. Después siguen el
+resto de campos del mismo formulario hasta Confirmar inoperatividad.
+
+Nuevas operaciones usan start_my_unit_inoperability_v2 y external_incident_id.
+Se conservan los ceros iniciales. Se exige ID no vacío con Sí; No almacena null.
+El servidor valida lo mismo y conserva scope, fechas, matrícula e idempotencia.
+Columna question_version permite distinguir registros antiguos (solo asistencia/
+traslado) de nuevos (incluye activación). No reinterpreta el histórico.
+Pendientes de clientes antiguos continúan usando el RPC anterior, sin bloqueo.
+Informe incluye contexto de pregunta, respuesta e ID del incidente.
+
+263 tests aprobados + PGlite aislado PASS (migración repetible, ID obligatorio,
+duplicados, ceros iniciales, conflicto si cambia ID y registros antiguos intactos).
+Build local compilado correcto. Vista aislada en puerto 5200, datos simulados.
+Mejora visual adicional: al confirmar con ID vacío, borde/fondo rojos, mensaje
+al lado del campo y foco/desplazamiento al ID. Se elimina al escribir un ID no
+vacío o elegir No. Comprobado en navegador: aria-invalid true y borde rojo;
+al introducir 000123 desaparece el error y aria-invalid vuelve a false.
+Captura tmp/incident-id-required-red.png. No requiere otro SQL adicional al v2.
+Usuario confirma Success. No rows returned para
+sql/unit-operability-incident-reference-v2.sql el 2026-11-03.
+Versión conjunta v256; 263 tests y PGlite repetidos correctamente y build de
+producción correcto. Actualizar guía PDF si se distribuye.

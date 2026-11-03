@@ -13,12 +13,15 @@ export function readOperability(storage, lot, unit) {
   try { const value=JSON.parse(storage.getItem(operabilityKey(lot,unit))||'null');return value?.lot===lot && value?.unit===unit ? value : null; } catch { return null; }
 }
 export function saveOperability(storage, value) { storage.setItem(operabilityKey(value.lot,value.unit),JSON.stringify(value)); }
-export function operabilityStart({lot,unit,vehicle,reason,hasPatient,description='',justification=''}, id, now=new Date()) {
+export function operabilityStart({lot,unit,vehicle,reason,hasPatient,incidentReference='',description='',justification=''}, id, now=new Date()) {
   if(!lot||!unit||!String(vehicle||'').trim())throw new Error('Selecciona el vehículo que lleva la unidad en este momento.');
   if(!INOPERABILITY_REASONS.some(([key])=>key===reason))throw new Error('Selecciona el motivo de inoperatividad.');
-  if(!['yes','no'].includes(hasPatient))throw new Error('Indica si se ha producido asistiendo o trasladando a algún afectado.');
+  if(!['yes','no'].includes(hasPatient))throw new Error('Indica si se ha producido estando activados, asistiendo o trasladando a algún afectado.');
+  const reference=hasPatient==='yes'?String(incidentReference).trim():'';
+  if(hasPatient==='yes'&&!reference)throw new Error('Introduce el número ID del incidente.');
+  if(reference.length>100||/[\u0000-\u001f\u007f]/.test(reference))throw new Error('Revisa el número ID del incidente (máximo 100 caracteres).');
   if(description.length>4000||justification.length>4000)throw new Error('Las observaciones no pueden superar los 4000 caracteres.');
-  return {type:'start',id,lot,unit,vehicle:String(vehicle).trim().toUpperCase(),reason,hasPatient:hasPatient==='yes',description:description.trim(),justification:justification.trim(),at:now.toISOString()};
+  return {type:'start',id,lot,unit,vehicle:String(vehicle).trim().toUpperCase(),reason,hasPatient:hasPatient==='yes',incidentReference:reference,description:description.trim(),justification:justification.trim(),at:now.toISOString()};
 }
 export function operabilityClose({lot,unit,incidentId,resolution=''},id,now=new Date()) {
   if(!incidentId)throw new Error('No hay una inoperatividad confirmada para cerrar.');
@@ -27,7 +30,11 @@ export function operabilityClose({lot,unit,incidentId,resolution=''},id,now=new 
 }
 export function operabilityRequest(operation) {
   const scope={p_expected_lot:operation.lot,p_expected_unit:operation.unit};
-  if(operation.type==='start')return ['start_my_unit_inoperability',{...scope,p_id:operation.id,p_vehicle:operation.vehicle,p_reason:operation.reason,p_has_patient:operation.hasPatient,p_description:operation.description,p_justification:operation.justification,p_started_at:operation.at}];
+  if(operation.type==='start'){
+    const args={...scope,p_id:operation.id,p_vehicle:operation.vehicle,p_reason:operation.reason,p_has_patient:operation.hasPatient,p_description:operation.description,p_justification:operation.justification,p_started_at:operation.at};
+    // Queued records from older clients keep their original API and meaning.
+    return Object.hasOwn(operation,'incidentReference')?['start_my_unit_inoperability_v2',{...args,p_external_incident_id:operation.incidentReference}]:['start_my_unit_inoperability',args];
+  }
   if(operation.type==='close')return ['close_my_unit_inoperability',{...scope,p_id:operation.incidentId,p_operation_id:operation.id,p_resolution:operation.resolution,p_ended_at:operation.at}];
   throw new Error('Operación de inoperatividad no válida.');
 }

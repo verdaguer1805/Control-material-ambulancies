@@ -7,7 +7,7 @@ import {INOPERABILITY_REASONS,readOperability,saveOperability,operabilityStart,o
 import {readCachedVehicle,cacheConfirmedVehicle} from './unit-vehicle-cache.mjs';
 import './unit-operability.css';
 
-const emptyForm=()=>({vehicle:'',reason:'',hasPatient:'',description:'',justification:'',resolution:''});
+const emptyForm=()=>({vehicle:'',reason:'',hasPatient:'',incidentReference:'',description:'',justification:'',resolution:''});
 function projectedIncident(record) {
   let active=record.confirmed?.active||null;
   for(const operation of record.pending||[])active=operation.type==='start'?{id:operation.id,lot:operation.lot,unit:operation.unit,vehicle:operation.vehicle,started_at:operation.at}:null;
@@ -16,8 +16,9 @@ function projectedIncident(record) {
 export default function UnitOperability({lot,unit,authorized,service,initialVehicle='',transport,storage=localStorage}) {
   const [record,setRecord]=useState(()=>readOperability(storage,lot,unit)||{lot,unit,confirmed:null,pending:[]});
   const current=useRef(record),lock=useRef(false),sequence=useRef(0);
-  const modalRef=useRef(null),vehicleLookup=useRef(0);
+  const modalRef=useRef(null),vehicleLookup=useRef(0),incidentInputRef=useRef(null);
   const [verified,setVerified]=useState(false),[busy,setBusy]=useState(false),[dialog,setDialog]=useState(''),[form,setForm]=useState(emptyForm),[message,setMessage]=useState(''),[vehicleNote,setVehicleNote]=useState('');
+  const [incidentError,setIncidentError]=useState('');
   const pending=record.pending||[],active=projectedIncident(record);
   function commit(next){saveOperability(storage,next);current.current=next;setRecord(next);}
   async function rpc(name,args) {
@@ -73,7 +74,7 @@ export default function UnitOperability({lot,unit,authorized,service,initialVehi
     return()=>{sequence.current++;clearInterval(timer);window.removeEventListener('online',refresh);window.removeEventListener('offline',offline);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',visible);};
   },[lot,unit,authorized,initialVehicle]);
   useEffect(()=>{if(dialog&&modalRef.current){modalRef.current.showModal();return()=>modalRef.current?.close();}},[dialog]);
-  function openAction(){if(busy)return;setMessage('');setDialog(active?'confirm-end':'confirm-start');}
+  function openAction(){if(busy)return;setMessage('');setIncidentError('');setDialog(active?'confirm-end':'confirm-start');}
   function beginForm(){
     const vehicle=initialVehicle||readSvbVehicleAssignment(storage,unit)||(service==='TSNU'?unit:'');
     setForm({...emptyForm(),vehicle});setVehicleNote('');setDialog('start');
@@ -82,6 +83,13 @@ export default function UnitOperability({lot,unit,authorized,service,initialVehi
   async function verifyVehicle(vehicle){const request=++vehicleLookup.current,cached=await lookupVehicle(vehicle);if(request===vehicleLookup.current)setVehicleNote(cached?'Datos del vehículo guardados en este móvil.':'Datos del vehículo pendientes de verificar. La comunicación se puede guardar sin conexión.');}
   async function saveAction(){
     if(lock.current)return;
+    if(dialog==='start'&&form.hasPatient==='yes'&&!form.incidentReference.trim()){
+      setIncidentError('Falta completar el número ID del incidente.');
+      setMessage('Introduce el número ID del incidente.');
+      incidentInputRef.current?.focus({preventScroll:true});
+      incidentInputRef.current?.scrollIntoView({block:'center',behavior:'smooth'});
+      return;
+    }
     try{
       const operation=dialog==='start'
         ?operabilityStart({lot,unit,...form},newOperationId())
@@ -112,7 +120,8 @@ export default function UnitOperability({lot,unit,authorized,service,initialVehi
             <datalist id={`operability-vehicles-${unit}`}>{vehicles.map(row=><option key={row.vehicle} value={row.vehicle}/>)}</datalist>
             <small>{vehicleNote}</small>
             <label>Motivo<select value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})}><option value="">Selecciona...</option>{INOPERABILITY_REASONS.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
-            <label>¿Se ha producido asistiendo o trasladando a algún afectado?<select value={form.hasPatient} onChange={e=>setForm({...form,hasPatient:e.target.value})}><option value="">Selecciona...</option><option value="yes">Sí</option><option value="no">No</option></select></label>
+            <label>¿Se ha producido estando activados, asistiendo o trasladando a algún afectado?<select value={form.hasPatient} onChange={e=>{setForm({...form,hasPatient:e.target.value,incidentReference:e.target.value==='yes'?form.incidentReference:''});setIncidentError('');setMessage('');}}><option value="">Selecciona...</option><option value="yes">Sí</option><option value="no">No</option></select></label>
+            {form.hasPatient==='yes'&&<label>Número ID del incidente<input ref={incidentInputRef} required maxLength={100} className={incidentError?'operability-input-invalid':''} aria-invalid={Boolean(incidentError)} aria-describedby={incidentError?'operability-incident-error':undefined} value={form.incidentReference} onChange={e=>{setForm({...form,incidentReference:e.target.value});if(e.target.value.trim()){setIncidentError('');if(incidentError)setMessage('');}}} placeholder="Introduce el ID del incidente" autoComplete="off"/>{incidentError&&<span id="operability-incident-error" className="operability-field-error" role="alert">{incidentError}</span>}</label>}
             <label>Descripción de la inoperatividad<textarea maxLength={4000} value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label>
             <label>Observaciones justificativas<textarea maxLength={4000} value={form.justification} onChange={e=>setForm({...form,justification:e.target.value})}/></label>
           </>:<label>Resolución y observaciones de recuperación<textarea maxLength={4000} value={form.resolution} onChange={e=>setForm({...form,resolution:e.target.value})}/></label>}

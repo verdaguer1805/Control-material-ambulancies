@@ -19,11 +19,11 @@ function Preview(){
   if(name==='get_my_unit_operability')return state(args.p_expected_unit);
   if(name==='get_my_operability_vehicle'){const row=VEHICLE_REGISTRY.find(row=>row.vehicle===args.p_vehicle);if(!row)throw new Error('VEHICLE_NOT_REGISTERED');return{verified:true,lot,vehicle:row.vehicle,plate:row.plate};}
   let rows=read();
-  if(name==='start_my_unit_inoperability'){
+  if(name==='start_my_unit_inoperability'||name==='start_my_unit_inoperability_v2'){
    if(rows.some(row=>row.id===args.p_id))return state(args.p_expected_unit);
    if(rows.some(row=>row.unit===args.p_expected_unit&&!row.ended_at))throw new Error('UNIT_ALREADY_INOPERATIVE');
    const vehicle=VEHICLE_REGISTRY.find(row=>row.vehicle===args.p_vehicle);if(!vehicle)throw new Error('VEHICLE_NOT_REGISTERED');
-   rows.push({id:args.p_id,lot,zone:profiles.find(row=>row.unit===args.p_expected_unit).zone,unit:args.p_expected_unit,vehicle:vehicle.vehicle,plate:vehicle.plate,reason:args.p_reason,has_patient:args.p_has_patient,description:args.p_description,justification:args.p_justification,started_at:args.p_started_at,received_at:new Date().toISOString(),ended_at:null});
+   rows.push({id:args.p_id,lot,zone:profiles.find(row=>row.unit===args.p_expected_unit).zone,unit:args.p_expected_unit,vehicle:vehicle.vehicle,plate:vehicle.plate,reason:args.p_reason,has_patient:args.p_has_patient,question_version:name.endsWith('_v2')?2:1,external_incident_id:args.p_has_patient?args.p_external_incident_id||null:null,description:args.p_description,justification:args.p_justification,started_at:args.p_started_at,received_at:new Date().toISOString(),ended_at:null});
   }else if(name==='close_my_unit_inoperability'){
    rows=rows.map(row=>row.id===args.p_id?{...row,ended_at:args.p_ended_at,resolution:args.p_resolution,closed_received_at:new Date().toISOString()}:row);
   }else throw new Error('Unknown demo operation');
