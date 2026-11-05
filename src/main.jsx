@@ -1291,7 +1291,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v256", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v257", window.location.href).href);
   }
   async function loadSystemStatus() {
     setSystemStatusOpen(true);
@@ -3506,21 +3506,13 @@ function App() {
         const minimum = Number(stockMinimums[STOCK_DEMO_CENTRAL]?.[material] || 0);
         const pending = Number(stockPendingReplenishment[STOCK_DEMO_CENTRAL]?.[material] || 0);
         const supplyType = stockMaterialTypes[material] || "standard";
-        const outgoing = subwarehouseGroups.reduce(
-          (total, group) => total + (group.items.find((item) => item.material === material)?.replenish || 0),
-          0,
-        );
-        const target = minimum;
-        // El almacén central se repone únicamente según su mínimo propio.
-        // Los pendientes de material supervisor pertenecen al subalmacén
-        // que debe recibirlo y no deben convertirse en una compra del central.
+        // Solo stock actual: una salida futura no es una salida registrada.
+        // Las necesidades de los subalmacenes se muestran por separado.
         const replenish = minimum > 0
-          ? Math.max(0, target + (supplyType === "standard" ? outgoing : 0) - quantity)
+          ? Math.max(0, minimum - quantity)
           : 0;
-        const urgent = minimum > 0 && (
-          supplyType === "standard" ? quantity - outgoing < minimum : quantity < minimum
-        );
-        return { material, quantity, minimum, pending, outgoing, supplyType, urgent, replenish };
+        const urgent = minimum > 0 && quantity < minimum;
+        return { material, quantity, minimum, pending, supplyType, urgent, replenish };
       }).filter((item) => item.replenish > 0);
       return [{ location: STOCK_DEMO_CENTRAL, items: centralItems }, ...subwarehouseGroups];
     })(),
@@ -3532,7 +3524,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v256</span></h1>
+          <h1>Control de material <span className="app-version">v257</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5385,13 +5377,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v256" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v257" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=256", {
+    navigator.serviceWorker.register("./sw.js?v=257", {
       updateViaCache: "none",
     }),
   );
