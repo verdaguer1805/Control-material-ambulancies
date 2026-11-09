@@ -15,6 +15,12 @@ export function rememberOfflineAuditor(storage,profile){
 export function auditorConnectionFailure(error){
  return /AUDITOR_OFFLINE|AUDITOR_REQUEST_TIMEOUT|Failed to fetch|fetch failed|NetworkError|Load failed|network request failed|LOCAL_SIMULATED_CONNECTION_FAILURE|AbortError/i.test(String(error?.message||error||''));
 }
+export function auditorSessionFailure(error){
+ return /LOCAL_AUTH_SESSION_MISSING|AuthSessionMissingError|AuthRetryableFetchError|AuthInvalidTokenResponseError|refresh.?token|JWT.*expired|expired.*JWT|session.*expired/i.test(String(error?.message||error||''));
+}
+export function auditorAccessDenied(error){
+ return /AUDITOR_NOT_AUTHORIZED|AUDITOR_ASSIGNMENT_CHANGED|AUDITOR_WAREHOUSE_MISMATCH|permission denied/i.test(String(error?.message||error||''));
+}
 export function requireAuditScope(draft,profile){
  if(draft.lot!==profile.lot||draft.zone!==profile.zone||draft.supervisor!==`Auditor · ${profile.zone} · ${profile.full_name}`||
   (draft.auditorUserId&&draft.auditorUserId!==profile.user_id)||(draft.profileRevision&&draft.profileRevision!==profile.revision)||(draft.warehouseId&&draft.warehouseId!==profile.warehouse_id))throw new Error('AUDITOR_ASSIGNMENT_CHANGED');

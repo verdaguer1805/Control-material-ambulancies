@@ -73,6 +73,22 @@ test('no recovery secret is written before server authorization is remembered', 
   } finally { globalThis.indexedDB=previous; }
 });
 
+test('auditor reopening persists rotated recovery credentials and survives another reopen',async()=>{
+ const previous=globalThis.indexedDB;globalThis.indexedDB=fakeIndexedDb();
+ try{
+  const s=storage('Auditor · Other zone · Example Person','Other lot');
+  const original={user:{id:'same-device'},access_token:'old-access',refresh_token:'old-refresh'};
+  const rotated={user:{id:'same-device'},access_token:'new-access',refresh_token:'new-refresh'};
+  await rememberRecoverySession(original,s);
+  await recoverAuthorizedSession({setSession:async tokens=>{
+   assert.equal(tokens.refresh_token,'old-refresh');return {data:{session:rotated},error:null};
+  }},s);
+  await recoverAuthorizedSession({setSession:async tokens=>{
+   assert.equal(tokens.refresh_token,'new-refresh');return {data:{session:rotated},error:null};
+  }},s);
+ }finally{globalThis.indexedDB=previous;}
+});
+
 test('unavailable browser storage cannot fabricate an authorization', async () => {
   const previous=globalThis.indexedDB;
   globalThis.indexedDB=undefined;

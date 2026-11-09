@@ -1,0 +1,25 @@
+Auditor reopening correction · 2026-11-09 · v258 release approved by user
+
+Reproduced: ensureAnonymousSession returned a different identity after original
+identity recovery failed. A null auditor profile could then open fresh setup.
+Normal auditor authorization has no scheduled hours/days expiry in named-auditors-v1.sql.
+This reproduces a defect, not a verified diagnosis of the three specific phones.
+
+Fixes:
+- Wrong existing identity never used for ordinary protected requests if recovery fails.
+- Recovery writes rotated refresh credentials back to the scoped recovery copy.
+- Confirmed auditor verification refreshes the existing recovery copy.
+- Session/connection failure preserves the confirmed local profile and drafts;
+  local review follows existing offline rules, uploads remain blocked pending verification.
+- Missing profile on reopening is not automatically treated as fresh setup.
+- Wrong returned profile identity is rejected before replacing the displayed profile.
+- Actual inactive/revoked profile and assignment denial still block review and submission.
+- Explicit authorized setup establishes the new expected profile before verification.
+
+No SQL, real device grants, stock, consumption or submitted audit changes.
+270 automated tests; isolated named-auditors DB test passes including revocation,
+warehouse/lot binding, independent phones and exact-once withdrawals.
+Production builds dist-auditor-session-check and dist-v258-check pass.
+All 270 tests repeated after the synchronized v258 version bump.
+Permanent loss of browser credentials/storage cannot be magically recovered;
+never mint a replacement auditor or bypass owner revocation to hide that condition.

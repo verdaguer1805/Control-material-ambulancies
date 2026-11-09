@@ -63,6 +63,9 @@ export async function recoverAuthorizedSession(auth, storage = localStorage) {
     refresh_token: record.refreshToken,
   });
   if (error || data?.session?.user?.id !== identity.userId) return null;
+  // setSession may rotate the refresh token on reopening an expired session.
+  // Keep the recovery copy current even when the auth event is SIGNED_IN.
+  await rememberRecoverySession(data.session, storage).catch(() => {});
   return data.session;
 }
 

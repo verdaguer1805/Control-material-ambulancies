@@ -8,7 +8,7 @@ import {rememberAuthorizedIdentity} from './auth-session-diagnostic.mjs';
 import {rememberRecoverySession,forgetRecoverySession} from './device-session-recovery.mjs';
 import {AUDITOR_MODE_KEY,AUDITOR_WORK_KEY,confirmedAuditorProfile,auditorError,mapServerAuditorDraft,sameAuditorMaterials,auditorNeedsSetup,clearAuditorLocalProfile} from './auditor-client.mjs';
 import './auditor-portal.css';
-import {AUDITOR_OFFLINE_KEY,readOfflineAuditor,rememberOfflineAuditor,auditorConnectionFailure,requireAuditScope} from './auditor-offline.mjs';
+import {AUDITOR_OFFLINE_KEY,readOfflineAuditor,rememberOfflineAuditor,auditorConnectionFailure,auditorSessionFailure,auditorAccessDenied,requireAuditScope} from './auditor-offline.mjs';
 
 async function productionCall(name,args={}){
  if(navigator.onLine===false)throw new Error('AUDITOR_OFFLINE');
@@ -31,7 +31,7 @@ function AuditorNotice({message,busy,onClose}){
   {!busy&&<button type="button" className="primary full" autoFocus onClick={onClose}>Aceptar</button>}
  </dialog>;
 }
-export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v257'}){
+export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v258'}){
  const call=rpc;
  const [cachedProfile]=useState(()=>readOfflineAuditor(localStorage));
  const [canReview,setCanReview]=useState(!!cachedProfile),[connectionNote,setConnectionNote]=useState(cachedProfile?'Revisión local disponible. Comprobando conexión para el envío...':'');
@@ -43,9 +43,10 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
  function verificationFailure(error){
   lastVerifyError.current=error;
   setVerified(false);
-  if(auditorConnectionFailure(error)&&readOfflineAuditor(localStorage)){
+  if((auditorConnectionFailure(error)||auditorSessionFailure(error))&&readOfflineAuditor(localStorage)){
    setCanReview(true);setConnectionNote('Sin conexión confirmada. Puedes seguir revisando; las marcas se guardan en este móvil. La auditoría no se enviará sin confirmación.');
-  }else{setCanReview(false);localStorage.removeItem(AUDITOR_OFFLINE_KEY);setNotice(auditorError(error));}
+   if(auditorSessionFailure(error))setConnectionNote('No se ha podido recuperar la sesión de este auditor. El perfil y los trabajos siguen guardados. Pulsa Volver a verificar; el envío requiere confirmar de nuevo la sesión y los permisos.');
+  }else{setCanReview(false);if(auditorAccessDenied(error))localStorage.removeItem(AUDITOR_OFFLINE_KEY);setNotice(auditorError(error));}
  }
  useEffect(()=>{setupMode.current=setup;},[setup]);
  async function verify(){
@@ -53,7 +54,12 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
   const run=++verifyRun.current;setVerified(false);lastVerifyError.current=null;
   try{
    const raw=await call('get_my_auditor_profile');if(run!==verifyRun.current)return;
-   const p=confirmedAuditorProfile(raw);setProfile(raw);
+   const p=confirmedAuditorProfile(raw);
+   // A missing profile after reopening is not proof of owner revocation.
+   // Keep the existing identity instead of prompting a fresh authorization.
+   if(!raw&&(profileNow.current||readOfflineAuditor(localStorage)))throw new Error('AUDITOR_PROFILE_NOT_FOUND');
+   if(p&&profileNow.current&&p.user_id!==profileNow.current.user_id)throw new Error('LOCAL_AUTH_SESSION_MISSING');
+   setProfile(raw);
    if(auditorNeedsSetup(raw)){
     lastVerifyError.current=new Error('AUDITOR_NOT_AUTHORIZED');
     setCanReview(false);localStorage.removeItem(AUDITOR_OFFLINE_KEY);profileNow.current=null;
@@ -67,6 +73,7 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
    // Server-confirmed profile can authorize local editing, not an upload.
    if(simulation){localStorage.setItem('cma_mobile_role_v1','auditor');localStorage.setItem('cma_unit',`Auditor · ${p.zone} · ${p.full_name}`);localStorage.setItem('cma_lot',p.lot);rememberAuthorizedIdentity(localStorage,p.user_id);}
    rememberOfflineAuditor(localStorage,p);setCanReview(true);
+   if(!simulation)void supabase.auth.getSession().then(({data})=>data.session&&rememberRecoverySession(data.session,localStorage)).catch(()=>{});
    const [remoteDrafts,remoteWork,names]=await Promise.all([call('get_my_auditor_pending_audits'),call('get_my_auditor_materials'),call('get_my_auditor_material_options')]);
    if(run!==verifyRun.current)return;
    setPending(remoteDrafts||[]);setMaterialNames(names||[]);
@@ -110,7 +117,7 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
    localStorage.removeItem(AUDITOR_WORK_KEY);localStorage.removeItem('cma_device_authorization_v1');localStorage.removeItem('cma_svb_checklist_context_v1');localStorage.removeItem('cma_tsnu_active_shift_v1');
    localStorage.setItem('cma_unit',`Auditor · ${confirmed.zone} · ${confirmed.full_name}`);localStorage.setItem('cma_lot',confirmed.lot);
    if(!simulation){rememberAuthorizedIdentity(localStorage,confirmed.user_id);void supabase.auth.getSession().then(({data})=>data.session&&rememberRecoverySession(data.session,localStorage)).catch(()=>{});}
-   localStorage.setItem(AUDITOR_MODE_KEY,'auditor');setProfile(confirmed);setupMode.current=false;setSetup(false);setCode('');
+   localStorage.setItem(AUDITOR_MODE_KEY,'auditor');profileNow.current=confirmed;setProfile(confirmed);setupMode.current=false;setSetup(false);setCode('');
    if(await verify())setNotice(simulation?'Simulación completada. Asignación ficticia validada; no se han enviado datos reales.':'Asignación y almacén confirmados por el servidor.');
   }catch(error){if(String(error.message).includes('UNIT_SHIFT_MUST_BE_CLOSED'))setCloseUnitRequired(true);setNotice(auditorError(error));}finally{setBusy(false);}
  }

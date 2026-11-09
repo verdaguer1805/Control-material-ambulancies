@@ -85,6 +85,11 @@ test('existing authorized device waits for explicit activation before creating a
   assert.equal(readAuthDiagnostic(knownStorage).reason,'identity_changed');
   assert.equal(signIns,1);
 
+  env.recoverPreviousIdentity = async () => null;
+  await assert.rejects(ensure(), {code:'LOCAL_AUTH_SESSION_MISSING'});
+  assert.equal(signIns,1,'wrong session must not become a new auditor');
+  env.recoverPreviousIdentity = async () => ({user:{id:'original-user'}});
+
   env.localStorage = storage();
   env.supabase.auth.getSession = async () => ({data:{session:null},error:null});
   await ensure();

@@ -49,6 +49,12 @@ export async function ensureAnonymousSession({ allowNewIdentity = false } = {}) 
       recordAuthDiagnostic(localStorage, "identity_changed");
       const recovered = await recoverPreviousIdentity();
       if (recovered) return recovered;
+      // Never query an auditor/unit profile under a different user's session.
+      if (!allowNewIdentity) {
+        const error = new Error("LOCAL_AUTH_SESSION_MISSING");
+        error.code = "LOCAL_AUTH_SESSION_MISSING";
+        throw error;
+      }
     }
     return session;
   }

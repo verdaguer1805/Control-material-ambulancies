@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {AUDITOR_OFFLINE_KEY,readOfflineAuditor,rememberOfflineAuditor,auditorConnectionFailure,requireAuditScope,newestPendingAudit} from '../src/auditor-offline.mjs';
+import {AUDITOR_OFFLINE_KEY,readOfflineAuditor,rememberOfflineAuditor,auditorConnectionFailure,auditorSessionFailure,auditorAccessDenied,requireAuditScope,newestPendingAudit} from '../src/auditor-offline.mjs';
 import {clearAuditorLocalProfile} from '../src/auditor-client.mjs';
 import {saveAudit,readAudits,auditItems} from '../src/vehicle-audit.mjs';
 const p={user_id:'user-a',full_name:'Persona Prueba',lot:'Other lot',zone:'Other zone',warehouse_id:'other-central',warehouse_name:'Central',revision:2,active:true,verified:true};
@@ -40,4 +40,19 @@ test('only the named auditor path uses local-review permission; submission fresh
  assert.match(audit,/sendRequestedAt:draft.sendRequestedAt\|\|new Date/);
  assert.match(audit,/Auditoría pendiente de enviar/);
  assert.match(audit,/sendAuthorized=authorized/);
+});
+
+test('session recovery failures are not revocations; explicit access denial still blocks local review',()=>{
+ for(const error of ['LOCAL_AUTH_SESSION_MISSING','AuthSessionMissingError','Invalid Refresh Token','JWT expired']){
+  assert.equal(auditorSessionFailure(new Error(error)),true);
+  assert.equal(auditorAccessDenied(new Error(error)),false);
+ }
+ for(const error of ['AUDITOR_NOT_AUTHORIZED','AUDITOR_ASSIGNMENT_CHANGED','AUDITOR_WAREHOUSE_MISMATCH','permission denied']){
+  assert.equal(auditorSessionFailure(new Error(error)),false);
+  assert.equal(auditorAccessDenied(new Error(error)),true);
+ }
+ const source=fs.readFileSync(new URL('../src/AuditorPortal.jsx',import.meta.url),'utf8');
+ assert.match(source,/if\(auditorAccessDenied\(error\)\)localStorage.removeItem\(AUDITOR_OFFLINE_KEY\)/);
+ assert.match(source,/if\(!raw&&\(profileNow.current\|\|readOfflineAuditor\(localStorage\)\)\)throw new Error\('AUDITOR_PROFILE_NOT_FOUND'\)/);
+ assert.match(source,/p.user_id!==profileNow.current.user_id\)throw new Error\('LOCAL_AUTH_SESSION_MISSING'\)/);
 });
