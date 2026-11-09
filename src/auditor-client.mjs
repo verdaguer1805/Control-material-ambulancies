@@ -1,6 +1,11 @@
 import {madridDateTime} from './report-datetime.mjs';
 export const AUDITOR_MODE_KEY='cma_mobile_role_v1';
 export const AUDITOR_WORK_KEY='cma_auditor_material_draft_v1';
+export function auditorRegistrationLabel(value){
+ if(!value)return 'Sin fecha registrada';
+ const {date,time}=madridDateTime(value);
+ return date?`${date.split('-').reverse().join('/')} ${time}`:'Sin fecha registrada';
+}
 export const auditorNeedsSetup=value=>!value||value.active!==true;
 export function clearAuditorLocalProfile(storage){
  storage.removeItem(AUDITOR_MODE_KEY);storage.removeItem(AUDITOR_WORK_KEY);storage.removeItem('cma_auditor_verified_profile_v1');
