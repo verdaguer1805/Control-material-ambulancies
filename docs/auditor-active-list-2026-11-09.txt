@@ -1,0 +1,18 @@
+v260 · Active auditor phones only, per final user clarification 2026-11-09.
+
+Admin hides revoked rows from list_mobile_auditors. Every active user_id remains
+visible in its existing authorized scope. Two different phones with the same
+full name are explicitly permitted, including different zones, warehouses or lots.
+No SQL installation, device authorization writes, grouping by name, uniqueness
+constraint, token change or submitted audit/consumption changes in this release.
+The earlier proposed one-active-phone-per-person migration was NEVER installed
+and is canceled. Do not run sql/named-auditors-single-active-v1.sql.
+
+Owner-executed cleanup is separate from this release: six explicitly reviewed old
+grants were revoked and two approved test drafts discarded. The user supplied the
+remaining active list: Jordi 64398c26, Juan 3ec47386, Marc 7ad32c01 and logistics
+Figueres f3c8fe0f. This release does not change any of these active permissions.
+
+273 tests pass, including executing the actual frontend filter on fixtures with
+two active phones sharing the same name across different lots/zones, keeping both.
+Production compilation dist-v260-check passes.
