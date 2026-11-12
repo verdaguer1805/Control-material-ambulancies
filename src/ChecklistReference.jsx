@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ChecklistReferenceMap from './ChecklistReferenceMap.jsx';
+import BpChecklistReferenceMap from './BpChecklistReferenceMap.jsx';
 import {downloadChecklistReference} from './checklist-reference-export.mjs';
 import { CHECKLIST_REFERENCE_TYPES, canReadChecklistReference, checklistReferenceSections, filterChecklistReference } from './checklist-reference.mjs';
 
@@ -35,7 +36,7 @@ export default function ChecklistReference({ access, compact=false }) {
       {sections.length>0&&<button type="button" className="secondary" disabled={exporting} onClick={download}>{exporting?'Preparando Excel…':`Descargar checklist ${type} en Excel`}</button>}
       {exportError&&<p role="alert">{exportError}</p>}
       {!type?<p>Elige el tipo de checklist que quieres consultar.</p>:type==='SVB'?<ChecklistReferenceMap/>:['Polivalente','Logística'].includes(type)?<p role="status">Pendiente de definir. No hay una plantilla disponible todavía.</p>:<>
-      {type==='BP'&&<p>Plantilla BP en preparación · Fotografías pendientes. Solo consulta; no activa un checklist operativo.</p>}
+      {type==='BP'&&<><BpChecklistReferenceMap/><h4>Lista completa de referencia BP</h4></>}
       {areas.length > 0 && <label>Zona del vehículo
         <select value={area} onChange={event => setArea(event.target.value)}>
           <option value="">Todas las zonas</option>
