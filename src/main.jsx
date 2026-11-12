@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import {isReportsOnlyAccess,canReadAllReportZones,adminAccessLabel} from './admin-report-access.mjs';
+import {isReportsOnlyAccess,canReadAllReportZones,adminAccessLabel,canCorrectConsumption,canReadSystemStatus,canReadInoperability} from './admin-report-access.mjs';
 import {canUnitDeclareInoperability} from './unit-operability.mjs';
 import { stockEntryQuantity } from "./stock-entry-quantity.mjs";
 import { reportUnitVisible, filterReportUnits } from "./report-unit-visibility.mjs";
@@ -31,6 +31,7 @@ import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./repo
 import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, withMissingChecklists, vehicleAuditReport } from "./checklist-report-format.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
+const ChecklistReference = React.lazy(() => import("./ChecklistReference.jsx"));
 import { tsnuReportedItemLabel } from './tsnu-checklist-catalog.mjs';
 const VehicleAudit = React.lazy(() => import("./VehicleAudit.jsx"));
 import { createRoot } from "react-dom/client";
@@ -1291,9 +1292,10 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v260", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v261", window.location.href).href);
   }
   async function loadSystemStatus() {
+    if(!canReadSystemStatus(adminAccess))return;
     setSystemStatusOpen(true);
     setSystemStatusLoading(true);
     setSystemStatus(null);
@@ -2019,7 +2021,7 @@ function App() {
       while (true) {
         let query = supabase
           .from("stock_movements")
-          .select("id,warehouse_id,material,delta,movement_type,created_at,operation_id,performed_role,performed_zone,previous_quantity,new_quantity")
+          .select("id,warehouse_id,material,delta,movement_type,created_at,operation_id,performed_role,performed_zone,performed_name,previous_quantity,new_quantity")
           .in("movement_type", ["central_receipt", "transfer_in", "inventory_adjustment"])
           .in("warehouse_id", stockScope.warehouseIds)
           .gte("created_at", `${stockHistoryFrom}T00:00:00.000Z`)
@@ -2064,13 +2066,13 @@ function App() {
             ? locationName(row.warehouse_id)
             : STOCK_DEMO_CENTRAL,
         Destino: locationName(row.warehouse_id),
-        "Realizado por": row.performed_role === "owner"
+        "Realizado por": row.performed_name || (row.performed_role === "owner"
           ? "Propietario"
           : row.performed_role === "logistics"
             ? "Logística"
             : row.performed_role === "supervisor"
               ? `Supervisión ${row.performed_zone || ""}`
-              : "No registrado",
+              : "No registrado"),
         Material: materialLabel(row.material),
         Cantidad: row.movement_type === "inventory_adjustment" ? "" : Math.abs(Number(row.delta || 0)),
         "Cantidad anterior": row.movement_type === "inventory_adjustment" ? Number(row.previous_quantity) : "",
@@ -3524,7 +3526,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v260</span></h1>
+          <h1>Control de material <span className="app-version">v261</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3965,7 +3967,7 @@ function App() {
             </div>
           </div>
         )}
-        {correctionOpen && !adminReportOnly && (
+        {correctionOpen && canCorrectConsumption(adminAccess) && (
           <div className="modal-backdrop">
             <div className="card export-modal consumption-correction-modal">
               <h2>Corregir un consumo</h2>
@@ -4132,7 +4134,7 @@ function App() {
             </div>
           </div>
         )}
-        {systemStatusOpen && (
+        {systemStatusOpen && canReadSystemStatus(adminAccess) && (
           <div className="modal-backdrop">
             <div className="card export-modal system-status-modal" role="dialog" aria-modal="true" aria-labelledby="system-status-title" onKeyDown={(event) => { if (event.key === "Escape") setSystemStatusOpen(false); }}>
               <div className="system-status-header">
@@ -4772,6 +4774,7 @@ function App() {
         {mode === "admin" && adminOk && (
           <>
             <React.Suspense fallback={null}><AuditorManager access={adminAccess}/></React.Suspense>
+            {!adminReportOnly && <React.Suspense fallback={null}><ChecklistReference access={adminAccess}/></React.Suspense>}
             <React.Suspense fallback={null}><UnitOperabilityReport access={adminAccess} lots={LOTS} open={inoperabilityReportOpen} onClose={()=>setInoperabilityReportOpen(false)}/></React.Suspense>
             <div className="card">
               <h2>Panel de administración</h2>
@@ -4791,17 +4794,17 @@ function App() {
                 >
                   Descargar informe
                 </button>
-                <button className="admin-report-inoperability" onClick={()=>setInoperabilityReportOpen(true)}>
+                {canReadInoperability(adminAccess) && <button className="admin-report-inoperability" onClick={()=>setInoperabilityReportOpen(true)}>
                   Informe de inoperatividades
-                </button>
+                </button>}
                 </div>
-                {!adminReportOnly && <button className="secondary" onClick={openConsumptionCorrection}>
+                {canCorrectConsumption(adminAccess) && <button className="secondary" onClick={openConsumptionCorrection}>
                   Corregir consumo
                 </button>}
                 {adminCanManageCodes && (
                   <button className="secondary" onClick={changePin}>Cambiar PIN de unidades</button>
                 )}
-                {adminCanAccessAllZones && (
+                {canReadSystemStatus(adminAccess) && (
                   <button className="secondary" onClick={loadSystemStatus}>Estado del sistema</button>
                 )}
                 {adminCanManageCodes && (
@@ -5377,13 +5380,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v260" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v261" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=260", {
+    navigator.serviceWorker.register("./sw.js?v=261", {
       updateViaCache: "none",
     }),
   );

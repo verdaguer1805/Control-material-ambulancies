@@ -9,6 +9,12 @@ export const AUDIT_TYPES = ['TSNU', 'SVB', 'Polivalente', 'Logística'];
 export const AUDIT_STORAGE_KEY = 'cma_supervisor_vehicle_audits_v1';
 export const normalizeAuditVehicle = value => String(value || '').trim().toUpperCase();
 export const validAuditVehicle = value => /^[A-Z0-9][A-Z0-9-]{2,19}$/.test(normalizeAuditVehicle(value));
+export const validTsnuAuditVehicle = value => /^(?:KE|K|T)[0-9]+$/.test(normalizeAuditVehicle(value)) && validAuditVehicle(value);
+export function auditStartError(type, vehicle) {
+  if (type === 'TSNU' && !validTsnuAuditVehicle(vehicle)) return 'Introduce el indicativo completo, empezando por T, K o KE y seguido de números. Por ejemplo: T1733, K1376 o KE1384.';
+  if (!validAuditVehicle(vehicle)) return 'Introduce el identificador del vehículo, por ejemplo T1733 o 5438.';
+  return '';
+}
 export const isAuditSupervisor = value => /^Material supervisor\s*·\s*\S/i.test(value || '') || /^SUPERVISOR_\S/i.test(value || '');
 export function auditGroups(type, vehicle='') {
   if (type === 'TSNU') return tsnuChecklistGroups(vehicle).map(([title, items], index) => ({id:`tsnu-${index}`, title, items:items.map(tsnuChecklistItemLabel)}));

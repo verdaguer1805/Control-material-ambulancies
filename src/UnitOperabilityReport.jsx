@@ -3,12 +3,12 @@ import {supabase,ensureAnonymousSession} from './supabase.js';
 import {saveAs} from 'file-saver';
 import {madridDateTime} from './report-datetime.mjs';
 import {inoperabilityReportRows,madridDayStart} from './unit-operability-report.mjs';
-import {canReadAdminReports} from './admin-report-access.mjs';
+import {canReadInoperability} from './admin-report-access.mjs';
 export default function UnitOperabilityReport({access,lots,transport,open:controlledOpen,onClose}){
   const [internalOpen,setInternalOpen]=useState(false),[lot,setLot]=useState(''),[zone,setZone]=useState(access?.zone||''),[from,setFrom]=useState(()=>madridDateTime(new Date()).date),[to,setTo]=useState(()=>madridDateTime(new Date()).date),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const controlled=typeof controlledOpen==='boolean',open=controlled?controlledOpen:internalOpen;
   const close=()=>controlled?onClose?.():setInternalOpen(false);
-  if(!canReadAdminReports(access))return null;
+  if(!canReadInoperability(access))return null;
   const zones=Object.keys(lots[lot]||{}).filter(value=>access.role!=='supervisor'||access.zone===value);
   async function download(){
     setBusy(true);setMessage('');

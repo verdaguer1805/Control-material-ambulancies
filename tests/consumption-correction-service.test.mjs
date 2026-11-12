@@ -5,7 +5,7 @@ import {correctionService,tsnuCorrectionRows,consumptionCorrectionRequest} from 
 
 test('correction unit type is visible between supervision and guard date',()=>{
  const source=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
- const modal=source.slice(source.indexOf('{correctionOpen && !adminReportOnly && ('),source.indexOf('{accessCodesOpen && ('));
+ const modal=source.slice(source.indexOf('{correctionOpen && canCorrectConsumption(adminAccess) && ('),source.indexOf('{accessCodesOpen && ('));
  assert.ok(modal.indexOf('<label>Supervisión</label>')<modal.indexOf('<label>Tipo de unidad</label>'));
  assert.ok(modal.indexOf('<label>Tipo de unidad</label>')<modal.indexOf('<label>Fecha de guardia</label>'));
 });

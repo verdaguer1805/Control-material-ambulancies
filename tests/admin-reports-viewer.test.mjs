@@ -13,8 +13,8 @@ test('Picornell solo informes de todos los ámbitos, no almacenes',()=>{
 test('la interfaz separa informe global de gestión; código secreto no en cliente',()=>{
  const source=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
  assert.match(source,/adminCanAccessAllReportZones \|\| zone === adminAccess\?\.zone/);
- assert.match(source,/stockDemoOpen && !adminReportOnly/);assert.match(source,/correctionOpen && !adminReportOnly/);
- assert.match(source,/!adminReportOnly && <button className="secondary" onClick=\{openConsumptionCorrection\}/);
+ assert.match(source,/stockDemoOpen && !adminReportOnly/);assert.match(source,/correctionOpen && canCorrectConsumption\(adminAccess\)/);
+ assert.match(source,/canCorrectConsumption\(adminAccess\) && <button className="secondary" onClick=\{openConsumptionCorrection\}/);
  const sql=fs.readFileSync(new URL('../sql/admin-reports-viewer-v1.sql',import.meta.url),'utf8');
  assert.doesNotMatch(sql,/create or replace function public\.admin_can_access_zone/);
  assert.doesNotMatch(sql,/create or replace function public\.admin_has_role/);
@@ -24,12 +24,12 @@ test('la interfaz separa informe global de gestión; código secreto no en clien
 });
 test('ambos botones juntos, inoperatividades destacado en rojo y formulario controlado sin ampliar permisos',()=>{
  const source=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
- const toolbar=source.slice(source.indexOf('<div className="admin-report-actions">'),source.indexOf('{!adminReportOnly && <button className="secondary" onClick={openConsumptionCorrection}'));
+ const toolbar=source.slice(source.indexOf('<div className="admin-report-actions">'),source.indexOf('{canCorrectConsumption(adminAccess) && <button className="secondary" onClick={openConsumptionCorrection}'));
  assert.match(toolbar,/Descargar informe/);assert.match(toolbar,/Informe de inoperatividades/);
  assert.match(toolbar,/setInoperabilityReportOpen\(true\)/);
  assert.match(source,/open=\{inoperabilityReportOpen\} onClose=/);
  const css=fs.readFileSync(new URL('../src/admin-report-actions.css',import.meta.url),'utf8');
  assert.match(css,/grid-template-columns:repeat\(2/);assert.match(css,/admin-report-inoperability\{background:#b91c1c;color:#fff/);
  const report=fs.readFileSync(new URL('../src/UnitOperabilityReport.jsx',import.meta.url),'utf8');
- assert.match(report,/if\(!canReadAdminReports\(access\)\)return null/);assert.match(report,/if\(controlled&&!open\)return null/);
+ assert.match(report,/if\(!canReadInoperability\(access\)\)return null/);assert.match(report,/if\(controlled&&!open\)return null/);
 });
