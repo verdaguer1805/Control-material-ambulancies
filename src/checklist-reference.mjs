@@ -5,6 +5,7 @@ import { SVB_DOOR_SECTIONS } from './svb-door-data.mjs';
 import { SVB_CABIN_ITEMS } from './svb-cabin-data.mjs';
 import { TSNU_CHECKLIST_CATALOGS, tsnuChecklistItemLabel } from './tsnu-checklist-catalog.mjs';
 import { BP_CHECKLIST_SECTIONS } from './bp-checklist-catalog.mjs';
+import { bpQuantityLabel } from './bp-quantity.mjs';
 
 export const canReadChecklistReference = access => ['owner', 'supervisor', 'logistics'].includes(access?.role);
 export const CHECKLIST_REFERENCE_TYPES = [
@@ -19,7 +20,7 @@ const svbAreas = [
 export function checklistReferenceSections(type) {
   if(type==='BP')return BP_CHECKLIST_SECTIONS.map(section=>({
     key:section.id,area:section.area,title:section.title,
-    groups:[{title:'',items:section.items.map(item=>`${item.label} · ${item.quantity===null?'Cantidad pendiente de definir':item.quantity}`)}],
+    groups:[{title:'',items:section.items.map(item=>`${item.label} · ${bpQuantityLabel(item.quantity)}`)}],
   }));
   if (type === 'SVB') return svbAreas.flatMap(([area, sections]) =>
     sections.filter(section => !section.pendingDefinition).map(section => ({

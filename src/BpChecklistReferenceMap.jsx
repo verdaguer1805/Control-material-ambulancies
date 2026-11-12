@@ -1,4 +1,5 @@
 import React,{useState} from 'react';
+import {bpQuantityLabel} from './bp-quantity.mjs';
 import {BP_PHOTO_DRAFT,bpPhotoSections} from './bp-photo-draft.mjs';
 import './vehicle-audit-map.css';
 import './checklist-reference-map.css';
@@ -21,7 +22,7 @@ export default function BpChecklistReferenceMap(){
    <header><h3>{zone.title} · Punto {point[0]}</h3><button type="button" autoFocus className="secondary" onClick={()=>setPoint(null)}>Cerrar</button></header>
    <div className="audit-items"><p>Solo consulta · Ubicación provisional</p>
     {!sections.length&&<p>Pendiente de confirmar qué material corresponde a este punto.</p>}
-    {sections.map(s=><div key={s.id}><h4>{s.title}</h4><ul>{s.items.map(item=><li key={item.id}>{item.label} · {item.quantity??'Cantidad pendiente de definir'}</li>)}</ul></div>)}
+    {sections.map(s=><div key={s.id}><h4>{s.title}</h4><ul>{s.items.map(item=><li key={item.id}>{item.label} · {bpQuantityLabel(item.quantity)}</li>)}</ul></div>)}
    </div><footer><button type="button" className="primary full" onClick={()=>setPoint(null)}>Volver a la fotografía</button></footer>
   </section></div>}
  </div>;
