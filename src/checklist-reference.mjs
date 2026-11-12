@@ -4,10 +4,12 @@ import { SVB_RIGHT_ZONE_SECTIONS } from './svb-right-zone-data.mjs';
 import { SVB_DOOR_SECTIONS } from './svb-door-data.mjs';
 import { SVB_CABIN_ITEMS } from './svb-cabin-data.mjs';
 import { TSNU_CHECKLIST_CATALOGS, tsnuChecklistItemLabel } from './tsnu-checklist-catalog.mjs';
+import { BP_CHECKLIST_SECTIONS } from './bp-checklist-catalog.mjs';
 
 export const canReadChecklistReference = access => ['owner', 'supervisor', 'logistics'].includes(access?.role);
 export const CHECKLIST_REFERENCE_TYPES = [
   ['SVB', 'SVB'], ['T', 'TSNU · Tango (T)'], ['K', 'TSNU · Kilo (K)'], ['KE', 'TSNU · Kilo Eco (KE)'],
+  ['BP', 'BP'], ['Polivalente', 'Polivalente'], ['Logística', 'Logística'],
 ];
 const svbAreas = [
   ['Zona izquierda', SVB_LEFT_WALL_SECTIONS], ['Zona frontal', SVB_FRONT_WALL_SECTIONS],
@@ -15,6 +17,10 @@ const svbAreas = [
   ['Cabina de conducción', [{ id: 'cabina', title: 'Cabina de conducción', items: SVB_CABIN_ITEMS }]],
 ];
 export function checklistReferenceSections(type) {
+  if(type==='BP')return BP_CHECKLIST_SECTIONS.map(section=>({
+    key:section.id,area:section.area,title:section.title,
+    groups:[{title:'',items:section.items.map(item=>`${item.label} · ${item.quantity===null?'Cantidad pendiente de definir':item.quantity}`)}],
+  }));
   if (type === 'SVB') return svbAreas.flatMap(([area, sections]) =>
     sections.filter(section => !section.pendingDefinition).map(section => ({
       key: `${area}:${section.id}`, area,

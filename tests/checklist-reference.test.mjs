@@ -32,11 +32,14 @@ test('SVB reference keeps the complete catalog and compartment 8 search is preci
   assert.ok(hits.every(section => section.title === 'Compartimento 8'));
   assert.equal(filterChecklistReference(sections, 'Zona derecha', 'compartimento 8 pinzas').length, 1);
 });
-test('TSNU variants reflect their own catalogs and the BP draft is not enabled', () => {
+test('TSNU variants reflect their own catalogs and BP is available for reference only', () => {
   const items = type => checklistReferenceSections(type).flatMap(section => section.groups.flatMap(group => group.items));
   assert.ok(items('T').includes('Cizallas'));
   for (const type of ['K','KE']) assert.ok(!items(type).includes('Cizallas'));
-  assert.deepEqual(items('BP'), []);
+  assert.equal(items('BP').length, 224);
+  assert.equal(items('BP').filter(item=>item.includes('Cantidad pendiente de definir')).length,14);
+  assert.deepEqual(items('Polivalente'), []);
+  assert.deepEqual(items('Logística'), []);
   assert.equal(filterChecklistReference(checklistReferenceSections('T'), '', 'cajón 2').length, 1);
   for (const [type,unit,count] of [['T','T1733',26], ['K','K1376',24], ['KE','KE1384',24]]) {
     const expected = tsnuChecklistGroups(unit).flatMap(([, rows]) => rows.map(tsnuChecklistItemLabel));
