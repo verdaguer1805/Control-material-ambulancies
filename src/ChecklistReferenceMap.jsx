@@ -2,6 +2,7 @@ import React,{useState} from 'react';
 import {SVB_PHOTO_LAYOUT} from './svb-photo-layout.mjs';
 import {checklistReferenceSections} from './checklist-reference.mjs';
 import './vehicle-audit-map.css';
+import './checklist-reference-map.css';
 
 // Read-only navigation. No audit draft, storage, answers or network writes.
 export default function ChecklistReferenceMap(){
@@ -13,7 +14,7 @@ export default function ChecklistReferenceMap(){
    {group.title&&<h4>{group.title}</h4>}
    <ul>{group.items.map((item,i)=><li key={i}>{item}</li>)}</ul>
  </div>);
- return <div className="audit-view">
+ return <div className="audit-view checklist-reference-map">
   {!zone?<>{[...Object.entries(SVB_PHOTO_LAYOUT),['cabin',{title:'Cabina de conducción'}]].map(([key,value])=>
    <button type="button" className="audit-zone pending" key={key} onClick={()=>setZone(key)}>
     <span>{value.title}<small>Consultar material</small></span><span>›</span>
@@ -22,7 +23,7 @@ export default function ChecklistReferenceMap(){
    <h3>{zone==='cabin'?'Cabina de conducción':layout.title}</h3>
    {zone==='cabin'?content(sections.find(section=>section.area==='Cabina de conducción')):<>
     <p>Pulsa un número para consultar el compartimento.</p>
-    <div className="audit-photo" style={{aspectRatio:layout.ratio}}>
+    <div className="audit-photo" style={{aspectRatio:layout.ratio,'--photo-ratio':layout.ratio.split('/').map(Number).reduce((width,height)=>width/height)}}>
      <img src={`./checklists/${layout.image}`} alt={layout.title}/>
      {Object.entries(layout.positions).map(([id,[x,y]])=><button type="button" key={id}
       className={`audit-marker pending ${zone!=='left'&&+id>=4&&+id<=10?'drawer':''}`}

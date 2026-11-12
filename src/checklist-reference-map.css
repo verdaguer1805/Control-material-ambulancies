@@ -1,0 +1,12 @@
+/* Consultation only: preserve image proportions and percentage marker positions. */
+.checklist-reference-map .audit-photo{
+  width:min(100%,760px,calc(70vh * var(--photo-ratio)));
+  width:min(100%,760px,calc(70dvh * var(--photo-ratio)));
+  margin:12px auto;
+}
+.checklist-reference-map .audit-marker{
+  width:32px;height:32px;border-width:2px;font-size:15px;
+}
+.checklist-reference-map .audit-marker.drawer{
+  width:24px;height:24px;border-width:2px;font-size:12px;
+}
