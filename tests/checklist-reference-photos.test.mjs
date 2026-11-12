@@ -17,6 +17,7 @@ test('read-only photos reuse operational positions and every marker has real mat
  assert.match(source,/SVB_PHOTO_LAYOUT/);
  assert.doesNotMatch(source,/localStorage|sessionStorage|supabase|\.rpc\(|markAll|saveAudit|auditRequest|<input|<select/);
  assert.ok(CHECKLIST_REFERENCE_TYPES.some(([key])=>key==='BP'));
- assert.ok(CHECKLIST_REFERENCE_TYPES.some(([key])=>key==='Polivalente'));
+ assert.deepEqual(CHECKLIST_REFERENCE_TYPES.find(([key])=>key==='BP'),['BP','BP · Polivalente']);
+ assert.ok(!CHECKLIST_REFERENCE_TYPES.some(([key])=>key==='Polivalente'));
  assert.ok(CHECKLIST_REFERENCE_TYPES.some(([key])=>key==='Logística'));
 });

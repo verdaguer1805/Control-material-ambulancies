@@ -10,7 +10,7 @@ import { bpQuantityLabel } from './bp-quantity.mjs';
 export const canReadChecklistReference = access => ['owner', 'supervisor', 'logistics'].includes(access?.role);
 export const CHECKLIST_REFERENCE_TYPES = [
   ['SVB', 'SVB'], ['T', 'TSNU · Tango (T)'], ['K', 'TSNU · Kilo (K)'], ['KE', 'TSNU · Kilo Eco (KE)'],
-  ['BP', 'BP'], ['Polivalente', 'Polivalente'], ['Logística', 'Logística'],
+  ['BP', 'BP · Polivalente'], ['Logística', 'Logística'],
 ];
 const svbAreas = [
   ['Zona izquierda', SVB_LEFT_WALL_SECTIONS], ['Zona frontal', SVB_FRONT_WALL_SECTIONS],
