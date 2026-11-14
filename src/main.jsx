@@ -31,7 +31,7 @@ import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./repo
 import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, withMissingChecklists, vehicleAuditReport } from "./checklist-report-format.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
 import {isBpUnit} from './bp-operational.mjs';
-import {bpReportSheet} from './bp-report.mjs';
+import {combinedTsuChecklists} from './tsu-checklist-report.mjs';
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 const ChecklistReference = React.lazy(() => import("./ChecklistReference.jsx"));
 const BpUnitChecklist = React.lazy(() => import('./BpUnitChecklist.jsx'));
@@ -1295,7 +1295,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v268", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v269", window.location.href).href);
   }
   async function loadSystemStatus() {
     if(!canReadSystemStatus(adminAccess))return;
@@ -2653,7 +2653,7 @@ function App() {
           "Guardia finalizada": shift.ended_at ? shift.close_source === "automatic" ? "Sí · Automática" : "Sí · Manual" : "No",
         };
       }),
-      checklistTsuRecords = withMissingChecklists(svbChecklists,(svbRoster || []).filter(r=>!isBpUnit(r.unit||r)),exportFrom,exportTo),
+      checklistTsuRecords = combinedTsuChecklists(svbChecklists,bpChecklists,svbRoster,exportFrom,exportTo),
       checklistTsuRows = checklistTsuRecords.map((checklist) => {
         const answers = checklist.answers || {},
           zoneNames = { left: "Zona izquierda", front: "Zona frontal", right: "Zona derecha", cabin: "Cabina de conducción", door: "Puerta corredera izquierda" },
@@ -2666,6 +2666,8 @@ function App() {
           ),
         );
         const zoneState = (zone) => {
+          const bp = isBpUnit(checklist.unit);
+          if ((bp && ['right','door'].includes(zone)) || (!bp && ['rear-left','rear-right','sliding-left','under-vacuum'].includes(zone))) return '—';
           const values = Object.values(answers[zone] || {}).flatMap((items) => Object.values(items || {}));
           return !checklist.submitted_at ? "Sin revisar" : values.includes("issue") ? "Con incidencia" : values.length ? "Correcta" : "Sin revisar";
         };
@@ -2673,6 +2675,7 @@ function App() {
           Fecha: checklist.report_date ? checklist.report_date.split('-').reverse().join('/') : new Date(checklist.guard_started_at).toLocaleDateString("es-ES", {timeZone:'Europe/Madrid',day:"2-digit",month:"2-digit",year:"numeric"}),
           "Inicio de guardia": checklist.guard_started_at ? new Date(checklist.guard_started_at).toLocaleTimeString("es-ES", {timeZone:'Europe/Madrid',hour:"2-digit",minute:"2-digit"}) : '',
           Unidad: checklist.unit,
+          Checklist: checklist.checklist_type || (isBpUnit(checklist.unit) ? 'BP · Polivalente' : 'SVB'),
           Vehículo: checklist.vehicle_label || '',
           "Fecha de envío": checklist.submitted_at ? madridDateTime(checklist.submitted_at).date : '',
           "Hora de checklist": checklist.submitted_at ? madridDateTime(checklist.submitted_at).time : '',
@@ -2682,6 +2685,10 @@ function App() {
           "Zona derecha": zoneState("right"),
           "Cabina de conducción": zoneState("cabin"),
           "Puerta corredera izquierda": zoneState("door"),
+          "Puerta trasera izquierda": zoneState("rear-left"),
+          "Puerta trasera derecha": zoneState("rear-right"),
+          "Puerta corredera lateral izquierda BP": zoneState("sliding-left"),
+          "Debajo del colchón de vacío": zoneState("under-vacuum"),
           Incidencias: issues.join(" · ") || "—",
         };
       }),
@@ -2768,7 +2775,6 @@ function App() {
     });
     XLSX.utils.book_append_sheet(wb, wsGeneral, "Resumen general");
     XLSX.utils.book_append_sheet(wb, wsChecklistTsu, "Checklist SVB");
-    XLSX.utils.book_append_sheet(wb,bpReportSheet(XLSX,bpChecklists,(svbRoster||[]).filter(r=>isBpUnit(r.unit||r)),exportFrom,exportTo,madridDateTime),'Checklist BP Polivalente');
     if(svbRoster===null) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([{Aviso:'Control de pendientes no disponible: falta actualizar la función de informes. Este listado contiene solo los registros recibidos.'}]),'Aviso pendientes');
     wsChecklistIncidents.forEach(({sheet,name})=>XLSX.utils.book_append_sheet(wb, sheet, name));
     const auditReport=vehicleAuditReport(XLSX,vehicleAudits,materialLabel,madridDateTime);
@@ -3533,7 +3539,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v268</span></h1>
+          <h1>Control de material <span className="app-version">v269</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5392,13 +5398,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v268" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v269" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=268", {
+    navigator.serviceWorker.register("./sw.js?v=269", {
       updateViaCache: "none",
     }),
   );

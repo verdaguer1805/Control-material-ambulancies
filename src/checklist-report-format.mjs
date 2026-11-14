@@ -85,7 +85,7 @@ export function checklistReportWidths(rows) {
 }
 
 export const INCIDENT_DETAIL_SHEET = 'Incidencias SVB';
-const zoneNames = {left:'Zona izquierda',front:'Zona frontal',right:'Zona derecha',cabin:'Cabina de conducción',door:'Puerta corredera izquierda'};
+const zoneNames = {left:'Zona izquierda',front:'Zona frontal',right:'Zona derecha',cabin:'Cabina de conducción',door:'Puerta corredera izquierda','rear-left':'Puerta trasera izquierda','rear-right':'Puerta trasera derecha','sliding-left':'Puerta corredera lateral izquierda','under-vacuum':'Debajo del colchón de vacío'};
 
 export function checklistIncidentDetails(records, label = value => value) {
   return records.flatMap((record, recordIndex) =>
