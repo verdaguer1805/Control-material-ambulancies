@@ -10,6 +10,10 @@ import {readUnitChecklist,UNIT_CHECKLIST_KEY} from '../src/unit-checklist-config
 import {svbAssignedGuard} from '../src/svb-guard-window.mjs';
 import {bpReportSheet} from '../src/bp-report.mjs';
 const full=()=>({lot:'Lot X',zone:'Zona Y',unit:'BP99',vehicle:'5517',guardCode:'141126',guardStartedAt:'2026-11-14T06:00:00.000Z',catalog:BP_ITEMS,answers:Object.fromEntries(BP_ITEMS.map(i=>[i.id,'ok'])),notes:{}});
+test('BP pending report does not blame units for dates before operational launch',()=>{
+ const sheet=bpReportSheet(XLSX,[],['BP99'],'2026-11-01','2026-11-13',v=>({date:v,time:''}));
+ assert.equal(XLSX.utils.sheet_to_json(sheet).length,0);
+});
 test('BP units, audits and reference use exactly the same 222 items, without duplication',()=>{
  assert.equal(BP_ITEMS.length,222);assert.equal(new Set(BP_ITEMS.map(i=>i.id)).size,222);
  assert.deepEqual(auditItems('Polivalente'),BP_ITEMS);

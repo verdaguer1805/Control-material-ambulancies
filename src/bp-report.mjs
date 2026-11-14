@@ -1,6 +1,8 @@
 import {withMissingChecklists} from './checklist-report-format.mjs';
 export function bpReportSheet(XLSX,records,roster,from,to,dateTime){
- const data=withMissingChecklists(records,roster,from,to);
+ // Do not label days before the BP operational launch as missed reviews.
+ const activeRoster=roster.map(entry=>{const row=typeof entry==='string'?{unit:entry}:entry;return {...row,first_date:row.first_date>'2026-11-14'?row.first_date:'2026-11-14'};});
+ const data=withMissingChecklists(records,activeRoster,from,to);
  const rows=[['Fecha guardia','Unidad','Vehículo','Fecha envío','Hora envío','Estado','Incidencias']],options=[{hpt:28}],summaryRows=[];
  for(const r of data){
   const issues=(r.items||[]).filter(i=>i.status==='issue');
