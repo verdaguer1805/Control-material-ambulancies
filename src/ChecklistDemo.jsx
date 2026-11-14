@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from '../public/checklists/request-deadline.js';
 import { DEMO_ITEMS, VEHICLE_TYPES, demoKey, completeDemo, closeDemoShift, closeTsnuShiftAutomatically, readDemo, saveDemo, filterDemo, shouldAutoCloseTsnuShift } from "./checklist-demo.mjs";
 import { ensureAnonymousSession, supabase } from "./supabase.js";
 import { newOperationId, queueTsnuOperation, readTsnuOutbox, readTsnuShift, saveTsnuShift, rpcForTsnuOperation, syncTsnuOutbox, removeTsnuShiftOperations, isTsnuConnectivityError } from "./tsnu-outbox.mjs";
@@ -69,8 +70,8 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     if(!production)return null;
     if(syncLock.current){resyncRequested.current=true;return null;}
     syncLock.current=true;setSyncing(true);
-    try{await ensureAnonymousSession();const result=await syncTsnuOutbox(localStorage,async operation=>{const [name,args]=rpcForTsnuOperation(operation);const {error}=await supabase.rpc(name,args);if(error)throw error;});const failure=result.failed[0],failedShift=failure&&!isTsnuConnectivityError(failure.error)?failure.operation?.shiftId||"":"";setRecoveryShiftId(failedShift);if(showResult){setNotice(result.failed.length?failedShift?"Hay una sesión anterior bloqueando la sincronización. Utiliza la recuperación supervisada.":"Sin cobertura: los registros continúan guardados en este dispositivo.":result.synced.length?`Pendientes sincronizados correctamente (${result.synced.length})`:"No hay registros pendientes");if(failedShift)setRecoveryOpen(true);}return result;}
-    catch{if(showResult)setNotice("Sin cobertura: los registros continúan guardados en este dispositivo");return null;}finally{syncLock.current=false;setSyncing(false);if(resyncRequested.current){resyncRequested.current=false;queueMicrotask(()=>void syncProduction());}}
+    try{await withRequestDeadline(()=>ensureAnonymousSession());const result=await syncTsnuOutbox(localStorage,async operation=>{const [name,args]=rpcForTsnuOperation(operation);const {error}=await withRequestDeadline(signal=>supabase.rpc(name,args).abortSignal(signal));if(error)throw error;});const failure=result.failed[0],failedShift=failure&&!isTsnuConnectivityError(failure.error)?failure.operation?.shiftId||"":"";setRecoveryShiftId(failedShift);if(showResult){setNotice(result.failed.length?failedShift?"Hay una sesión anterior bloqueando la sincronización. Utiliza la recuperación supervisada.":/CHECKLIST_REQUEST_TIMEOUT/.test(String(failure?.error?.message||failure?.error||''))?REQUEST_TIMEOUT_MESSAGE:"No se ha confirmado la sincronización: los registros continúan guardados en este dispositivo. Reintenta cuando tengas conexión.":result.synced.length?`Pendientes sincronizados correctamente (${result.synced.length})`:"No hay registros pendientes");if(failedShift)setRecoveryOpen(true);}return result;}
+    catch(error){if(showResult)setNotice(/CHECKLIST_REQUEST_TIMEOUT/.test(error.message||'')?REQUEST_TIMEOUT_MESSAGE:"No se ha confirmado la sincronización: los registros continúan guardados en este dispositivo");return null;}finally{syncLock.current=false;setSyncing(false);if(resyncRequested.current){resyncRequested.current=false;queueMicrotask(()=>void syncProduction());}}
   }
   function start() {
     try {

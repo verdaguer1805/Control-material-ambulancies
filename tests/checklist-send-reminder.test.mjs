@@ -59,7 +59,7 @@ test('todas las fotografías conectan el recordatorio y se almacena la confirmac
   const source=readFileSync(new URL('../public/checklists/svb-zones-production.js',import.meta.url),'utf8');
   assert.ok(source.indexOf('if(!response.ok)throw')<source.indexOf('rememberSvbSubmission(localStorage'));
   assert.match(source,/if\(submitting\)return/);
-  assert.match(source,/sendChecklist\(token,answers\)/);
+  assert.match(source,/sendChecklist\(token,answers,signal\)/);
   assert.match(source,/canPrompt:\(\)=>!submitting/);
   const tsnu=readFileSync(new URL('../src/ChecklistDemo.jsx',import.meta.url),'utf8');
   assert.match(tsnu,/showChecklistSendReminder\('first', finish\)/);

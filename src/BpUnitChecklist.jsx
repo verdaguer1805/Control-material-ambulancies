@@ -5,6 +5,7 @@ import {svbAssignedGuard} from './svb-guard-window.mjs';
 import {readSvbVehicleAssignment,writeSvbVehicleAssignment} from './svb-vehicle-assignment.mjs';
 import {supabase} from './supabase';
 import {showChecklistSendReminder} from '../public/checklists/checklist-send-reminder.js';
+import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from '../public/checklists/request-deadline.js';
 export default function BpUnitChecklist({unit,lot,zone,shift,authorized}){
  const [open,setOpen]=useState(false),[vehicle,setVehicle]=useState(()=>readSvbVehicleAssignment(localStorage,unit)),[input,setInput]=useState(''),[editing,setEditing]=useState(false);
  const [draft,setDraft]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[tick,setTick]=useState(Date.now());
@@ -28,12 +29,12 @@ export default function BpUnitChecklist({unit,lot,zone,shift,authorized}){
   const current=svbAssignedGuard(shift);
   if(!current||current.code!==draft.guardCode||current.start!==draft.guardStartedAt){setTick(Date.now());setError('Ha cambiado la guardia. El checklist anterior se conserva; revisa el nuevo turno.');return;}
   const sent=draft;sendLock.current=true;setBusy(true);setError('');
-  try{const result=await supabase.rpc('submit_bp_checklist',bpPayload(sent));if(result.error)throw result.error;
+  try{const result=await withRequestDeadline(signal=>supabase.rpc('submit_bp_checklist',bpPayload(sent)).abortSignal(signal));if(result.error)throw result.error;
    if(!result.data?.submitted_at)throw new Error('Envío sin confirmación');
    const next={...sent,confirmedAt:result.data.submitted_at,sentSnapshot:bpSnapshot(sent)};
    localStorage.setItem(bpDraftKey(next),JSON.stringify(next));
    const now=svbAssignedGuard(shift);if(now?.code===next.guardCode)setDraft(next);
-  }catch(e){setError(`No se ha confirmado el envío. El checklist sigue guardado y pendiente de enviar. ${/CHECKLIST_GUARD_EXPIRED/.test(e.message||'')?'La guardia ha finalizado.':'Reintenta cuando tengas conexión; si persiste, contacta con supervisión.'}`);}
+  }catch(e){setError(/CHECKLIST_REQUEST_TIMEOUT/.test(e.message||'')?REQUEST_TIMEOUT_MESSAGE:`No se ha confirmado el envío. El checklist sigue guardado y pendiente de enviar. ${/CHECKLIST_GUARD_EXPIRED/.test(e.message||'')?'La guardia ha finalizado.':'Reintenta cuando tengas conexión; si persiste, contacta con supervisión.'}`);}
   finally{sendLock.current=false;setBusy(false);}
  }
  const complete=draft&&bpStatus(draft.answers,BP_ITEMS.map(i=>i.id))!=='pending';

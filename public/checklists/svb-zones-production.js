@@ -1,15 +1,16 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=267";
-import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=267";
-import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=267";
-import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=267";
-import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=267";
-import{cabinStatus}from"./svb-cabin-data.js?v=267";
-import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=267";
-import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=267';
-import { checklistFingerprint } from './checklist-send-reminder.js?v=267';
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=268";
+import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=268";
+import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=268";
+import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=268";
+import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=268";
+import{cabinStatus}from"./svb-cabin-data.js?v=268";
+import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=268";
+import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=268';
+import { checklistFingerprint } from './checklist-send-reminder.js?v=268';
 let submitting = false;
+import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=268';
 
-document.querySelector(".head h1 small").textContent="v267";
+document.querySelector(".head h1 small").textContent="v268";
 
 // Retain the existing controls/handlers while making the send action prominent.
 const fixedPanel=document.createElement('section'),scrollPanel=document.createElement('section');
@@ -31,8 +32,8 @@ function state(zone){const answers=zoneAnswers(zone);if(zone==="cabin")return ca
 function paint(id,value){const el=byId(id);el.classList.remove("pending","ok","issue","exempt");el.classList.add(value);el.querySelector("small").textContent=value==="exempt"?"No incluida en el envío anterior":"Revisar zona"}
 const SESSION_KEY="sb-dfnywetqnccykzjyihzq-auth-token";
 function storedSession(){try{const value=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");return{root:value,session:value?.currentSession||value}}catch{return{root:null,session:null}}}
-async function refreshSession(){const{root,session}=storedSession();if(!session?.refresh_token)throw new Error("AUTH_SESSION_EXPIRED");const response=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,{method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:session.refresh_token})});if(!response.ok)throw new Error("AUTH_SESSION_EXPIRED");const next=await response.json();localStorage.setItem(SESSION_KEY,JSON.stringify(root?.currentSession?{...root,currentSession:next}:next));return next.access_token}
-async function sendChecklist(token, answers){return fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_svb_checklist`,{method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({p_guard_code:context.guardCode,p_vehicle_label:vehicle,p_guard_started_at:context.guardStartedAt,p_answers:answers})})}
+async function refreshSession(signal){const{root,session}=storedSession();if(!session?.refresh_token)throw new Error("AUTH_SESSION_EXPIRED");const response=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,{signal,method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:session.refresh_token})});if(!response.ok)throw new Error("AUTH_SESSION_EXPIRED");const next=await response.json();if(signal.aborted)throw new Error('CHECKLIST_REQUEST_TIMEOUT');localStorage.setItem(SESSION_KEY,JSON.stringify(root?.currentSession?{...root,currentSession:next}:next));return next.access_token}
+async function sendChecklist(token, answers, signal){return fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_svb_checklist`,{signal,method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({p_guard_code:context.guardCode,p_vehicle_label:vehicle,p_guard_started_at:context.guardStartedAt,p_answers:answers})})}
 function submissionError(reason){if(reason.includes("CHECKLIST_GUARD_EXPIRED"))return"La guardia ha finalizado. No se ha enviado el checklist anterior. Vuelve a Registro de consumo para abrir el nuevo turno.";if(reason.includes("CHECKLIST_GUARD_TOO_EARLY"))return"El checklist de la próxima guardia se puede realizar desde una hora antes del inicio.";if(reason.includes("DEVICE_NOT_AUTHORIZED"))return"Este dispositivo ya no consta como autorizado. Vuelve al registro de consumo.";if(reason.includes("UNIT_WAREHOUSE_NOT_CONFIGURED"))return"La unidad no tiene almacén configurado. Contacta con supervisión.";if(reason.includes("INVALID_SVB_CHECKLIST"))return"No se ha podido validar el checklist. Vuelve a entrar desde Registro de consumo.";if(reason.includes("AUTH_SESSION_EXPIRED"))return"La sesión del dispositivo ha caducado. Vuelve a Registro de consumo y entra otra vez al checklist.";return"No se ha podido completar el envío. El checklist sigue guardado; vuelve a intentarlo."}
 function render(){
  const guardStatus=svbGuardStatus(context);guardInfo.textContent=svbGuardLabel(context);
@@ -65,14 +66,18 @@ byId("submitChecklist").onclick=async()=>{
  if(!svbReviewComplete(answers,confirmed)){render();return}
  submitting=true;button.disabled=true;byId("changeVehicle").disabled=true;status.textContent="Enviando checklist...";
  try{
-  let token=storedSession().session?.access_token;if(!token)token=await refreshSession();
-  let response=await sendChecklist(token,answers);
-  if(response.status===401){token=await refreshSession();response=await sendChecklist(token,answers)}
-  if(!response.ok)throw new Error(await response.text());
+  await withRequestDeadline(async signal=>{
+   let token=storedSession().session?.access_token;if(!token)token=await refreshSession(signal);
+   if(signal.aborted)throw new Error('CHECKLIST_REQUEST_TIMEOUT');
+   let response=await sendChecklist(token,answers,signal);
+   if(response.status===401){token=await refreshSession(signal);if(signal.aborted)throw new Error('CHECKLIST_REQUEST_TIMEOUT');response=await sendChecklist(token,answers,signal)}
+   if(!response.ok)throw new Error(await response.text());
+   const confirmation=await response.json();if(!confirmation?.submitted_at)throw new Error('CHECKLIST_CONFIRMATION_MISSING');
+  });
   localStorage.setItem(`cma_svb_submitted_v1:${scope}:${vehicle}`,new Date().toISOString());
   rememberSvbSubmission(localStorage,context,vehicle,answers);
   status.textContent="✓ Checklist enviado y confirmado correctamente.";button.textContent="Reenviar checklist actualizado";
- }catch(error){status.textContent=error instanceof TypeError?"No hay conexión. El checklist sigue guardado y pendiente de enviar; reintenta cuando vuelva la cobertura.":submissionError(String(error?.message||error))}
+ }catch(error){status.textContent=error?.message==='CHECKLIST_REQUEST_TIMEOUT'?REQUEST_TIMEOUT_MESSAGE:error instanceof TypeError?"No hay conexión. El checklist sigue guardado y pendiente de enviar; reintenta cuando vuelva la cobertura.":submissionError(String(error?.message||error))}
  finally{submitting=false;byId("changeVehicle").disabled=false;button.disabled=!["current","upcoming"].includes(svbGuardStatus(context))}
 };
 installSvbSendReminder({overview:true,send:()=>byId("submitChecklist").onclick(),canPrompt:()=>!submitting});

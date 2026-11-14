@@ -1,4 +1,5 @@
 import React, {useState} from 'react';
+import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from '../public/checklists/request-deadline.js';
 import VehicleAuditMap from './VehicleAuditMap.jsx';
 import BpChecklistMap from './BpChecklistMap.jsx';
 import { tsnuChecklistLabel } from './tsnu-checklist-catalog.mjs';
@@ -34,12 +35,13 @@ export default function VehicleAudit({supervisor, lot, zone, authorized,sendAuth
     try {
       let data;
       if(auditorService){auditRequest(draft);data=await auditorService.submit(draft);}
-      else{const {supabase}=await import('./supabase');const result=await supabase.rpc('submit_vehicle_audit',auditRequest(draft));if(result.error)throw result.error;data=result.data;}
+      else{const result=await withRequestDeadline(async signal=>{const {supabase}=await import('./supabase');if(signal.aborted)throw new Error('CHECKLIST_REQUEST_TIMEOUT');return supabase.rpc('submit_vehicle_audit',auditRequest(draft)).abortSignal(signal);});if(result.error)throw result.error;data=result.data;}
+      if(!data?.received_at)throw new Error('AUDIT_CONFIRMATION_MISSING');
       const next={...draft,confirmedAt:data.received_at};saveAudit(storage,next);setDraft(next);
       setNotice(`Auditoría enviada correctamente · ${new Date(data.received_at).toLocaleString('es-ES',{timeZone:'Europe/Madrid'})}`);
     }catch(error){
       if(auditorService){const next={...draft,sendRequestedAt:draft.sendRequestedAt||new Date().toISOString()};saveAudit(storage,next);setDraft(next);const message=`Auditoría pendiente de enviar. ${auditorError(error)} Recupera la conexión y pulsa Reintentar envío.`;setNotice(message);onAlert?.(message);}
-      else setNotice(/SUPERVISOR_NOT_AUTHORIZED/.test(error.message)?'Este dispositivo no tiene autorización de supervisor.':/PGRST202|42883/.test(`${error.code} ${error.message}`)?'La función de auditoría aún no está activada. El borrador sigue guardado.':'No se ha podido enviar la auditoría. El borrador sigue guardado; vuelve a intentarlo.');
+      else setNotice(/CHECKLIST_REQUEST_TIMEOUT/.test(error.message)?REQUEST_TIMEOUT_MESSAGE:/SUPERVISOR_NOT_AUTHORIZED/.test(error.message)?'Este dispositivo no tiene autorización de supervisor.':/PGRST202|42883/.test(`${error.code} ${error.message}`)?'La función de auditoría aún no está activada. El borrador sigue guardado.':'No se ha confirmado el envío de la auditoría. El borrador sigue guardado; vuelve a intentarlo.');
     }
     finally {setBusy(false);}
   }
