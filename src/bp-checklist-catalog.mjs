@@ -1,4 +1,4 @@
-// BP checklist draft. Not enabled in the live app.
+// Shared BP / Polivalente checklist catalog.
 // Source: Revision_material_ambulancia_editable.xlsx, Checklist ambulancia!A1:B328.
 // A null quantity preserves a blank in the source; do not infer a stock count.
 export const BP_CHECKLIST_SECTIONS = [
@@ -43,17 +43,17 @@ export const BP_CHECKLIST_SECTIONS = [
   {
     id: "bp-section-33", area: "ZONA IZQUIERDA", title: "COMPARTIMENTO 2 – MATERIAL NEONATAL Y OBSTÉTRICO", sourceRow: 33,
     items: [
-      {"id":"bp-item-35","label":"Pañales","quantity":null,"sourceRow":35},
-      {"id":"bp-item-36","label":"Gorro de recién nacido","quantity":null,"sourceRow":36},
-      {"id":"bp-item-37","label":"Manta térmica neonatal","quantity":null,"sourceRow":37},
-      {"id":"bp-item-38","label":"Pera de goma aspiradora de 35 ml","quantity":null,"sourceRow":38},
-      {"id":"bp-item-39","label":"Gasas estériles grandes","quantity":null,"sourceRow":39},
-      {"id":"bp-item-40","label":"Paño verde estéril","quantity":null,"sourceRow":40},
-      {"id":"bp-item-41","label":"Pinza umbilical","quantity":null,"sourceRow":41},
-      {"id":"bp-item-42","label":"Tijera umbilical de un solo uso","quantity":null,"sourceRow":42},
-      {"id":"bp-item-43","label":"Empapador","quantity":null,"sourceRow":43},
-      {"id":"bp-item-44","label":"Compresa posparto","quantity":null,"sourceRow":44},
-      {"id":"bp-item-45","label":"Bolsa de residuos Grupo II","quantity":null,"sourceRow":45},
+      {"id":"bp-item-35","label":"Pañales","quantity":"1","sourceRow":35},
+      {"id":"bp-item-36","label":"Gorro de recién nacido","quantity":"1","sourceRow":36},
+      {"id":"bp-item-37","label":"Manta térmica neonatal","quantity":"1","sourceRow":37},
+      {"id":"bp-item-38","label":"Pera de goma aspiradora de 35 ml","quantity":"1","sourceRow":38},
+      {"id":"bp-item-39","label":"Gasas estériles grandes","quantity":"1","sourceRow":39},
+      {"id":"bp-item-40","label":"Paño verde estéril","quantity":"1","sourceRow":40},
+      {"id":"bp-item-41","label":"Pinza umbilical","quantity":"1","sourceRow":41},
+      {"id":"bp-item-42","label":"Tijera umbilical de un solo uso","quantity":"1","sourceRow":42},
+      {"id":"bp-item-43","label":"Empapador","quantity":"1","sourceRow":43},
+      {"id":"bp-item-44","label":"Compresa posparto","quantity":"1","sourceRow":44},
+      {"id":"bp-item-45","label":"Bolsa de residuos Grupo II","quantity":"1","sourceRow":45},
     ],
   },
   {
@@ -85,9 +85,8 @@ export const BP_CHECKLIST_SECTIONS = [
     ],
   },
   {
-    id: "bp-section-69", area: "ZONA IZQUIERDA", title: "COMPARTIMENTO 3 – BOLSA 3", sourceRow: 69,
+    id: "bp-section-69", area: "ZONA IZQUIERDA", title: "COMPARTIMENTO 3 – BOLSA 3 – REPOSICIÓN DEL MONITOR", sourceRow: 69,
     items: [
-      {"id":"bp-item-71","label":"Bolsa de reposición del monitor","quantity":null,"sourceRow":71},
       {"id":"bp-item-72","label":"Electrodos de monitorización","quantity":"2","sourceRow":72},
       {"id":"bp-item-73","label":"Parches de desfibrilación adultos SCHILLER","quantity":"1","sourceRow":73},
       {"id":"bp-item-74","label":"Parches de desfibrilación pediátricos SCHILLER","quantity":"1","sourceRow":74},
@@ -166,9 +165,8 @@ export const BP_CHECKLIST_SECTIONS = [
     ],
   },
   {
-    id: "bp-section-136", area: "ZONA IZQUIERDA", title: "COMPARTIMENTO 3 – BOLSA 10", sourceRow: 136,
+    id: "bp-section-136", area: "ZONA IZQUIERDA", title: "COMPARTIMENTO 3 – BOLSA 10 – RESUCITADOR ADULTO", sourceRow: 136,
     items: [
-      {"id":"bp-item-138","label":"Bolsa de resucitador adulto","quantity":null,"sourceRow":138},
       {"id":"bp-item-139","label":"Balón resucitador adulto con reservorio","quantity":"1","sourceRow":139},
       {"id":"bp-item-140","label":"Mascarilla facial adulto nº 2","quantity":"1","sourceRow":140},
       {"id":"bp-item-141","label":"Mascarilla facial adulto nº 3/4","quantity":"1","sourceRow":141},
@@ -258,7 +256,7 @@ export const BP_CHECKLIST_SECTIONS = [
   {
     id: "bp-section-210", area: "ZONA IZQUIERDA MEDIA", title: "MONITOR", sourceRow: 210,
     items: [
-      {"id":"bp-item-212","label":"Prueba diaria de usuario realizada","quantity":null,"sourceRow":212},
+      {"id":"bp-item-212","label":"Prueba diaria de usuario realizada","quantity":null,"kind":"check","sourceRow":212},
       {"id":"bp-item-213","label":"Electrodos de monitorización","quantity":"1 bolsa","sourceRow":213},
       {"id":"bp-item-214","label":"Parches de desfibrilación adultos SCHILLER","quantity":"2","sourceRow":214},
       {"id":"bp-item-215","label":"Parches de desfibrilación pediátricos SCHILLER","quantity":"1","sourceRow":215},

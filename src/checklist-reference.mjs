@@ -4,8 +4,8 @@ import { SVB_RIGHT_ZONE_SECTIONS } from './svb-right-zone-data.mjs';
 import { SVB_DOOR_SECTIONS } from './svb-door-data.mjs';
 import { SVB_CABIN_ITEMS } from './svb-cabin-data.mjs';
 import { TSNU_CHECKLIST_CATALOGS, tsnuChecklistItemLabel } from './tsnu-checklist-catalog.mjs';
-import { BP_CHECKLIST_SECTIONS } from './bp-checklist-catalog.mjs';
-import { bpQuantityLabel } from './bp-quantity.mjs';
+import { bpItemLabel } from './bp-quantity.mjs';
+import {BP_ZONES} from './bp-operational.mjs';
 
 export const canReadChecklistReference = access => ['owner', 'supervisor', 'logistics'].includes(access?.role);
 export const CHECKLIST_REFERENCE_TYPES = [
@@ -18,10 +18,10 @@ const svbAreas = [
   ['Cabina de conducción', [{ id: 'cabina', title: 'Cabina de conducción', items: SVB_CABIN_ITEMS }]],
 ];
 export function checklistReferenceSections(type) {
-  if(type==='BP')return BP_CHECKLIST_SECTIONS.map(section=>({
-    key:section.id,area:section.area,title:section.title,
-    groups:[{title:'',items:section.items.map(item=>`${item.label} · ${bpQuantityLabel(item.quantity)}`)}],
-  }));
+  if(type==='BP')return BP_ZONES.flatMap(zone=>zone.groups.map(section=>({
+    key:section.id,area:zone.title,title:section.title,
+    groups:[{title:'',items:section.items.map(bpItemLabel)}],
+  })));
   if (type === 'SVB') return svbAreas.flatMap(([area, sections]) =>
     sections.filter(section => !section.pendingDefinition).map(section => ({
       key: `${area}:${section.id}`, area,

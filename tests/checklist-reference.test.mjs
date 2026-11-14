@@ -36,8 +36,13 @@ test('TSNU variants reflect their own catalogs and BP is available for reference
   const items = type => checklistReferenceSections(type).flatMap(section => section.groups.flatMap(group => group.items));
   assert.ok(items('T').includes('Cizallas'));
   for (const type of ['K','KE']) assert.ok(!items(type).includes('Cizallas'));
-  assert.equal(items('BP').length, 224);
-  assert.equal(items('BP').filter(item=>item.includes('Cantidad pendiente de definir')).length,14);
+  assert.equal(items('BP').length, 222);
+  assert.equal(items('BP').filter(item=>item.includes('Cantidad pendiente de definir')).length,0);
+  assert.ok(items('BP').includes('Prueba diaria de usuario realizada'));
+  assert.ok(!items('BP').some(item=>/^Bolsa de (reposición del monitor|resucitador adulto)/.test(item)));
+  const neonatal=checklistReferenceSections('BP').find(section=>section.key==='bp-section-33');
+  assert.equal(neonatal.groups[0].items.length,11);
+  assert.ok(neonatal.groups[0].items.every(item=>item.endsWith(' · 1 unidad')));
   assert.deepEqual(items('Polivalente'), []);
   assert.deepEqual(items('Logística'), []);
   assert.equal(filterChecklistReference(checklistReferenceSections('T'), '', 'cajón 2').length, 1);

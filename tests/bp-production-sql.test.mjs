@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {BP_CHECKLIST_SECTIONS} from '../src/bp-checklist-catalog.mjs';
+const sql=fs.readFileSync(new URL('../sql/bp-production-v1.sql',import.meta.url),'utf8');
+test('BP migration is additive, scoped and does not modify inventory or existing unit submissions',()=>{
+ assert.match(sql,/enable row level security/);
+ assert.match(sql,/authorization_version=c.authorization_version/);
+ assert.match(sql,/a\.unit=d\.unit and w\.lot=d\.lot/);
+ assert.match(sql,/r\.lot=p_lot and r\.zone=p_zone/);
+ assert.match(sql,/CHECKLIST_GUARD_EXPIRED/);
+ assert.match(sql,/CHECKLIST_GUARD_TOO_EARLY/);
+ assert.match(sql,/public\.admin_can_access_zone\(p_zone\)/);
+ assert.doesNotMatch(sql,/(?:update|delete from|insert into|truncate)\s+public\.(?:warehouse_inventory|svb_checklist_submissions|incidents|device_authorizations)/i);
+ const ids=BP_CHECKLIST_SECTIONS.flatMap(s=>s.items.map(i=>i.id));
+ assert.equal(ids.length,222);
+ for(const id of ids)assert.ok(sql.includes(`'${id}'`));
+ assert.match(sql,/count\(distinct x->>'id'\)/);
+ assert.match(sql,/UNEXPECTED_FUNCTION_DEFINITION/);
+});

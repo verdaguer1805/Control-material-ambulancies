@@ -30,8 +30,11 @@ import { tsnuChecklistLabel } from './tsnu-checklist-catalog.mjs';
 import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
 import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, withMissingChecklists, vehicleAuditReport } from "./checklist-report-format.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
+import {isBpUnit} from './bp-operational.mjs';
+import {bpReportSheet} from './bp-report.mjs';
 const ChecklistDemo = React.lazy(() => import("./ChecklistDemo.jsx"));
 const ChecklistReference = React.lazy(() => import("./ChecklistReference.jsx"));
+const BpUnitChecklist = React.lazy(() => import('./BpUnitChecklist.jsx'));
 import { tsnuReportedItemLabel } from './tsnu-checklist-catalog.mjs';
 const VehicleAudit = React.lazy(() => import("./VehicleAudit.jsx"));
 import { createRoot } from "react-dom/client";
@@ -1292,7 +1295,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v266", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v267", window.location.href).href);
   }
   async function loadSystemStatus() {
     if(!canReadSystemStatus(adminAccess))return;
@@ -1355,7 +1358,7 @@ function App() {
   }
   const mapAdminRecords = mapReportRecords;
   async function loadSelectedAdminRecords() {
-    const [reportResult, tsnuResult, auditResult, auditorConsumption] = await Promise.all([
+    const [reportResult, tsnuResult, auditResult, auditorConsumption, bpResult] = await Promise.all([
         supabase.rpc("get_admin_report_data", {
           p_lot: exportLot,
           p_zone: exportZone,
@@ -1374,10 +1377,12 @@ function App() {
         supabase.rpc('get_auditor_consumption_report',{
           p_lot:exportLot,p_zone:exportZone,p_from:exportFrom,p_to:exportTo,
         }),
+        supabase.rpc('get_bp_checklists_report',{p_lot:exportLot,p_zone:exportZone,p_from:exportFrom,p_to:exportTo}),
       ]);
     if (reportResult.error) throw reportResult.error;
     if (tsnuResult.error) throw tsnuResult.error;
     if (auditResult.error) throw auditResult.error;
+    if (bpResult.error) throw bpResult.error;
     if(auditorConsumption.error && !['PGRST202','42883'].includes(auditorConsumption.error.code))throw auditorConsumption.error;
     const reportData = reportResult.data || {},
       incidents = Array.isArray(reportData.incidents) ? reportData.incidents : [],
@@ -1387,6 +1392,7 @@ function App() {
       submissions: Array.isArray(reportData.submissions) ? reportData.submissions : [],
       svbChecklists: Array.isArray(reportData.svb_checklists) ? reportData.svb_checklists : [],
       svbRoster: Array.isArray(reportData.svb_roster) ? reportData.svb_roster : null,
+      bpChecklists: Array.isArray(bpResult.data) ? bpResult.data : [],
       vehicleAudits: Array.isArray(auditResult.data) ? auditResult.data : [],
       tsnu: {...(tsnuResult.data || { shifts: [], withdrawals: [] }),roster:reportData.tsnu_roster || []},
     },exportLot,exportZone);
@@ -1488,7 +1494,7 @@ function App() {
       const selected = await loadSelectedAdminRecords();
       setAdminRecords([]);
       setAdminLoaded(false);
-      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu, selected.svbChecklists, selected.vehicleAudits, selected.svbRoster);
+      if (type === "excel") await exportExcel(selected.records, selected.submissions, selected.tsnu, selected.svbChecklists, selected.vehicleAudits, selected.svbRoster, selected.bpChecklists);
       else exportPdf(selected.records, selected.submissions, selected.tsnu);
     } catch (error) {
       flash("No se pueden cargar los datos seleccionados");
@@ -2458,7 +2464,7 @@ function App() {
     doc.save(`lista_reposicion_${new Date().toISOString().slice(0, 10)}.pdf`);
     flash("Lista de reposición exportada en PDF");
   }
-  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}, svbChecklists = [], vehicleAudits = [], svbRoster = null) {
+  async function exportExcel(source = adminRecords, submissions = [], tsnuData = {}, svbChecklists = [], vehicleAudits = [], svbRoster = null, bpChecklists = []) {
     if (!exportZone) return flash("Selecciona una supervisión");
     if (!exportFrom || !exportTo)
       return flash("Selecciona la fecha inicial y final");
@@ -2647,7 +2653,7 @@ function App() {
           "Guardia finalizada": shift.ended_at ? shift.close_source === "automatic" ? "Sí · Automática" : "Sí · Manual" : "No",
         };
       }),
-      checklistTsuRecords = withMissingChecklists(svbChecklists,svbRoster || [],exportFrom,exportTo),
+      checklistTsuRecords = withMissingChecklists(svbChecklists,(svbRoster || []).filter(r=>!isBpUnit(r.unit||r)),exportFrom,exportTo),
       checklistTsuRows = checklistTsuRecords.map((checklist) => {
         const answers = checklist.answers || {},
           zoneNames = { left: "Zona izquierda", front: "Zona frontal", right: "Zona derecha", cabin: "Cabina de conducción", door: "Puerta corredera izquierda" },
@@ -2762,6 +2768,7 @@ function App() {
     });
     XLSX.utils.book_append_sheet(wb, wsGeneral, "Resumen general");
     XLSX.utils.book_append_sheet(wb, wsChecklistTsu, "Checklist SVB");
+    XLSX.utils.book_append_sheet(wb,bpReportSheet(XLSX,bpChecklists,(svbRoster||[]).filter(r=>isBpUnit(r.unit||r)),exportFrom,exportTo,madridDateTime),'Checklist BP Polivalente');
     if(svbRoster===null) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([{Aviso:'Control de pendientes no disponible: falta actualizar la función de informes. Este listado contiene solo los registros recibidos.'}]),'Aviso pendientes');
     wsChecklistIncidents.forEach(({sheet,name})=>XLSX.utils.book_append_sheet(wb, sheet, name));
     const auditReport=vehicleAuditReport(XLSX,vehicleAudits,materialLabel,madridDateTime);
@@ -3526,7 +3533,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v266</span></h1>
+          <h1>Control de material <span className="app-version">v267</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4595,7 +4602,10 @@ function App() {
                 <VehicleAudit key={`${currentUnit}:${lot}`} supervisor={displayUnit(currentUnit)} lot={localStorage.getItem(KEY.lot) || lot} zone={currentChecklistConfig.zone || unitZone(currentUnit)} authorized={deviceAuth.checked && deviceAuth.authorized} />
               </React.Suspense>
             )}
-            {!isSupervisorMaterial(currentUnit) && currentChecklistConfig.service !== 'TSNU' && (
+            {!isSupervisorMaterial(currentUnit) && currentChecklistConfig.service !== 'TSNU' && currentChecklistConfig.checklist === 'Polivalente' && (
+              <React.Suspense fallback={<div className="card">Cargando checklist BP…</div>}><BpUnitChecklist key={`${lot}:${currentUnit}`} unit={displayUnit(currentUnit)} lot={localStorage.getItem(KEY.lot)||lot} zone={currentChecklistConfig.zone||unitZone(currentUnit)} shift={localStorage.getItem(KEY.shift)} authorized={deviceAuth.checked&&deviceAuth.authorized}/></React.Suspense>
+            )}
+            {!isSupervisorMaterial(currentUnit) && currentChecklistConfig.service !== 'TSNU' && currentChecklistConfig.checklist !== 'Polivalente' && (
               <div className="card">
                 <button type="button" disabled={currentChecklistConfig.checklist === "SVB" ? !svbAssignedGuard(localStorage.getItem(KEY.shift), new Date(guardTick)) : !currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => openSvbChecklist()}>
                   Checklist
@@ -5382,13 +5392,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v266" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v267" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=266", {
+    navigator.serviceWorker.register("./sw.js?v=267", {
       updateViaCache: "none",
     }),
   );

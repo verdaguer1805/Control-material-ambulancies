@@ -4,6 +4,7 @@ import { SVB_FRONT_WALL_SECTIONS } from './svb-front-wall-data.mjs';
 import { SVB_RIGHT_ZONE_SECTIONS } from './svb-right-zone-data.mjs';
 import { SVB_CABIN_ITEMS } from './svb-cabin-data.mjs';
 import { SVB_DOOR_SECTIONS } from './svb-door-data.mjs';
+import {BP_ITEMS} from './bp-operational.mjs';
 
 export const AUDIT_TYPES = ['TSNU', 'SVB', 'Polivalente', 'Logística'];
 export const AUDIT_STORAGE_KEY = 'cma_supervisor_vehicle_audits_v1';
@@ -17,6 +18,7 @@ export function auditStartError(type, vehicle) {
 }
 export const isAuditSupervisor = value => /^Material supervisor\s*·\s*\S/i.test(value || '') || /^SUPERVISOR_\S/i.test(value || '');
 export function auditGroups(type, vehicle='') {
+  if(type==='Polivalente')return [...new Set(BP_ITEMS.map(i=>i.section))].map((title,index)=>({id:`bp-${index}`,title,items:BP_ITEMS.filter(i=>i.section===title).map(i=>i.label)}));
   if (type === 'TSNU') return tsnuChecklistGroups(vehicle).map(([title, items], index) => ({id:`tsnu-${index}`, title, items:items.map(tsnuChecklistItemLabel)}));
   if (type !== 'SVB') return [];
   const groups = [];
@@ -30,11 +32,12 @@ export function auditGroups(type, vehicle='') {
   return groups;
 }
 export function auditItems(type, vehicle='') {
+  if(type==='Polivalente')return BP_ITEMS.map(i=>({...i}));
   return auditGroups(type,vehicle).flatMap(group => group.items.map((label, index) => ({id:`${group.id}:${index}`, label, section:group.title})));
 }
 export function auditComplete(draft) {
   const items = draft?.catalog || [];
-  return validAuditVehicle(draft?.vehicle) && ['TSNU','SVB'].includes(draft?.type) && items.length > 0 && items.every(item => ['ok','issue'].includes(draft.answers?.[item.id]));
+  return validAuditVehicle(draft?.vehicle) && ['TSNU','SVB','Polivalente'].includes(draft?.type) && items.length > 0 && items.every(item => ['ok','issue'].includes(draft.answers?.[item.id]));
 }
 export function refreshPendingAudit(draft) {
   if (draft.confirmedAt) return draft;

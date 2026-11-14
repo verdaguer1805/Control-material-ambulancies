@@ -20,14 +20,14 @@ export function tsnuWarehouse(unit, lot, zone) {
 export function readUnitChecklist(storage, unit, lot) {
   try {
     const value = JSON.parse(storage.getItem(UNIT_CHECKLIST_KEY) || 'null');
-    if (value?.unit === unit && value?.lot === lot && ['TSU','TSNU'].includes(value.service)) return value;
+    if (value?.unit === unit && value?.lot === lot && ['TSU','TSNU'].includes(value.service)) return /^BP[0-9]+$/i.test(unit)&&value.service==='TSU'?{...value,checklist:'Polivalente'}:value;
   } catch { /* Older assignments keep TSU and their existing settings. */ }
   // Existing operational mobiles need no reassignment or storage reset.
   // An explicit later admin assignment above always takes precedence.
   if (lot === 'Lot 5 · Girona - Alt Maresme' && ['G452','G413','G453'].includes(unit)) {
     return {unit, lot, zone:'Olot', service:'TSU', checklist:'SVB'};
   }
-  return {unit, lot, service:'TSU', checklist:''};
+  return {unit, lot, service:'TSU', checklist:/^BP[0-9]+$/i.test(unit)?'Polivalente':''};
 }
 export function deviceServiceLabel(unit, lot) {
   return Object.values(TSNU_UNITS[lot] || {}).some(units => Object.hasOwn(units, unit)) ? 'TSNU · Solo checklist' : 'TSU / Material';

@@ -25,7 +25,7 @@ test('audits use production catalogs including nested bags and cabin; pending ty
  const svb=auditItems('SVB');assert.equal(new Set(svb.map(x=>x.id)).size,svb.length);
  for(const section of SVB_FRONT_WALL_SECTIONS.filter(s=>!s.pendingDefinition))for(const item of frontSectionItems(section))assert.ok(svb.some(x=>x.label===item));
  assert.ok(auditGroups('SVB').some(x=>x.title==='Cabina de conducción'));
- assert.deepEqual(auditItems('Polivalente'),[]);assert.deepEqual(auditItems('Logística'),[]);
+ assert.equal(auditItems('Polivalente').length,222);assert.deepEqual(auditItems('Logística'),[]);
 });
 test('new compartments require review in pending audits without rewriting confirmed audits',()=>{
  const catalog=auditItems('SVB').filter(item=>!item.id.startsWith('Zona izquierda-11-'));
