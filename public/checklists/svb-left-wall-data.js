@@ -38,7 +38,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
       "Chaqueta anticorte · talla M · 1 unidad",
       "Chaqueta anticorte · talla L · 1 unidad",
       "Chaqueta anticorte · talla XL · 1 unidad",
-      "Guantes anticorte · 3 pares"
+      "Guantes anticorte · 4 pares (1 par de cada talla: S, M, L y XL)"
     ]
   },
   {

@@ -12,7 +12,7 @@ export const SVB_LEFT_WALL_SECTIONS = [
   ] },
   { id: 3, title: "Compartimento 3", items: [
     "Chaqueta anticorte · talla S · 1 unidad", "Chaqueta anticorte · talla M · 1 unidad", "Chaqueta anticorte · talla L · 1 unidad",
-    "Chaqueta anticorte · talla XL · 1 unidad", "Guantes anticorte · 3 pares"
+    "Chaqueta anticorte · talla XL · 1 unidad", "Guantes anticorte · 4 pares (1 par de cada talla: S, M, L y XL)"
   ] },
   { id: 4, title: "Compartimento 4", items: ["Bolsa para objetos personales grande · 5 unidades", "Bolsa para objetos personales pequeña · 5 unidades", "Colchón de vacío pediátrico · 1 unidad"] },
   { id: 5, title: "Compartimento 5", items: [

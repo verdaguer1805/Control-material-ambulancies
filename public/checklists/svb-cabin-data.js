@@ -1,6 +1,6 @@
 export const SVB_CABIN_ITEMS = [
   "Baliza V-16 · 1 unidad",
-  "Chaleco reflectante · 1 unidad",
+  "Chaleco reflectante · 3 unidades",
   "Cargador base Sepura · 2 unidades",
   "Batería de repuesto Sepura · 2 unidades",
   "Cargador de 12 V Sepura · 1 unidad",

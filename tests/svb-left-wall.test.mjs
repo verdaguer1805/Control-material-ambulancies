@@ -9,7 +9,7 @@ import { auditItems } from "../src/vehicle-audit.mjs";
 import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from "../src/svb-left-wall-data.mjs";
 
 test("anticorte gloves are a single three-pair entry and signaling cones are removed",()=>{
-  assert.deepEqual(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===3).items.filter(item=>item.startsWith("Guantes anticorte")),["Guantes anticorte · 3 pares"]);
+  assert.deepEqual(SVB_LEFT_WALL_SECTIONS.find(({id})=>id===3).items.filter(item=>item.startsWith("Guantes anticorte")),["Guantes anticorte · 4 pares (1 par de cada talla: S, M, L y XL)"]);
   assert.ok(SVB_LEFT_WALL_SECTIONS.every(section=>section.items.every(item=>!item.startsWith("Conos"))));
 });
 
