@@ -5,8 +5,8 @@ import {auditItems,validTsnuAuditVehicle,auditStartError} from '../src/vehicle-a
 import {CHECKLIST_REFERENCE_TYPES,checklistReferenceSections} from '../src/checklist-reference.mjs';
 import {checklistItems,completeDemo} from '../src/checklist-demo.mjs';
 
-test('KB matches KE and VLL matches T globally, with independent catalogs',()=>{
- for(const [family,base] of [['KB','KE'],['VLL','T']]){
+test('KB matches KE and VL matches T globally, with independent catalogs',()=>{
+ for(const [family,base] of [['KB','KE'],['VL','T']]){
   assert.equal(tsnuChecklistType(` ${family.toLowerCase()}1234 `),family);
   assert.deepEqual(TSNU_CHECKLIST_CATALOGS[family],TSNU_CHECKLIST_CATALOGS[base]);
   assert.notEqual(TSNU_CHECKLIST_CATALOGS[family],TSNU_CHECKLIST_CATALOGS[base]);
@@ -20,8 +20,8 @@ test('KB matches KE and VLL matches T globally, with independent catalogs',()=>{
   }
  }
 });
-test('unit, auditor and read-only reference use identical KB/VLL content',()=>{
- for(const family of ['KB','VLL']){
+test('unit, auditor and read-only reference use identical KB/VL content',()=>{
+ for(const family of ['KB','VL']){
   const labels=tsnuChecklistItems(family+'1234').map(tsnuChecklistItemLabel);
   assert.ok(CHECKLIST_REFERENCE_TYPES.some(([type])=>type===family));
   assert.deepEqual(auditItems('TSNU',family+'1234').map(i=>i.label),labels);
@@ -31,5 +31,5 @@ test('unit, auditor and read-only reference use identical KB/VLL content',()=>{
   assert.equal(validTsnuAuditVehicle(family),false);
  }
  assert.equal(tsnuChecklistItems('KB1234').includes('Cizallas'),false);
- assert.equal(tsnuChecklistItems('VLL1234').includes('Cizallas'),true);
+ assert.equal(tsnuChecklistItems('VL1234').includes('Cizallas'),true);
 });

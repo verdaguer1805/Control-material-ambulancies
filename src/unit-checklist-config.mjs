@@ -1,3 +1,4 @@
+import {tsnuAddedUnits} from './tsnu-fleet-additions.mjs';
 export const UNIT_CHECKLIST_KEY = 'cma_unit_checklist_v1';
 export const TSU_CHECKLISTS = ['SVB', 'Polivalente', 'Logística'];
 // Checklist-only units: deliberately separate from stock/report warehouse mappings.
@@ -6,8 +7,11 @@ export const TSNU_UNITS = {
     Olot: Object.fromEntries([
       'K1374', 'K1376', 'K1377', 'T1731', 'T1732', 'T1733', 'T1734',
       'T1735', 'T1736', 'T1737', 'T1738', 'T1739', 'T1740', 'T1741',
-      'T1742', 'T1743', 'T1744', 'KE1384', 'KE1388',
+      'T1742', 'T1743', 'T1744', 'KE1388',
     ].map(unit => [unit, 'TSNU'])),
+    Figueres: tsnuAddedUnits('Figueres'),
+    Girona: tsnuAddedUnits('Girona'),
+    Blanes: tsnuAddedUnits('Blanes'),
   },
 };
 const CAMPDEVANOL_TSNU = new Set(['K1376','K1377','T1731','T1732','T1733','T1734','T1735','T1736']);

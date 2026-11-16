@@ -10,9 +10,9 @@ export const AUDIT_TYPES = ['TSNU', 'SVB', 'Polivalente', 'Logística'];
 export const AUDIT_STORAGE_KEY = 'cma_supervisor_vehicle_audits_v1';
 export const normalizeAuditVehicle = value => String(value || '').trim().toUpperCase();
 export const validAuditVehicle = value => /^[A-Z0-9][A-Z0-9-]{2,19}$/.test(normalizeAuditVehicle(value));
-export const validTsnuAuditVehicle = value => /^(?:VLL|KB|KE|K|T)[0-9]+$/.test(normalizeAuditVehicle(value)) && validAuditVehicle(value);
+export const validTsnuAuditVehicle = value => /^(?:VL|KB|KE|K|T)[0-9]+$/.test(normalizeAuditVehicle(value)) && validAuditVehicle(value);
 export function auditStartError(type, vehicle) {
-  if (type === 'TSNU' && !validTsnuAuditVehicle(vehicle)) return 'Introduce el indicativo completo, empezando por T, K, KE, KB o VLL y seguido de números. No introduzcas solo números.';
+  if (type === 'TSNU' && !validTsnuAuditVehicle(vehicle)) return 'Introduce el indicativo completo, empezando por T, K, KE, KB o VL y seguido de números. No introduzcas solo números.';
   if (!validAuditVehicle(vehicle)) return 'Introduce el identificador del vehículo, por ejemplo T1733 o 5438.';
   return '';
 }

@@ -1,7 +1,7 @@
 // Vehicle family depends only on the unit prefix, never on its lot or zone.
 export function tsnuChecklistType(unit) {
   const value=String(unit || '').trim().toUpperCase();
-  if (/^VLL/.test(value)) return 'VLL';
+  if (/^VL/.test(value)) return 'VL';
   if (/^KB/.test(value)) return 'KB';
   if (/^KE/.test(value)) return 'KE';
   if (/^K/.test(value)) return 'K';
@@ -9,7 +9,7 @@ export function tsnuChecklistType(unit) {
   return '';
 }
 export function tsnuChecklistLabel(unit) {
-  return {T:'Tango (T)',K:'Kilo (K)',KE:'Kilo Eco (KE)',KB:'KB',VLL:'VLL'}[tsnuChecklistType(unit)] || 'TSNU';
+  return {T:'Tango (T)',K:'Kilo (K)',KE:'Kilo Eco (KE)',KB:'KB',VL:'VL'}[tsnuChecklistType(unit)] || 'TSNU';
 }
 const BASE_GROUPS=[
   ['Maleta de intervención',['Maleta de intervención precintada']],
@@ -46,7 +46,7 @@ export const tsnuReportedItemLabel=(item,answers)=>TSNU_NEW_FRONT_ITEMS.every(ke
 const NO_KILO_TOOLS=new Set(['Cizallas','Pata de cabra']);
 const cloneGroups=(withoutTools=false)=>BASE_GROUPS.map(([title,items])=>[title,items.filter(item=>!withoutTools || !NO_KILO_TOOLS.has(item))]);
 // Independent catalogs: future changes to K must not silently change KE or T.
-export const TSNU_CHECKLIST_CATALOGS={T:cloneGroups(),K:cloneGroups(true),KE:cloneGroups(true),KB:cloneGroups(true),VLL:cloneGroups()};
+export const TSNU_CHECKLIST_CATALOGS={T:cloneGroups(),K:cloneGroups(true),KE:cloneGroups(true),KB:cloneGroups(true),VL:cloneGroups()};
 export function tsnuChecklistGroups(unit) {
   const groups=TSNU_CHECKLIST_CATALOGS[tsnuChecklistType(unit) || 'T'];
   return groups.map(([title,items])=>[title,[...items]]);

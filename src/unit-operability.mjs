@@ -6,7 +6,7 @@ export const INOPERABILITY_REASONS = [
   ['maintenance', 'Avería o mantenimiento del vehículo'],
 ];
 export function canUnitDeclareInoperability(unit,service='TSU') {
-  return Boolean(unit && service==='TSU' && !/^(?:Material supervisor|SUPERVISOR_|Auditor|(?:VLL|KB|KE|K|T)\d)/i.test(unit));
+  return Boolean(unit && service==='TSU' && !/^(?:Material supervisor|SUPERVISOR_|Auditor|(?:VL|KB|KE|K|T)\d)/i.test(unit));
 }
 export const operabilityKey = (lot, unit) => `cma_unit_operability_v1:${encodeURIComponent(lot)}:${encodeURIComponent(unit)}`;
 export function readOperability(storage, lot, unit) {
