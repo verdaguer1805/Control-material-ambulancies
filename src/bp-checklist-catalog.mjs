@@ -195,7 +195,7 @@ export const BP_CHECKLIST_SECTIONS = [
   {
     id: "bp-section-161", area: "PUERTA TRASERA", title: "PUERTA TRASERA 1", sourceRow: 161,
     items: [
-      {"id":"bp-item-163","label":"Tablero espinal","quantity":"1","sourceRow":163},
+      {"id":"bp-item-163","label":"Camilla de tijera","quantity":"1","sourceRow":163},
       {"id":"bp-item-164","label":"Base del inmovilizador de cabeza","quantity":"1","sourceRow":164},
       {"id":"bp-item-165","label":"Soportes laterales del inmovilizador de cabeza","quantity":"2","sourceRow":165},
     ],
@@ -217,7 +217,7 @@ export const BP_CHECKLIST_SECTIONS = [
       {"id":"bp-item-180","label":"Chaqueta anticorte talla M","quantity":"1","sourceRow":180},
       {"id":"bp-item-181","label":"Chaqueta anticorte talla L","quantity":"1","sourceRow":181},
       {"id":"bp-item-182","label":"Chaqueta anticorte talla XL","quantity":"1","sourceRow":182},
-      {"id":"bp-item-183","label":"Guantes anticorte","quantity":"3","sourceRow":183},
+      {"id":"bp-item-183","label":"Guantes anticorte","quantity":"4 pares (1 par de cada talla: S, M, L y XL)","sourceRow":183},
       {"id":"bp-item-184","label":"Sábanas","quantity":"5","sourceRow":184},
     ],
   },

@@ -10,6 +10,16 @@ import {readUnitChecklist,UNIT_CHECKLIST_KEY} from '../src/unit-checklist-config
 import {svbAssignedGuard} from '../src/svb-guard-window.mjs';
 import {bpReportSheet} from '../src/bp-report.mjs';
 const full=()=>({lot:'Lot X',zone:'Zona Y',unit:'BP99',vehicle:'5517',guardCode:'141126',guardStartedAt:'2026-11-14T06:00:00.000Z',catalog:BP_ITEMS,answers:Object.fromEntries(BP_ITEMS.map(i=>[i.id,'ok'])),notes:{}});
+
+test('BP rear-left has scissors stretcher, under-vacuum retains spinal board and rear-right has four glove sizes',()=>{
+ const item=id=>BP_ITEMS.find(i=>i.id===id);
+ assert.equal(item('bp-item-163').label,'Camilla de tijera · 1 unidad');
+ assert.match(item('bp-item-163').section,/Puerta trasera izquierda/);
+ assert.equal(item('bp-item-158').label,'Tablero espinal · 1 unidad');
+ assert.match(item('bp-item-158').section,/Debajo del colchón de vacío/);
+ assert.equal(item('bp-item-183').label,'Guantes anticorte · 4 pares (1 par de cada talla: S, M, L y XL)');
+ assert.match(item('bp-item-183').section,/Puerta trasera derecha/);
+});
 test('BP pending report does not blame units for dates before operational launch',()=>{
  const sheet=bpReportSheet(XLSX,[],['BP99'],'2026-11-01','2026-11-13',v=>({date:v,time:''}));
  assert.equal(XLSX.utils.sheet_to_json(sheet).length,0);
