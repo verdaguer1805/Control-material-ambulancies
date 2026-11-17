@@ -20,6 +20,15 @@ test('BP rear-left has scissors stretcher, under-vacuum retains spinal board and
  assert.equal(item('bp-item-183').label,'Guantes anticorte · 4 pares (1 par de cada talla: S, M, L y XL)');
  assert.match(item('bp-item-183').section,/Puerta trasera derecha/);
 });
+test('BP restraint bag belongs only to left compartment 2 and preserves its identity and quantity',()=>{
+ const zone=BP_ZONES.find(z=>z.id==='left');
+ assert.ok(!bpPointItems(zone,1).includes('bp-item-26'));
+ const bags=bpPointItems(zone,2).filter(id=>id==='bp-item-26');
+ assert.equal(bags.length,1);
+ assert.equal(BP_ITEMS.find(i=>i.id===bags[0]).label,'Bolsa de contención para paciente agitado · 1 unidad');
+ assert.equal(BP_ITEMS.filter(i=>i.id==='bp-item-26').length,1);
+});
+
 test('BP pending report does not blame units for dates before operational launch',()=>{
  const sheet=bpReportSheet(XLSX,[],['BP99'],'2026-11-01','2026-11-13',v=>({date:v,time:''}));
  assert.equal(XLSX.utils.sheet_to_json(sheet).length,0);

@@ -30,7 +30,6 @@ export const BP_CHECKLIST_SECTIONS = [
     items: [
       {"id":"bp-item-24","label":"Correas tipo araña","quantity":"1","sourceRow":24},
       {"id":"bp-item-25","label":"Sistema de retención infantil","quantity":"1","sourceRow":25},
-      {"id":"bp-item-26","label":"Bolsa de contención para paciente agitado","quantity":"1","sourceRow":26},
     ],
   },
   {
@@ -38,6 +37,7 @@ export const BP_CHECKLIST_SECTIONS = [
     items: [
       {"id":"bp-item-30","label":"Bolsa de vacío para colchón","quantity":"1","sourceRow":30},
       {"id":"bp-item-31","label":"Inmovilizador cervical y de columna pediátrico","quantity":"1","sourceRow":31},
+      {"id":"bp-item-26","label":"Bolsa de contención para paciente agitado","quantity":"1","sourceRow":26},
     ],
   },
   {
