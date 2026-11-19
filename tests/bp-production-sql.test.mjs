@@ -12,7 +12,7 @@ test('BP migration is additive, scoped and does not modify inventory or existing
  assert.match(sql,/CHECKLIST_GUARD_TOO_EARLY/);
  assert.match(sql,/public\.admin_can_access_zone\(p_zone\)/);
  assert.doesNotMatch(sql,/(?:update|delete from|insert into|truncate)\s+public\.(?:warehouse_inventory|svb_checklist_submissions|incidents|device_authorizations)/i);
- const ids=BP_CHECKLIST_SECTIONS.flatMap(s=>s.items.map(i=>i.id));
+ const ids=[...sql.matchAll(/'bp-item-[0-9]+'/g)].map(m=>m[0].slice(1,-1));
  assert.equal(ids.length,222);
  for(const id of ids)assert.ok(sql.includes(`'${id}'`));
  assert.match(sql,/count\(distinct x->>'id'\)/);

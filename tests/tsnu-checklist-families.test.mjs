@@ -16,7 +16,7 @@ test('TSNU families are global by prefix, with KE before K and no device reassig
 });
 test('independent T, K and KE catalogs only differ by the two excluded tools',()=>{
  assert.deepEqual(tsnuChecklistItems('T999'),TSNU_CHECKLIST_ITEMS);
- for(const unit of ['K999','KE999'])assert.deepEqual(tsnuChecklistItems(unit),TSNU_CHECKLIST_ITEMS.filter(item=>!['Cizallas','Pata de cabra'].includes(item)));
+ for(const unit of ['K999','KE999'])assert.deepEqual(tsnuChecklistItems(unit),TSNU_CHECKLIST_ITEMS.filter(item=>!['Cizallas','Pata de cabra','Martillo rompecristales'].includes(item)));
  assert.notEqual(TSNU_CHECKLIST_CATALOGS.K,TSNU_CHECKLIST_CATALOGS.KE);
  assert.notEqual(TSNU_CHECKLIST_CATALOGS.K[0][1],TSNU_CHECKLIST_CATALOGS.KE[0][1]);
  const copy=tsnuChecklistGroups('K999');copy[0][1].push('not real');assert.ok(!tsnuChecklistItems('K999').includes('not real'));
@@ -60,5 +60,6 @@ test('server migration is scoped, strict, compatible with old clients, and canno
  assert.match(sql,/array_remove\(array_remove\(v_required,'Cizallas'\),'Pata de cabra'\)/);
  assert.doesNotMatch(sql,/(update|insert into|delete from) public\.(stock|incidents|tsnu_unit_assignments|device_authorizations)/i);
  const equipmentSql=fs.readFileSync(new URL('../sql/tsnu-checklist-equipment-v3.sql',import.meta.url),'utf8');
- for(const item of TSNU_CHECKLIST_ITEMS)assert.ok((sql+equipmentSql).includes(`'${item}'`));
+ const updateSql=fs.readFileSync(new URL('../sql/checklist-bp-bag-tango-2026-11-19.sql',import.meta.url),'utf8');
+ for(const item of TSNU_CHECKLIST_ITEMS)assert.ok((sql+equipmentSql+updateSql).includes(`'${item}'`));
 });

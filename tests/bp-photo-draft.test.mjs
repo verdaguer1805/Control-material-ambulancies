@@ -21,7 +21,7 @@ test('BP photo relocation preserves every item once and leaves only three items 
  const left=BP_PHOTO_DRAFT.find(z=>z.id==='left');
  assert.deepEqual(bpPhotoSections(left,left.points.find(p=>p[0]===3))[0].items.map(i=>i.label),['Lona azul','Colchón de vacío','Bomba de vacío']);
  const items=BP_PHOTO_DRAFT.flatMap(z=>z.points.flatMap(p=>bpPhotoSections(z,p).flatMap(s=>s.items)));
- const expected=BP_CHECKLIST_SECTIONS.filter(s=>BP_PHOTO_DRAFT.some(z=>z.points.some(p=>p[3].includes(s.sourceRow)))).flatMap(s=>s.items);
+ const expected=BP_CHECKLIST_SECTIONS.filter(s=>BP_PHOTO_DRAFT.some(z=>z.points.some(p=>p[3].includes(s.parentRow??s.sourceRow)))).flatMap(s=>s.items);
  assert.deepEqual(items.map(i=>i.id).sort(),expected.map(i=>i.id).sort());
  assert.equal(new Set(items.map(i=>i.id)).size,items.length);
 });

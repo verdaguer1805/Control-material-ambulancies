@@ -36,7 +36,7 @@ test('TSNU variants reflect their own catalogs and BP is available for reference
   const items = type => checklistReferenceSections(type).flatMap(section => section.groups.flatMap(group => group.items));
   assert.ok(items('T').includes('Cizallas'));
   for (const type of ['K','KE']) assert.ok(!items(type).includes('Cizallas'));
-  assert.equal(items('BP').length, 222);
+  assert.equal(items('BP').length, 281);
   assert.equal(items('BP').filter(item=>item.includes('Cantidad pendiente de definir')).length,0);
   assert.ok(items('BP').includes('Prueba diaria de usuario realizada'));
   assert.ok(!items('BP').some(item=>/^Bolsa de (reposición del monitor|resucitador adulto)/.test(item)));
@@ -46,7 +46,7 @@ test('TSNU variants reflect their own catalogs and BP is available for reference
   assert.deepEqual(items('Polivalente'), []);
   assert.deepEqual(items('Logística'), []);
   assert.equal(filterChecklistReference(checklistReferenceSections('T'), '', 'cajón 2').length, 1);
-  for (const [type,unit,count] of [['T','T1733',26], ['K','K1376',24], ['KE','KE1384',24]]) {
+  for (const [type,unit,count] of [['T','T1733',27], ['K','K1376',24], ['KE','KE1384',24]]) {
     const expected = tsnuChecklistGroups(unit).flatMap(([, rows]) => rows.map(tsnuChecklistItemLabel));
     assert.equal(expected.length,count);
     assert.deepEqual(items(type), expected);

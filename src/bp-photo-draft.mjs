@@ -2,9 +2,9 @@
 import {BP_CHECKLIST_SECTIONS} from './bp-checklist-catalog.mjs';
 export function bpPhotoSections(zone,point){
  const leftRows=[149,150,151];
- const sections=point[3].map(row=>{
+ const sections=point[3].flatMap(row=>{
   const section=BP_CHECKLIST_SECTIONS.find(s=>s.sourceRow===row);
-  return row===147?{...section,items:section.items.filter(i=>leftRows.includes(i.sourceRow)).map(i=>i.sourceRow===151?{...i,label:'Bomba de vacío'}:i)}:section;
+  return row===147?[{...section,items:section.items.filter(i=>leftRows.includes(i.sourceRow)).map(i=>i.sourceRow===151?{...i,label:'Bomba de vacío'}:i)}]:[section,...BP_CHECKLIST_SECTIONS.filter(s=>s.parentRow===row)];
  });
  if(zone.id==='under-vacuum'&&point[0]===1)sections.push({id:'bp-under-vacuum-material',title:'Material complementario',items:BP_CHECKLIST_SECTIONS.find(s=>s.sourceRow===147).items.filter(i=>!leftRows.includes(i.sourceRow))});
  return sections;
@@ -21,7 +21,7 @@ export const BP_PHOTO_DRAFT=[
  {id:'rear-left',title:'Puerta trasera izquierda',ratio:3/4,points:[
   [1,34,48,[161]],[2,82,75,[186]]]},
  {id:'rear-right',title:'Puerta trasera derecha',ratio:3/4,points:[[1,51,57,[167]]]},
- {id:'sliding-left',title:'Puerta corredera lateral izquierda',ratio:3/4,points:[
+ {id:'sliding-left',title:'Puerta corredera izquierda',ratio:3/4,points:[
   [1,65,34,[287]],[2,24,66,[295]],[3,71,72,[300]]]},
  {id:'under-vacuum',title:'Debajo del colchón de vacío',ratio:3/4,points:[[1,49,48,[51,65,69,77,87,94,102,113,126,136]]]},
 ];

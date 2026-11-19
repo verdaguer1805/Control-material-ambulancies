@@ -1,16 +1,16 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=274";
-import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=274";
-import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=274";
-import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=274";
-import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=274";
-import{cabinStatus}from"./svb-cabin-data.js?v=274";
-import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=274";
-import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=274';
-import { checklistFingerprint } from './checklist-send-reminder.js?v=274';
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=275";
+import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=275";
+import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=275";
+import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=275";
+import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=275";
+import{cabinStatus}from"./svb-cabin-data.js?v=275";
+import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=275";
+import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=275';
+import { checklistFingerprint } from './checklist-send-reminder.js?v=275';
 let submitting = false;
-import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=274';
+import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=275';
 
-document.querySelector(".head h1 small").textContent="v274";
+document.querySelector(".head h1 small").textContent="v275";
 
 // Retain the existing controls/handlers while making the send action prominent.
 const fixedPanel=document.createElement('section'),scrollPanel=document.createElement('section');

@@ -1,6 +1,7 @@
 // Shared BP / Polivalente checklist catalog.
 // Source: Revision_material_ambulancia_editable.xlsx, Checklist ambulancia!A1:B328.
 // A null quantity preserves a blank in the source; do not infer a stock count.
+import {SVB_FRONT_WALL_SECTIONS} from './svb-front-wall-data.mjs';
 export const BP_CHECKLIST_SECTIONS = [
   {
     id: "bp-section-1", area: "ZONA IZQUIERDA", title: "COMPARTIMENTO 1 – EQUIPOS DE PROTECCIÓN", sourceRow: 1,
@@ -332,7 +333,7 @@ export const BP_CHECKLIST_SECTIONS = [
     ],
   },
   {
-    id: "bp-section-274", area: "ZONA IZQUIERDA LATERAL", title: "MOCHILA", sourceRow: 274,
+    id: "bp-section-274", area: "ZONA IZQUIERDA LATERAL", title: "Maleta de primera intervención", sourceRow: 274,
     items: [
       {"id":"bp-item-276","label":"Mochila de intervención","quantity":"1","sourceRow":276},
     ],
@@ -351,8 +352,7 @@ export const BP_CHECKLIST_SECTIONS = [
   {
     id: "bp-section-287", area: "PUERTA CORREDERA IZQUIERDA", title: "MATERIAL DE RESCATE", sourceRow: 287,
     items: [
-      {"id":"bp-item-289","label":"Dispositivo de extricación de vehículos FERNO","quantity":"1","sourceRow":289},
-      {"id":"bp-item-290","label":"Señal de punto de estacionamiento (trípode)","quantity":"1","sourceRow":290},
+      {"id":"bp-item-309","label":"Cinta de balizamiento","quantity":"1","sourceRow":309},
       {"id":"bp-item-291","label":"Cizalla","quantity":"1","sourceRow":291},
       {"id":"bp-item-292","label":"Pata de cabra","quantity":"1","sourceRow":292},
       {"id":"bp-item-293","label":"Martillo rompecristales","quantity":"1","sourceRow":293},
@@ -362,12 +362,13 @@ export const BP_CHECKLIST_SECTIONS = [
     id: "bp-section-295", area: "PUERTA CORREDERA IZQUIERDA", title: "BOTELLAS DE OXÍGENO", sourceRow: 295,
     items: [
       {"id":"bp-item-297","label":"Botellas de oxígeno de 10 litros","quantity":"2","sourceRow":297},
-      {"id":"bp-item-298","label":"Botellas de oxígeno de 5 litros","quantity":"2","sourceRow":298},
     ],
   },
   {
     id: "bp-section-300", area: "PUERTA CORREDERA IZQUIERDA", title: "MATERIAL DE INMOVILIZACIÓN", sourceRow: 300,
     items: [
+      {"id":"bp-item-289","label":"Dispositivo de extricación de vehículos FERNO","quantity":"1","sourceRow":289},
+      {"id":"bp-item-290","label":"Señal de punto de estacionamiento (trípode)","quantity":"1","sourceRow":290},
       {"id":"bp-item-302","label":"Férulas de Kramer","quantity":"3","sourceRow":302},
       {"id":"bp-item-303","label":"Fundas para férulas de Kramer","quantity":"3","sourceRow":303},
       {"id":"bp-item-304","label":"Férulas maleables digitales","quantity":"2","sourceRow":304},
@@ -375,7 +376,6 @@ export const BP_CHECKLIST_SECTIONS = [
       {"id":"bp-item-306","label":"Collarines multitalla de adulto","quantity":"3","sourceRow":306},
       {"id":"bp-item-307","label":"Collarines multitalla pediátricos","quantity":"2","sourceRow":307},
       {"id":"bp-item-308","label":"Faja pélvica","quantity":"1","sourceRow":308},
-      {"id":"bp-item-309","label":"Cinta de balizamiento","quantity":"1","sourceRow":309},
     ],
   },
   {
@@ -400,3 +400,21 @@ export const BP_CHECKLIST_SECTIONS = [
     ],
   },
 ];
+
+// Shared material and subgroup wording with SVB, with BP-specific stable keys.
+// Derive keys from subgroup + material name (not position or quantity).
+const stableBagKey = text => {
+ let hash=2166136261;
+ for(const char of text)hash=Math.imul(hash ^ char.charCodeAt(0),16777619)>>>0;
+ return `bp-item-${10000000000+hash}`;
+};
+export const BP_INTERVENTION_GROUPS=SVB_FRONT_WALL_SECTIONS.find(s=>s.id===10).groups.map((group,index)=>({
+ id:`bp-intervention-${index}`,area:'ZONA FRONTAL',title:`Maleta de primera intervención · ${group.title}`,
+ sourceRow:`intervention-${index}`,parentRow:274,
+ items:group.items.map(text=>{
+  const split=text.lastIndexOf(' · ');
+  const label=split<0?text:text.slice(0,split);
+  return {id:stableBagKey(`${group.title}|${label}`),label,quantity:split<0?null:text.slice(split+3)};
+ })
+}));
+BP_CHECKLIST_SECTIONS.push(...BP_INTERVENTION_GROUPS);

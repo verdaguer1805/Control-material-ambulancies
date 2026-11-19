@@ -39,6 +39,7 @@ const ITEM_LABELS={
   'Baliza V-16':'Baliza V-16 + chaleco de tránsito · 1 unidad',
   'Cargador de teléfono':'Cargador de teléfono · 1 unidad',
   'Linterna + cono':'Linterna + cono · 1 unidad',
+  'Martillo rompecristales':'Martillo rompecristales · 1 unidad',
 };
 export const tsnuChecklistItemLabel=item=>ITEM_LABELS[item] || item;
 // Do not retrospectively add current quantities/equipment to historical reports.
@@ -47,6 +48,7 @@ const NO_KILO_TOOLS=new Set(['Cizallas','Pata de cabra']);
 const cloneGroups=(withoutTools=false)=>BASE_GROUPS.map(([title,items])=>[title,items.filter(item=>!withoutTools || !NO_KILO_TOOLS.has(item))]);
 // Independent catalogs: future changes to K must not silently change KE or T.
 export const TSNU_CHECKLIST_CATALOGS={T:cloneGroups(),K:cloneGroups(true),KE:cloneGroups(true),KB:cloneGroups(true),VL:cloneGroups()};
+TSNU_CHECKLIST_CATALOGS.T.find(([title])=>title==='Parte delantera del vehículo')[1].push('Martillo rompecristales');
 export function tsnuChecklistGroups(unit) {
   const groups=TSNU_CHECKLIST_CATALOGS[tsnuChecklistType(unit) || 'T'];
   return groups.map(([title,items])=>[title,[...items]]);

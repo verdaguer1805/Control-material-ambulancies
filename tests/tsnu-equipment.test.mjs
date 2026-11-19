@@ -29,7 +29,8 @@ test('new items are mandatory for pending checklists but confirmed old ones keep
 });
 test('equipment migration validates complete new payloads and leaves stock and historic rows untouched',()=>{
  const sql=fs.readFileSync(new URL('../sql/tsnu-checklist-equipment-v3.sql',import.meta.url),'utf8');
- for(const item of tsnuChecklistItems('T9999'))assert.ok(sql.includes(`'${item}'`));
+ const updateSql=fs.readFileSync(new URL('../sql/checklist-bp-bag-tango-2026-11-19.sql',import.meta.url),'utf8');
+ for(const item of tsnuChecklistItems('T9999'))assert.ok((sql+updateSql).includes(`'${item}'`));
  assert.match(sql,/v_current:=p_answers \?\| v_new/);
  assert.match(sql,/v_required:=v_required \|\| v_new/);
  assert.match(sql,/v_shift.user_id is distinct from auth.uid\(\)/);

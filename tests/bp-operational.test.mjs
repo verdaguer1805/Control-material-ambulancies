@@ -33,8 +33,8 @@ test('BP pending report does not blame units for dates before operational launch
  const sheet=bpReportSheet(XLSX,[],['BP99'],'2026-11-01','2026-11-13',v=>({date:v,time:''}));
  assert.equal(XLSX.utils.sheet_to_json(sheet).length,0);
 });
-test('BP units, audits and reference use exactly the same 222 items, without duplication',()=>{
- assert.equal(BP_ITEMS.length,222);assert.equal(new Set(BP_ITEMS.map(i=>i.id)).size,222);
+test('BP units, audits and reference use exactly the same 281 items, without duplication',()=>{
+ assert.equal(BP_ITEMS.length,281);assert.equal(new Set(BP_ITEMS.map(i=>i.id)).size,281);
  assert.deepEqual(auditItems('Polivalente'),BP_ITEMS);
  assert.deepEqual(checklistReferenceSections('BP').flatMap(s=>s.groups.flatMap(g=>g.items)),BP_ITEMS.map(i=>i.label));
  assert.deepEqual(BP_ITEMS.map(i=>i.id).sort(),BP_CHECKLIST_SECTIONS.flatMap(s=>s.items.map(i=>i.id)).sort());
@@ -55,7 +55,7 @@ test('BP scope and migration are global without rewriting storage or changing no
 test('BP drafts isolate lot, zone, unit, guard and vehicle, retain incidents and reject incomplete sends',()=>{
  const d=full(),key=bpDraftKey(d);for(const field of ['lot','zone','unit','guardCode','vehicle'])assert.notEqual(bpDraftKey({...d,[field]:'other'}),key);
  d.answers[BP_ITEMS[0].id]='issue';d.notes[BP_ITEMS[0].id]='Falta material';
- const p=bpPayload(d);assert.equal(p.p_items.length,222);assert.equal(p.p_items[0].status,'issue');assert.equal(p.p_items[0].note,'Falta material');
+ const p=bpPayload(d);assert.equal(p.p_items.length,281);assert.equal(p.p_items[0].status,'issue');assert.equal(p.p_items[0].note,'Falta material');
  assert.ok(auditComplete({...d,type:'Polivalente'}));assert.equal(auditRequest({...d,id:'x',type:'Polivalente'}).p_type,'Polivalente');
  const snapshot=bpSnapshot(d);delete d.answers[BP_ITEMS[1].id];assert.equal(bpStatus(d.answers,BP_ITEMS.map(i=>i.id)),'pending');assert.throws(()=>bpPayload(d));assert.notEqual(bpSnapshot(d),snapshot);
 });

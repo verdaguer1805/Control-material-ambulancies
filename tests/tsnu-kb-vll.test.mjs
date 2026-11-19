@@ -8,13 +8,13 @@ import {checklistItems,completeDemo} from '../src/checklist-demo.mjs';
 test('KB matches KE and VL matches T globally, with independent catalogs',()=>{
  for(const [family,base] of [['KB','KE'],['VL','T']]){
   assert.equal(tsnuChecklistType(` ${family.toLowerCase()}1234 `),family);
-  assert.deepEqual(TSNU_CHECKLIST_CATALOGS[family],TSNU_CHECKLIST_CATALOGS[base]);
+  assert.deepEqual(TSNU_CHECKLIST_CATALOGS[family],TSNU_CHECKLIST_CATALOGS[base].map(([t,items])=>[t,items.filter(i=>i!=='Martillo rompecristales')]));
   assert.notEqual(TSNU_CHECKLIST_CATALOGS[family],TSNU_CHECKLIST_CATALOGS[base]);
   assert.notEqual(TSNU_CHECKLIST_CATALOGS[family][0][1],TSNU_CHECKLIST_CATALOGS[base][0][1]);
   for(const lot of ['Lot 5','Lot 7','Otro lote']){
    const record={unit:family+'1234',lot,zone:'Otra zona',service:'TSNU',vehicleType:'TSNU',answers:{}};
    const items=checklistItems(record);
-   assert.deepEqual(items,tsnuChecklistItems(base+'1234'));
+   assert.deepEqual(items,tsnuChecklistItems(base+'1234').filter(i=>i!=='Martillo rompecristales'));
    record.answers=Object.fromEntries(items.map(i=>[i,'ok']));
    assert.doesNotThrow(()=>completeDemo(record));
   }

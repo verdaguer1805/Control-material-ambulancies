@@ -43,7 +43,7 @@ export function refreshPendingAudit(draft) {
   if (draft.confirmedAt) return draft;
   const catalog=auditItems(draft.type,draft.vehicle),answers={},notes={};
   for(const item of catalog){
-    const previous=draft.catalog.find(old=>old.section===item.section && old.label===item.label);
+    const previous=draft.catalog.find(old=>(draft.type==='Polivalente'?old.id===item.id:old.section===item.section) && old.label===item.label);
     if(previous && Object.hasOwn(draft.answers,previous.id))answers[item.id]=draft.answers[previous.id];
     if(previous && Object.hasOwn(draft.notes || {},previous.id))notes[item.id]=draft.notes[previous.id];
   }
