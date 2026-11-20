@@ -1,7 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {getWarehouseScope,WAREHOUSE_DEPLOYMENTS} from '../src/warehouse-config.mjs';
-import {replenishmentKey,replenishmentDraft,replenishmentRequest,replenishmentItems,replenishmentShortages,boundedReplenishment} from '../src/replenishment.mjs';
+import {replenishmentKey,replenishmentDraft,replenishmentRequest,replenishmentItems,replenishmentShortages,boundedReplenishment,validReplenishmentQuantity,editReplenishmentRow} from '../src/replenishment.mjs';
+import fs from 'node:fs';
+import {canRemoveReplenishmentRow,removeReplenishmentRow} from '../src/replenishment.mjs';
+test('trash removes only explicit manual additions, never proposals, legacy rows or pending sends',()=>{
+ const draft={id:'same',request:null,rows:{Auto:{quantity:'2',checked:false},Legacy:{quantity:'1',checked:false},Extra:{quantity:'3',checked:true,manual:true}}};
+ for(const m of ['Auto','Legacy']){
+  assert.equal(canRemoveReplenishmentRow(draft,m),false);
+  assert.equal(removeReplenishmentRow(draft,m),draft);
+ }
+ const removed=removeReplenishmentRow(draft,'Extra');
+ assert.deepEqual(Object.keys(removed.rows),['Auto','Legacy']);
+ assert.equal(removed.id,draft.id);assert.ok(draft.rows.Extra);
+ assert.equal(removeReplenishmentRow(draft,'Extra',[{material:'Extra'}]),draft);
+ const pending={...draft,request:{p_request_id:'same'}};
+ assert.equal(removeReplenishmentRow(pending,'Extra'),pending);
+ assert.equal(canRemoveReplenishmentRow(JSON.parse(JSON.stringify(draft)),'Extra'),true);
+});
+test('zero or invalid quantities uncheck delivery and cannot be checked again',()=>{
+ for(const quantity of ['0','','-1','1.5','1e2','2147483648']){
+  assert.equal(validReplenishmentQuantity(quantity),false);
+  const row=editReplenishmentRow({quantity:'2',checked:true},{quantity});
+  assert.equal(row.checked,false);
+  assert.equal(editReplenishmentRow(row,{checked:true}).checked,false);
+ }
+ assert.equal(editReplenishmentRow({quantity:'0',checked:false},{quantity:'3'}).checked,false);
+ assert.equal(editReplenishmentRow({quantity:'3',checked:false},{checked:true}).checked,true);
+});
+test('confirmation feedback stays by the button and refresh never holds the send lock',()=>{
+ const source=fs.readFileSync(new URL('../src/ReplenishmentPanel.jsx',import.meta.url),'utf8');
+ assert.match(source,/disabled=\{frozen\|\|invalid\}/);
+ assert.match(source,/aria-invalid=\{invalid\}/);
+ assert.match(source,/replenishment-footer-notice/);
+ assert.match(source,/createPortal/);
+ assert.match(source,/document\.body/);
+ assert.match(source,/role="alertdialog"/);
+ assert.match(source,/\(busy\|\|message\|\|refreshNotice\)&&<ReplenishmentNotice/);
+ assert.match(source,/!busy&&<button className="primary" onClick=\{onDismiss\}>Entendido/);
+ assert.match(source,/void boundedReplenishment\(\(\)=>onRefresh\?\.\(\),null,8000\)/);
+ assert.doesNotMatch(source,/await onRefresh/);
+});
 test('replenishment covers every configured lot and zone and never defaults to Olot',()=>{
  for(const config of WAREHOUSE_DEPLOYMENTS){
   const scope=getWarehouseScope(config.lot,config.zone);

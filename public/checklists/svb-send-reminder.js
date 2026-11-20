@@ -1,11 +1,11 @@
-import { checklistFingerprint, checklistReminderKind, showChecklistSendReminder } from './checklist-send-reminder.js?v=277';
-import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from './svb-left-wall-data.js?v=277';
-import { SVB_FRONT_WALL_SECTIONS, frontSectionStatus, frontRequiredSections } from './svb-front-wall-data.js?v=277';
-import { SVB_RIGHT_ZONE_SECTIONS, rightZoneStatus } from './svb-right-zone-data.js?v=277';
-import { SVB_DOOR_SECTIONS, doorSectionStatus, doorRequired } from './svb-door-data.js?v=277';
-import { cabinStatus } from './svb-cabin-data.js?v=277';
-import { svbGuardStatus } from './svb-guard-window.js?v=277';
-import { readSvbVehicleAssignment } from './svb-vehicle-assignment.js?v=277';
+import { checklistFingerprint, checklistReminderKind, showChecklistSendReminder } from './checklist-send-reminder.js?v=278';
+import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from './svb-left-wall-data.js?v=278';
+import { SVB_FRONT_WALL_SECTIONS, frontSectionStatus, frontRequiredSections } from './svb-front-wall-data.js?v=278';
+import { SVB_RIGHT_ZONE_SECTIONS, rightZoneStatus } from './svb-right-zone-data.js?v=278';
+import { SVB_DOOR_SECTIONS, doorSectionStatus, doorRequired } from './svb-door-data.js?v=278';
+import { cabinStatus } from './svb-cabin-data.js?v=278';
+import { svbGuardStatus } from './svb-guard-window.js?v=278';
+import { readSvbVehicleAssignment } from './svb-vehicle-assignment.js?v=278';
 
 const read = (storage, key) => { try { return JSON.parse(storage.getItem(key) || '{}'); } catch { return {}; } };
 const scopeOf = (context, vehicle) => `${context.unit}:${context.guardCode}:${vehicle}`;
@@ -55,7 +55,7 @@ export function installSvbSendReminder({ overview = false, send, canPrompt = () 
       // Recheck context/completeness in the existing submit handler; never send a different guard.
       if (overview) return send();
       sessionStorage.setItem(`cma_svb_send_intent_v1:${scope}`, snapshot);
-      location.assign('./svb-zones.html?v=277');
+      location.assign('./svb-zones.html?v=278');
     }, () => { closeModal = null; });
   }
   addEventListener('cma:svb-answers-changed', () => queueMicrotask(check));

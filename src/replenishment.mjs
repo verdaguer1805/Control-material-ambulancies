@@ -1,6 +1,20 @@
 // A draft belongs to an admin identity, lot, zone and destination, never a label alone.
 export const replenishmentKey = (scope, actor, destination) =>
   `cma_replenishment_v1:${JSON.stringify([scope.lot,scope.zone,actor,destination])}`;
+export const validReplenishmentQuantity = value => /^[0-9]+$/.test(String(value)) && Number(value)>=1 && Number(value)<=2147483647;
+export function editReplenishmentRow(row,patch){
+  const next={...row,...patch};
+  if(!validReplenishmentQuantity(next.quantity))next.checked=false;
+  return next;
+}
+export function canRemoveReplenishmentRow(draft,material,proposals=[]){
+  return !draft?.request && draft?.rows[material]?.manual===true && !proposals.some(p=>p.material===material);
+}
+export function removeReplenishmentRow(draft,material,proposals=[]){
+  if(!canRemoveReplenishmentRow(draft,material,proposals))return draft;
+  const rows={...draft.rows};delete rows[material];
+  return {...draft,rows};
+}
 export function replenishmentDraft(scope,destination,proposals,id) {
   if(!scope.warehouseIds.includes(destination))throw new Error('INVALID_DESTINATION');
   return {version:1,id,destination,origin:destination===scope.central.id?'':scope.central.id,
@@ -11,7 +25,7 @@ export function replenishmentItems(rows,materials) {
   for(const [material,row] of Object.entries(rows)){
     if(!row.checked)continue;
     if(!materials.includes(material))throw new Error('Material no disponible: '+material);
-    if(!/^[0-9]+$/.test(String(row.quantity)) || Number(row.quantity)<1 || Number(row.quantity)>2147483647)
+    if(!validReplenishmentQuantity(row.quantity))
       throw new Error('Indica una cantidad entera mayor que cero para '+material);
     items[material]=Number(row.quantity);
   }

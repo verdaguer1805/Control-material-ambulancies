@@ -1,10 +1,31 @@
 import React,{useState,useRef,useEffect} from 'react';
-import {replenishmentKey,replenishmentDraft,replenishmentRequest,replenishmentShortages,boundedReplenishment,definitiveReplenishmentFailure} from './replenishment.mjs';
+import {createPortal} from 'react-dom';
+import {replenishmentKey,replenishmentDraft,replenishmentRequest,replenishmentShortages,boundedReplenishment,definitiveReplenishmentFailure,validReplenishmentQuantity,editReplenishmentRow} from './replenishment.mjs';
 import './replenishment.css';
+import {canRemoveReplenishmentRow,removeReplenishmentRow} from './replenishment.mjs';
+
+function ReplenishmentNotice({busy,message,refreshNotice,onDismiss}){
+ const box=useRef(null),dismiss=useRef(onDismiss);
+ dismiss.current=onDismiss;
+ useEffect(()=>{
+  const previous=document.activeElement;
+  box.current?.focus();
+  return()=>{if(previous?.isConnected)previous.focus();};
+ },[]);
+ return createPortal(<div className="replenishment-notice-backdrop"><section ref={box} tabIndex={-1} className="card replenishment-notice" role="alertdialog" aria-modal="true" aria-label={busy?'Confirmando reposición':'Aviso de reposición'} onKeyDown={e=>{
+  if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if(!busy)dismiss.current();}
+  if(e.key==='Tab'){e.preventDefault();(box.current.querySelector('button')||box.current).focus();}
+ }}>
+  <h3>{busy?'Confirmando reposición…':'Aviso de reposición'}</h3>
+  <div aria-live="polite">{busy?<p>Enviando al servidor. Espera la confirmación; no vuelvas a enviar la entrega.</p>:<>{message&&<p>{message}</p>}{refreshNotice&&<p>{refreshNotice}</p>}</>}</div>
+  {!busy&&<button className="primary" onClick={onDismiss}>Entendido</button>}
+ </section></div>,document.body);
+}
 
 export default function ReplenishmentPanel({scope,actor,groups,materials,materialLabel,levels,minimums,onSubmit,onRefresh,onClose,onExcel,onPdf,storage=localStorage,preview=false}){
  const [destination,setDestination]=useState(''),[draft,setDraft]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[confirmation,setConfirmation]=useState(null),[adding,setAdding]=useState(false),[search,setSearch]=useState(''),[extraMaterial,setExtraMaterial]=useState('');
  const sending=useRef(false),active=useRef(true);
+ const [refreshNotice,setRefreshNotice]=useState('');
  useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
  const key=destination?replenishmentKey(scope,actor,destination):'';
  const label=id=>Object.entries(scope.remoteIds).find(([,value])=>value===id)?.[0]||id;
@@ -17,7 +38,7 @@ export default function ReplenishmentPanel({scope,actor,groups,materials,materia
   catch{setMessage('No se puede guardar el borrador en este dispositivo. No se ha enviado nada. Libera espacio antes de continuar.');return false;}
  }
  function choose(id){
-  setMessage('');setConfirmation(null);setAdding(false);setSearch('');setExtraMaterial('');setDestination(id);setDraft(null);
+  setMessage('');setRefreshNotice('');setConfirmation(null);setAdding(false);setSearch('');setExtraMaterial('');setDestination(id);setDraft(null);
   if(!id){setDraft(null);return;}
   try{
    const stored=storage.getItem(replenishmentKey(scope,actor,id));
@@ -27,7 +48,9 @@ export default function ReplenishmentPanel({scope,actor,groups,materials,materia
    // or changing an uncertain request that must be retried byte-for-byte.
    if(!next.request)for(const item of groups.find(g=>scope.remoteIds[g.location]===id)?.items||[]){
     if(!next.rows[item.material])next.rows[item.material]={quantity:String(item.replenish),checked:false};
+    next.rows[item.material].manual=false;
    }
+   if(!next.request)next.rows=Object.fromEntries(Object.entries(next.rows).map(([m,row])=>[m,editReplenishmentRow(row,{})]));
    persist(next);
   }catch{setDraft(null);setMessage('No se ha podido recuperar el borrador. No se ha borrado: solicita revisión antes de preparar otra entrega.');}
  }
@@ -38,7 +61,8 @@ export default function ReplenishmentPanel({scope,actor,groups,materials,materia
  function edit(material,patch){
   if(frozen)return;
   try{const saved=JSON.parse(storage.getItem(key));if(saved?.id!==draft.id||saved?.request){choose(destination);setMessage('El borrador ha cambiado en otra pestaña. Revisa los datos actualizados.');return;}}catch{return;}
-  return persist({...draft,rows:{...draft.rows,[material]:{...draft.rows[material],...patch}}});
+  setMessage('');
+  return persist({...draft,rows:{...draft.rows,[material]:editReplenishmentRow(draft.rows[material],patch)}});
  }
  function prepare(){
   setMessage('');
@@ -49,9 +73,18 @@ export default function ReplenishmentPanel({scope,actor,groups,materials,materia
    setConfirmation(request);
   }catch(error){setMessage(error.message);}
  }
+ function removeExtra(material){
+  if(frozen||sending.current)return;
+  try{
+   const saved=JSON.parse(storage.getItem(key));
+   if(saved?.id!==draft.id||saved?.request){choose(destination);setMessage('El borrador ha cambiado. Revisa los datos actualizados.');return;}
+   const next=removeReplenishmentRow(saved,material,group?.items||[]);
+   if(next!==saved){setConfirmation(null);persist(next);}
+  }catch{setMessage('No se pudo retirar el material de la lista. El borrador se conserva.');}
+ }
  async function submit(request){
   if(sending.current)return;
-  sending.current=true;setBusy(true);setMessage('');setConfirmation(null);
+  sending.current=true;setBusy(true);setMessage('');setRefreshNotice('');setConfirmation(null);
   try{
    const current=JSON.parse(storage.getItem(key));
    if(current?.id!==draft.id|| (current.request&&JSON.stringify(current.request)!==JSON.stringify(request)))throw new Error('DRAFT_CHANGED');
@@ -63,7 +96,11 @@ export default function ReplenishmentPanel({scope,actor,groups,materials,materia
    const next={...draft,id:crypto.randomUUID(),rows:remaining,request:null};
    if(!persist(next)){if(active.current)setMessage('El servidor ha confirmado la reposición, pero no se pudo limpiar el borrador. Reintentar la misma operación no duplicará el movimiento.');return;}
    if(active.current)setMessage(preview?'PRUEBA: reposición simulada. No se ha modificado ningún almacén.':`Reposición confirmada por el servidor en ${label(destination)}. Referencia: ${receipt.request_id.slice(0,8)}.`);
-   try{await onRefresh?.();}catch{if(active.current)setMessage('Reposición confirmada. No se ha podido actualizar el inventario; ciérralo y vuelve a cargarlo. No repitas la entrega.');}
+   // The server receipt completes the send. Inventory refresh must never hold
+   // the submit lock or turn a successful delivery into an uncertain request.
+   void boundedReplenishment(()=>onRefresh?.(),null,8000).then(result=>{
+    if(result===null&&active.current)setRefreshNotice('Entrega registrada. No se pudo refrescar el inventario; vuelve a abrirlo para consultar el stock actualizado.');
+   }).catch(()=>{if(active.current)setRefreshNotice('Entrega registrada. El inventario tarda en actualizarse; no repitas esta entrega.');});
   }catch(error){
    if(definitiveReplenishmentFailure(error))persist({...draft,request:null});
    if(active.current)setMessage(definitiveReplenishmentFailure(error)?`No se ha registrado la reposición: ${error.message}. Revisa las cantidades y actualiza el inventario.`:
@@ -74,16 +111,17 @@ export default function ReplenishmentPanel({scope,actor,groups,materials,materia
   <header><h2>Qué llevar a cada almacén · Reposición</h2><button className="secondary" onClick={onClose} disabled={busy}>Cerrar</button></header>
   <p>{scope.lot} · {scope.zone}{preview?' · PRUEBA LOCAL SIN MOVIMIENTOS REALES':''}</p>
   <label>Almacén de destino<select value={destination} disabled={busy} onChange={e=>choose(e.target.value)}><option value="">Selecciona un almacén</option>{scope.locations.map(location=><option key={scope.remoteIds[location]} value={scope.remoteIds[location]}>{location}</option>)}</select></label>
-  {message&&<p className="replenishment-message" role="alert">{message}</p>}
+  {(busy||message||refreshNotice)&&<ReplenishmentNotice busy={busy} message={message} refreshNotice={refreshNotice} onDismiss={()=>{setMessage('');setRefreshNotice('');}}/>}
   {draft&&<>
    <p className="replenishment-route"><b>Origen:</b> {draft.origin?label(draft.origin):'Entrada externa / proveedor'}<br/><b>Destino:</b> {label(destination)}</p>
    <p className="muted">Edita la cantidad realmente entregada y marca «Dejado». El stock solo cambia al confirmar. El borrador se conserva en este navegador.</p>
    {draft.request&&<p role="status">Pendiente de confirmación del servidor. No se pueden cambiar las cantidades hasta resolver este envío.</p>}
    <div className="replenishment-rows">{Object.entries(draft.rows).map(([material,row])=>{
     const proposal=group?.items.find(i=>i.material===material);
-    return <div key={material} className={`replenishment-row ${row.checked?'checked':''}`}><div><strong>{materialLabel(material)}</strong><small>Stock: {levels[label(destination)]?.[material]||0} · Mínimo: {minimums[label(destination)]?.[material]||0} · Propuesto: {proposal?.replenish||0}</small></div>
-     <label>Cantidad<input type="number" inputMode="numeric" min="1" step="1" max="2147483647" disabled={frozen} value={row.quantity} aria-label={`Cantidad de ${materialLabel(material)}`} onChange={e=>edit(material,{quantity:e.target.value})}/></label>
-     <label className="replenishment-check"><input type="checkbox" disabled={frozen} checked={row.checked} onChange={e=>edit(material,{checked:e.target.checked})}/>Dejado</label></div>;
+    const invalid=!validReplenishmentQuantity(row.quantity);
+    return <div key={material} className={`replenishment-row ${row.checked?'checked':''}`}><div><strong>{materialLabel(material)}</strong>{canRemoveReplenishmentRow(draft,material,group?.items||[])&&<button type="button" className="replenishment-remove" disabled={frozen} title="Eliminar material añadido de la lista" aria-label={`Eliminar de la lista: ${materialLabel(material)}`} onClick={()=>removeExtra(material)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>}<small>Stock: {levels[label(destination)]?.[material]||0} · Mínimo: {minimums[label(destination)]?.[material]||0} · Propuesto: {proposal?.replenish||0}</small></div>
+     <label>Cantidad<input type="number" inputMode="numeric" min="0" step="1" max="2147483647" disabled={frozen} value={row.quantity} aria-invalid={invalid} aria-label={`Cantidad de ${materialLabel(material)}`} onChange={e=>edit(material,{quantity:e.target.value})}/>{invalid&&<small className="replenishment-invalid">Sin entrega: introduce una cantidad entera mayor que 0 para marcar «Dejado».</small>}</label>
+     <label className="replenishment-check"><input type="checkbox" disabled={frozen||invalid} checked={row.checked} onChange={e=>edit(material,{checked:e.target.checked})}/>Dejado</label></div>;
    })}</div>
    {!Object.keys(draft.rows).length&&<p>No hay materiales propuestos. Puedes añadir otro material.</p>}
    <button className="secondary" disabled={frozen} onClick={()=>setAdding(!adding)}>Añadir otro material</button>
@@ -91,9 +129,11 @@ export default function ReplenishmentPanel({scope,actor,groups,materials,materia
     <p className="muted">Los materiales que ya están en la lista se editan directamente arriba.</p>
     {!extraOptions.length?<p role="status">No hay otros materiales que coincidan con esta búsqueda.</p>:<label>Material<select value={extraMaterial} disabled={frozen} onChange={e=>setExtraMaterial(e.target.value)}><option value="">Selecciona material</option>{extraOptions.map(m=><option key={m} value={m}>{materialLabel(m)}</option>)}</select></label>}
     {search&&<button className="secondary" disabled={frozen} onClick={()=>{setSearch('');setExtraMaterial('');}}>Limpiar búsqueda</button>}
-    <button className="primary" disabled={frozen||!extraOptions.includes(extraMaterial)} onClick={()=>{if(!edit(extraMaterial,{quantity:'1',checked:false}))return;setMessage(`${materialLabel(extraMaterial)} añadido a la lista. Ajusta la cantidad y marca «Dejado» solo si lo has entregado.`);setExtraMaterial('');setSearch('');setAdding(false);}}>Añadir a la lista</button>
+    <button className="primary" disabled={frozen||!extraOptions.includes(extraMaterial)} onClick={()=>{if(!edit(extraMaterial,{quantity:'1',checked:false,manual:true}))return;setMessage(`${materialLabel(extraMaterial)} añadido a la lista. Ajusta la cantidad y marca «Dejado» solo si lo has entregado.`);setExtraMaterial('');setSearch('');setAdding(false);}}>Añadir a la lista</button>
    </div>}
-   <footer className="replenishment-footer"><button className="secondary" disabled={busy} onClick={onClose}>Guardar y continuar después</button><button className="primary" disabled={busy} onClick={()=>draft.request?submit(draft.request):prepare()}>{busy?'Confirmando…':draft.request?'Reintentar confirmación':'Confirmar reposición'}</button></footer>
+   <footer className="replenishment-footer" aria-busy={busy}>
+    {(message||busy||refreshNotice)&&<div className="replenishment-footer-notice" role="status">{busy?'Enviando al servidor… Espera la confirmación. Si no responde, podrás reintentar sin duplicar la entrega.':message}{refreshNotice&&<small>{refreshNotice}</small>}</div>}
+    <button className="secondary" disabled={busy} onClick={onClose}>Guardar y continuar después</button><button className="primary" disabled={busy} onClick={()=>draft.request?submit(draft.request):prepare()}>{busy?'Confirmando…':draft.request?'Reintentar confirmación':'Confirmar reposición'}</button></footer>
   </>}
   <div className="toolbar">{onExcel&&<button className="secondary" disabled={busy} onClick={onExcel}>Exportar Excel</button>}{onPdf&&<button className="secondary" disabled={busy} onClick={onPdf}>Exportar PDF</button>}</div>
   {confirmation&&<div className="modal-backdrop"><section className="card replenishment-confirm" role="alertdialog" aria-modal="true" aria-label="Confirmar entrega"><h3>Confirmar entrega en {label(destination)}</h3><p>Origen: {draft.origin?label(draft.origin):'Entrada externa / proveedor'}</p><ul>{Object.entries(confirmation.p_items).map(([m,q])=><li key={m}>{materialLabel(m)}: <b>{q}</b></li>)}</ul>

@@ -1,4 +1,7 @@
 .replenishment-panel{max-width:900px;width:95vw;overflow-y:auto;max-height:92dvh}
+.replenishment-notice-backdrop{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55)}
+.replenishment-notice{box-sizing:border-box;width:min(100%,520px);max-height:85vh;max-height:85dvh;overflow:auto;padding:24px;background:white;border:2px solid #125276;border-radius:16px;box-shadow:0 16px 60px #0006;text-align:center;overflow-wrap:anywhere}
+.replenishment-notice h3{margin-top:0}.replenishment-notice button{min-height:48px;min-width:150px;margin-top:12px}
 .replenishment-panel header{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .replenishment-panel label{display:flex;flex-direction:column;gap:6px}
 .replenishment-panel select,.replenishment-panel input[type=search]{width:100%;padding:12px}
@@ -7,9 +10,16 @@
 .replenishment-rows{display:grid;gap:8px;margin:16px 0}
 .replenishment-row{display:grid;grid-template-columns:minmax(0,1fr) 100px 90px;gap:16px;align-items:center;padding:14px;border:1px solid #ccd5df;border-radius:10px}
 .replenishment-row.checked{background:#eef8ee;border-color:#34863f}
+.replenishment-remove{float:right;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:8px;margin-left:8px;color:#a32222;background:transparent;border:1px solid #e2baba;border-radius:8px;cursor:pointer}
+.replenishment-remove:hover{background:#fff0f0}.replenishment-remove:disabled{opacity:.45;cursor:not-allowed}
 .replenishment-row small{display:block;margin-top:5px;color:#52606b}
 .replenishment-row input[type=number]{width:100%;padding:10px;font-size:18px}
 .replenishment-check{align-items:center}.replenishment-check input{width:25px;height:25px}
+.replenishment-row input[aria-invalid=true]{border:2px solid #b42318;background:#fff3f1}
+.replenishment-row .replenishment-invalid{color:#b42318;font-size:12px}
+.replenishment-footer{flex-wrap:wrap}
+.replenishment-footer-notice{flex-basis:100%;padding:10px;background:#fff3d6;border-radius:8px;color:#533600;max-height:140px;overflow:auto}
+.replenishment-footer-notice small{display:block;margin-top:5px}
 .replenishment-footer{position:sticky;bottom:0;background:white;display:flex;gap:10px;justify-content:flex-end;padding:16px 0;border-top:1px solid #ccd5df;margin-top:16px}
 .replenishment-confirm{max-width:600px;width:95vw;max-height:85dvh;overflow:auto}.replenishment-confirm button{margin:5px}
 .replenishment-add{margin:12px 0;padding:12px;background:#f3f6fa}

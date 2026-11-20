@@ -1,3 +1,3 @@
-import { installSvbSendReminder } from './svb-send-reminder.js?v=277';
+import { installSvbSendReminder } from './svb-send-reminder.js?v=278';
 // Local photo previews must never navigate to a real submission.
 if (!new URLSearchParams(location.search).has('local')) installSvbSendReminder();
