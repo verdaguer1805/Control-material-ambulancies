@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import ReplenishmentPanel from './ReplenishmentPanel.jsx';
 import {isReportsOnlyAccess,canReadAllReportZones,adminAccessLabel,canCorrectConsumption,canReadSystemStatus,canReadInoperability} from './admin-report-access.mjs';
 import {canUnitDeclareInoperability} from './unit-operability.mjs';
 import { stockEntryQuantity } from "./stock-entry-quantity.mjs";
@@ -1295,7 +1296,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v276", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v277", window.location.href).href);
   }
   async function loadSystemStatus() {
     if(!canReadSystemStatus(adminAccess))return;
@@ -3539,7 +3540,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v276</span></h1>
+          <h1>Control de material <span className="app-version">v277</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5250,41 +5251,18 @@ function App() {
                   </div>
                 )}
                 {stockReplenishmentOpen && (
-                  <div className="modal-backdrop">
-                    <div className="card export-modal stock-replenishment-modal">
-                      <h2>Qué llevar a cada almacén</h2>
-                      <p className="muted">Se indica la cantidad que hay que llevar a cada almacén. Para el material estándar, se repone hasta el mínimo; para el material supervisor, se repone lo consumido.</p>
-                      <div className="stock-replenishment-summary">
-                        <div className="urgent"><strong>{stockUrgentCount}</strong><span>Urgentes</span></div>
-                      </div>
-                      <div className="stock-replenishment-list">
-                        {stockReplenishmentGroups.map((group) => (
-                          <section className="stock-replenishment-group" key={group.location}>
-                            <h3>{group.location}</h3>
-                            {!group.items.length ? (
-                              <p className="stock-replenishment-empty">Sin materiales para preparar.</p>
-                            ) : group.items.map((item) => (
-                              <div className="stock-replenishment-item urgent" key={item.material}>
-                                <div className="stock-replenishment-name">
-                                  <strong>{materialLabel(item.material)}</strong>
-                                  <small>Stock: {item.quantity} · Mínimo: {item.minimum}</small>
-                                </div>
-                                <div className="stock-replenishment-quantity">
-                                  <small>{group.location === STOCK_DEMO_CENTRAL ? "PEDIR / RECIBIR" : "LLEVAR DESDE CENTRAL"}</small>
-                                  <strong>{item.replenish}</strong>
-                                </div>
-                              </div>
-                            ))}
-                          </section>
-                        ))}
-                      </div>
-                      <div className="toolbar stock-minimum-toolbar">
-                        <button className="secondary" onClick={() => setStockReplenishmentOpen(false)}>Cerrar</button>
-                        <button className="secondary" onClick={exportStockReplenishmentExcel}>Exportar Excel</button>
-                        <button className="primary" onClick={exportStockReplenishmentPdf}>Exportar PDF</button>
-                      </div>
-                    </div>
-                  </div>
+                  <ReplenishmentPanel key={`${stockScope.key}:${adminAccessLabel(adminAccess)}`}
+                    scope={stockScope} actor={adminAccessLabel(adminAccess)}
+                    groups={stockReplenishmentGroups} materials={STOCK_DEMO_MATERIALS}
+                    materialLabel={materialLabel} levels={stockDemo.levels} minimums={stockMinimums}
+                    onClose={()=>setStockReplenishmentOpen(false)} onRefresh={loadRemoteStock}
+                    onExcel={exportStockReplenishmentExcel} onPdf={exportStockReplenishmentPdf}
+                    onSubmit={async request=>{
+                      await ensureAnonymousSession();
+                      const {data,error}=await supabase.rpc('confirm_warehouse_replenishment',request);
+                      if(error)throw error;
+                      return data;
+                    }}/>
                 )}
                 {stockHistoryOpen && (
                     <div className="modal-backdrop">
@@ -5398,13 +5376,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v276" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v277" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=276", {
+    navigator.serviceWorker.register("./sw.js?v=277", {
       updateViaCache: "none",
     }),
   );
