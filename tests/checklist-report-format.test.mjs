@@ -4,6 +4,25 @@ import {readFileSync} from 'node:fs';
 import {colorChecklistReportRows,checklistReportWidths,checklistIncidentDetails,addChecklistIncidentDetails,withMissingChecklists,vehicleAuditReport} from '../src/checklist-report-format.mjs';
 import XLSX from 'xlsx-js-style';
 import {unzipSync,strFromU8} from 'fflate';
+import {checklistReportZoneState,checklistReportZoneNames} from '../src/checklist-report-format.mjs';
+
+test('SVB and BP share the door column and incident title across all scopes without changing stored answers',()=>{
+ for(const zone of ['Olot','Figueres','Girona','Blanes','Otra zona'])for(const lot of ['Lot 5','Otro lote'])for(const bp of [false,true]){
+  const key=bp?'sliding-left':'door';
+  for(const status of ['ok','issue']){
+   const record={zone,lot,submitted_at:'2026-11-21T09:00:00Z',answers:{[key]:{1:{Material:status}}}};
+   const before=JSON.stringify(record);
+   assert.equal(checklistReportZoneState(record,'door',bp),status==='issue'?'Con incidencia':'Correcta');
+   assert.equal(checklistReportZoneState({...record,submitted_at:null},'door',bp),'Sin revisar');
+   if(status==='issue')assert.equal(checklistIncidentDetails([record])[0].zone,'Puerta corredera izquierda');
+   assert.equal(JSON.stringify(record),before);
+  }
+ }
+ assert.equal(checklistReportZoneNames.door,checklistReportZoneNames['sliding-left']);
+ const main=readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
+ assert.equal((main.match(/"Puerta corredera izquierda": zoneState/g)||[]).length,1);
+ assert.doesNotMatch(main,/"Puerta corredera lateral izquierda BP":/);
+});
 
 test('missing units appear white below submitted checklists, including units with no history',()=>{
  const actual=[{unit:'G450',guard_started_at:'2026-10-15T05:00:00Z',submitted_at:'2026-10-15T06:00:00Z',answers:{}}];

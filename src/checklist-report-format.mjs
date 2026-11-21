@@ -85,7 +85,16 @@ export function checklistReportWidths(rows) {
 }
 
 export const INCIDENT_DETAIL_SHEET = 'Incidencias SVB';
-const zoneNames = {left:'Zona izquierda',front:'Zona frontal',right:'Zona derecha',cabin:'Cabina de conducción',door:'Puerta corredera izquierda','rear-left':'Puerta trasera izquierda','rear-right':'Puerta trasera derecha','sliding-left':'Puerta corredera lateral izquierda','under-vacuum':'Debajo del colchón de vacío'};
+export const checklistReportZoneNames = {left:'Zona izquierda',front:'Zona frontal',right:'Zona derecha',cabin:'Cabina de conducción',door:'Puerta corredera izquierda','rear-left':'Puerta trasera izquierda','rear-right':'Puerta trasera derecha','sliding-left':'Puerta corredera izquierda','under-vacuum':'Debajo del colchón de vacío'};
+const zoneNames = checklistReportZoneNames;
+
+export function checklistReportZoneState(checklist,zone,bp){
+  // Share the displayed door column without changing stored answer keys.
+  if(zone==='door'&&bp)zone='sliding-left';
+  if((bp&&zone==='right')||(!bp&&['rear-left','rear-right','sliding-left','under-vacuum'].includes(zone)))return '—';
+  const values=Object.values(checklist.answers?.[zone]||{}).flatMap(items=>Object.values(items||{}));
+  return !checklist.submitted_at?'Sin revisar':values.includes('issue')?'Con incidencia':values.length?'Correcta':'Sin revisar';
+}
 
 export function checklistIncidentDetails(records, label = value => value) {
   return records.flatMap((record, recordIndex) =>

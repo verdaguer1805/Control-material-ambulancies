@@ -29,7 +29,7 @@ import { compareMaterialLabels } from "./material-order.mjs";
 import { materialDisplayName } from "./material-display.mjs";
 import { tsnuChecklistLabel } from './tsnu-checklist-catalog.mjs';
 import { madridDateTime, mapReportRecords, supervisorReportEvents } from "./report-datetime.mjs";
-import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, withMissingChecklists, vehicleAuditReport } from "./checklist-report-format.mjs";
+import { colorChecklistReportRows, checklistReportWidths, addChecklistIncidentDetails, withMissingChecklists, vehicleAuditReport, checklistReportZoneNames, checklistReportZoneState } from "./checklist-report-format.mjs";
 import { svbAssignedGuard } from "./svb-guard-window.mjs";
 import {isBpUnit} from './bp-operational.mjs';
 import {combinedTsuChecklists} from './tsu-checklist-report.mjs';
@@ -1296,7 +1296,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v278", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v279", window.location.href).href);
   }
   async function loadSystemStatus() {
     if(!canReadSystemStatus(adminAccess))return;
@@ -2657,7 +2657,7 @@ function App() {
       checklistTsuRecords = combinedTsuChecklists(svbChecklists,bpChecklists,svbRoster,exportFrom,exportTo),
       checklistTsuRows = checklistTsuRecords.map((checklist) => {
         const answers = checklist.answers || {},
-          zoneNames = { left: "Zona izquierda", front: "Zona frontal", right: "Zona derecha", cabin: "Cabina de conducción", door: "Puerta corredera izquierda" },
+          zoneNames = checklistReportZoneNames,
           issues = [];
         Object.entries(answers).forEach(([zone, sections]) =>
           Object.entries(sections || {}).forEach(([section, items]) =>
@@ -2666,12 +2666,7 @@ function App() {
             }),
           ),
         );
-        const zoneState = (zone) => {
-          const bp = isBpUnit(checklist.unit);
-          if ((bp && ['right','door'].includes(zone)) || (!bp && ['rear-left','rear-right','sliding-left','under-vacuum'].includes(zone))) return '—';
-          const values = Object.values(answers[zone] || {}).flatMap((items) => Object.values(items || {}));
-          return !checklist.submitted_at ? "Sin revisar" : values.includes("issue") ? "Con incidencia" : values.length ? "Correcta" : "Sin revisar";
-        };
+        const zoneState = (zone) => checklistReportZoneState(checklist,zone,isBpUnit(checklist.unit));
         return {
           Fecha: checklist.report_date ? checklist.report_date.split('-').reverse().join('/') : new Date(checklist.guard_started_at).toLocaleDateString("es-ES", {timeZone:'Europe/Madrid',day:"2-digit",month:"2-digit",year:"numeric"}),
           "Inicio de guardia": checklist.guard_started_at ? new Date(checklist.guard_started_at).toLocaleTimeString("es-ES", {timeZone:'Europe/Madrid',hour:"2-digit",minute:"2-digit"}) : '',
@@ -2688,7 +2683,6 @@ function App() {
           "Puerta corredera izquierda": zoneState("door"),
           "Puerta trasera izquierda": zoneState("rear-left"),
           "Puerta trasera derecha": zoneState("rear-right"),
-          "Puerta corredera lateral izquierda BP": zoneState("sliding-left"),
           "Debajo del colchón de vacío": zoneState("under-vacuum"),
           Incidencias: issues.join(" · ") || "—",
         };
@@ -3540,7 +3534,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v278</span></h1>
+          <h1>Control de material <span className="app-version">v279</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5376,13 +5370,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v278" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v279" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=278", {
+    navigator.serviceWorker.register("./sw.js?v=279", {
       updateViaCache: "none",
     }),
   );
