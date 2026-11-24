@@ -10,13 +10,13 @@ import {SVB_PHOTO_LAYOUT} from '../src/svb-photo-layout.mjs';
 test('SVB audit photos and marker positions match the operational unit checklist',()=>{
  for(const [zone,file] of [['left','svb-preview.html'],['front','svb-front-preview.html'],['right','svb-right-preview.html'],['door','svb-door-preview.html']]){
   const html=fs.readFileSync(new URL(`../public/${file}`,import.meta.url),'utf8');
-  const literal=html.match(/const pos=\{([^}]+)\}/)[1];
+  const literal=html.match(/(?:const|let) pos=\{([^}]+)\}/)[1];
   const positions=Object.fromEntries([...literal.matchAll(/['"]?(\d+[a-z]?)['"]?:\[([\d.]+),([\d.]+)\]/g)].map(match=>[match[1],[+match[2],+match[3]]]));
   assert.deepEqual(SVB_PHOTO_LAYOUT[zone].positions,positions);
   assert.ok(html.includes(SVB_PHOTO_LAYOUT[zone].image));
  }
  const component=fs.readFileSync(new URL('../src/VehicleAudit.jsx',import.meta.url),'utf8');
- assert.match(component,/draft.type==='SVB'\?<VehicleAuditMap/);
+ assert.ok(component.includes("['SVB','SVB 4x4'].includes(draft.type)?<VehicleAuditMap"));
  assert.ok(component.indexOf('if(preview)')<component.indexOf("await import('./supabase')"));
  assert.match(component,/preview \? sessionStorage : localStorage/);
 });
@@ -27,11 +27,11 @@ test('audits use production catalogs including nested bags and cabin; pending ty
  assert.ok(auditGroups('SVB').some(x=>x.title==='Cabina de conducción'));
  assert.equal(auditItems('Polivalente').length,281);assert.deepEqual(auditItems('Logística'),[]);
 });
-test('new compartments require review in pending audits without rewriting confirmed audits',()=>{
+test('existing audit catalogs remain frozen, including older missing compartments',()=>{
  const catalog=auditItems('SVB').filter(item=>!item.id.startsWith('Zona izquierda-11-'));
  const old={type:'SVB',vehicle:'5438',catalog,answers:Object.fromEntries(catalog.map(item=>[item.id,'ok'])),notes:{}};
  assert.ok(auditComplete(old));const updated=refreshPendingAudit(old);
- assert.equal(auditComplete(updated),false);assert.ok(updated.catalog.some(item=>item.label.startsWith('Tubo de silicona para aspirador')));
+ assert.equal(auditComplete(updated),true);assert.equal(updated,old);
  assert.deepEqual(updated.answers,old.answers);const sent={...old,confirmedAt:'2026-10-08T07:00:00Z'};assert.equal(refreshPendingAudit(sent),sent);
 });
 test('vehicle identity needs no unit and accepts TSNU and numeric labels globally',()=>{
@@ -40,12 +40,12 @@ test('vehicle identity needs no unit and accepts TSNU and numeric labels globall
  assert.ok(isAuditSupervisor('Material Supervisor · Otra zona'));assert.ok(!isAuditSupervisor('G450'));
 });
 
-test('replacing the aspirator placeholder does not transfer its answer to another item',()=>{
+test('legacy aspirator placeholder and its answer remain in the original snapshot',()=>{
  const current=auditItems('SVB'),prefix='Zona izquierda-11-';
  const catalog=[...current.filter(item=>!item.id.startsWith(prefix)),{id:'Zona izquierda-11-0:0',section:'Zona izquierda · Aspirador',label:'Aspirador'}];
  const old={type:'SVB',catalog,answers:Object.fromEntries(catalog.map(item=>[item.id,'ok'])),notes:{}};
  const next=refreshPendingAudit(old);
- for(const item of next.catalog.filter(item=>item.id.startsWith(prefix)))assert.equal(next.answers[item.id],undefined);
+ assert.equal(next,old);assert.equal(next.catalog.find(item=>item.id.startsWith(prefix)).label,'Aspirador');
  assert.equal(next.answers[current[0].id],'ok');
  assert.ok(SVB_FRONT_WALL_SECTIONS.find(s=>s.id===3).items.includes('Partes SEM · 1 bloc'));
  assert.equal(SVB_PHOTO_LAYOUT.front.positions[7][1]-SVB_PHOTO_LAYOUT.front.positions[6][1],4.5);

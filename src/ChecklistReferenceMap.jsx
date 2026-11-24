@@ -1,14 +1,15 @@
 import React,{useState} from 'react';
-import {SVB_PHOTO_LAYOUT} from './svb-photo-layout.mjs';
+import {svbPhotoLayout} from './svb-photo-layout.mjs';
 import {checklistReferenceSections} from './checklist-reference.mjs';
 import './vehicle-audit-map.css';
 import './checklist-reference-map.css';
 
 // Read-only navigation. No audit draft, storage, answers or network writes.
-export default function ChecklistReferenceMap(){
+export default function ChecklistReferenceMap({type='SVB'}){
+ const SVB_PHOTO_LAYOUT=svbPhotoLayout(type);
  const [zone,setZone]=useState(null),[point,setPoint]=useState(null);
  const layout=SVB_PHOTO_LAYOUT[zone];
- const sections=checklistReferenceSections('SVB');
+ const sections=checklistReferenceSections(type);
  const selected=sections.find(section=>section.key===`${layout?.title}:${point}`);
  const content=section=>section.groups.map((group,index)=><div key={index}>
    {group.title&&<h4>{group.title}</h4>}

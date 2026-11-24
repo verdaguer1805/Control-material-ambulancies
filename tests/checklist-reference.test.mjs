@@ -15,8 +15,8 @@ test('template reference is restricted to operational admin roles', () => {
   assert.equal(canReadChecklistReference(null), false);
 });
 test('SVB reference keeps the complete catalog and compartment 8 search is precise', () => {
-  const sections = checklistReferenceSections('SVB');
-  assert.deepEqual(sections.flatMap(section => section.groups.flatMap(group => group.items)), auditItems('SVB').map(item => item.label));
+  const sections = checklistReferenceSections('SVB 4x4');
+  assert.deepEqual(sections.flatMap(section => section.groups.flatMap(group => group.items)), auditItems('SVB 4x4').map(item => item.label));
   const normalize = label => label.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const unitAreas = [['Zona izquierda',SVB_LEFT_WALL_SECTIONS], ['Zona frontal',SVB_FRONT_WALL_SECTIONS],
     ['Zona derecha',SVB_RIGHT_ZONE_SECTIONS], ['Puerta corredera izquierda',SVB_DOOR_SECTIONS],

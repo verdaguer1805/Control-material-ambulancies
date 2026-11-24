@@ -1,5 +1,6 @@
 import React,{useState} from 'react';
-import {SVB_PHOTO_LAYOUT} from './svb-photo-layout.mjs';
+import {SVB_PHOTO_LAYOUT,svbPhotoLayout} from './svb-photo-layout.mjs';
+import {auditSvbTemplate} from '../public/checklists/svb-template.js';
 import {materialDisplayName} from './material-display.mjs';
 import './vehicle-audit-map.css';
 
@@ -14,7 +15,7 @@ function status(draft,items) {
 }
 export default function VehicleAuditMap({draft,update,busy,offlineReview=false}) {
   const [zone,setZone]=useState(null),[point,setPoint]=useState(null);
-  const locked=busy||!!draft.confirmedAt,layout=SVB_PHOTO_LAYOUT[zone];
+  const locked=busy||!!draft.confirmedAt,layout=svbPhotoLayout(auditSvbTemplate(draft))[zone];
   const items=point===null?[]:auditPhotoItems(draft,zone,point);
   function mark(item,value){update({...draft,answers:{...draft.answers,[item.id]:value},confirmedAt:null});}
   function markAll(){const answers={...draft.answers};for(const item of items)if(answers[item.id]!=='issue')answers[item.id]='ok';update({...draft,answers,confirmedAt:null});}

@@ -1,16 +1,17 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=279";
-import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=279";
-import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=279";
-import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=279";
-import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=279";
-import{cabinStatus}from"./svb-cabin-data.js?v=279";
-import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=279";
-import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=279';
-import { checklistFingerprint } from './checklist-send-reminder.js?v=279';
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=280";
+import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=280";
+import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=280";
+import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=280";
+import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=280";
+import{cabinStatus}from"./svb-cabin-data.js?v=280";
+import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=280";
+import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=280';
+import { checklistFingerprint } from './checklist-send-reminder.js?v=280';
+import {pinSvbTemplate,svbRightSections} from './svb-template.js?v=280';
 let submitting = false;
-import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=279';
+import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=280';
 
-document.querySelector(".head h1 small").textContent="v279";
+document.querySelector(".head h1 small").textContent="v280";
 
 // Retain the existing controls/handlers while making the send action prominent.
 const fixedPanel=document.createElement('section'),scrollPanel=document.createElement('section');
@@ -28,7 +29,7 @@ const context=read("cma_svb_checklist_context_v1"),scope=`${context.unit||"TSU"}
 let vehicle=readSvbVehicleAssignment(localStorage,context.unit,context.guardCode);
 const draftKey=zone=>`cma_svb_${zone}_${zone==="right"?"zone":"wall"}_mobile_test_v1:${scope}:${vehicle}`;
 const zoneAnswers=zone=>read(draftKey(zone));
-function state(zone){const answers=zoneAnswers(zone);if(zone==="cabin")return cabinStatus(answers);const confirmed=Boolean(localStorage.getItem(`cma_svb_submitted_v1:${scope}:${vehicle}`));if(zone==="door"){if(!doorRequired(answers,confirmed))return"exempt";const values=doorSections.map(s=>doorSectionStatus(s,answers));return values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}const sections=zone==="left"?leftRequiredSections(leftSections,answers,confirmed):zone==="front"?frontRequiredSections(frontSections,answers,confirmed):rightSections,status=zone==="left"?sectionStatus:zone==="front"?frontSectionStatus:rightZoneStatus,values=sections.map(s=>status(s,answers));return !values.length||values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}
+function state(zone){const answers=zoneAnswers(zone);if(zone==="cabin")return cabinStatus(answers);const confirmed=Boolean(localStorage.getItem(`cma_svb_submitted_v1:${scope}:${vehicle}`));if(zone==="door"){if(!doorRequired(answers,confirmed))return"exempt";const values=doorSections.map(s=>doorSectionStatus(s,answers));return values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}const sections=zone==="left"?leftRequiredSections(leftSections,answers,confirmed):zone==="front"?frontRequiredSections(frontSections,answers,confirmed):svbRightSections(pinSvbTemplate(localStorage,context,vehicle)),status=zone==="left"?sectionStatus:zone==="front"?frontSectionStatus:rightZoneStatus,values=sections.map(s=>status(s,answers));return !values.length||values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}
 function paint(id,value){const el=byId(id);el.classList.remove("pending","ok","issue","exempt");el.classList.add(value);el.querySelector("small").textContent=value==="exempt"?"No incluida en el envío anterior":"Revisar zona"}
 const SESSION_KEY="sb-dfnywetqnccykzjyihzq-auth-token";
 function storedSession(){try{const value=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");return{root:value,session:value?.currentSession||value}}catch{return{root:null,session:null}}}

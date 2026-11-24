@@ -5,8 +5,9 @@ import { SVB_RIGHT_ZONE_SECTIONS } from './svb-right-zone-data.mjs';
 import { SVB_CABIN_ITEMS } from './svb-cabin-data.mjs';
 import { SVB_DOOR_SECTIONS } from './svb-door-data.mjs';
 import {BP_ITEMS} from './bp-operational.mjs';
+import {isSvbChecklist,svbRightSections} from '../public/checklists/svb-template.js';
 
-export const AUDIT_TYPES = ['TSNU', 'SVB', 'Polivalente', 'Logística'];
+export const AUDIT_TYPES = ['TSNU', 'SVB', 'SVB 4x4', 'Polivalente', 'Logística'];
 export const AUDIT_STORAGE_KEY = 'cma_supervisor_vehicle_audits_v1';
 export const normalizeAuditVehicle = value => String(value || '').trim().toUpperCase();
 export const validAuditVehicle = value => /^[A-Z0-9][A-Z0-9-]{2,19}$/.test(normalizeAuditVehicle(value));
@@ -20,9 +21,9 @@ export const isAuditSupervisor = value => /^Material supervisor\s*·\s*\S/i.test
 export function auditGroups(type, vehicle='') {
   if(type==='Polivalente')return [...new Set(BP_ITEMS.map(i=>i.section))].map((title,index)=>({id:`bp-${index}`,title,items:BP_ITEMS.filter(i=>i.section===title).map(i=>i.label)}));
   if (type === 'TSNU') return tsnuChecklistGroups(vehicle).map(([title, items], index) => ({id:`tsnu-${index}`, title, items:items.map(tsnuChecklistItemLabel)}));
-  if (type !== 'SVB') return [];
+  if (!isSvbChecklist(type)) return [];
   const groups = [];
-  for (const [zone, sections] of [['Zona izquierda', SVB_LEFT_WALL_SECTIONS], ['Zona frontal', SVB_FRONT_WALL_SECTIONS], ['Zona derecha', SVB_RIGHT_ZONE_SECTIONS], ['Puerta corredera izquierda', SVB_DOOR_SECTIONS]]) {
+  for (const [zone, sections] of [['Zona izquierda', SVB_LEFT_WALL_SECTIONS], ['Zona frontal', SVB_FRONT_WALL_SECTIONS], ['Zona derecha', svbRightSections(type)], ['Puerta corredera izquierda', SVB_DOOR_SECTIONS]]) {
     for (const section of sections.filter(s => !s.pendingDefinition)) {
       const children = section.groups || [{title:'', items:section.items}];
       children.forEach((child, index) => groups.push({id:`${zone}-${section.id}-${index}`, title:`${zone} · ${section.title}${child.title ? ` · ${child.title}` : ''}`, items:child.items}));
@@ -37,10 +38,10 @@ export function auditItems(type, vehicle='') {
 }
 export function auditComplete(draft) {
   const items = draft?.catalog || [];
-  return validAuditVehicle(draft?.vehicle) && ['TSNU','SVB','Polivalente'].includes(draft?.type) && items.length > 0 && items.every(item => ['ok','issue'].includes(draft.answers?.[item.id]));
+  return validAuditVehicle(draft?.vehicle) && ['TSNU','SVB','SVB 4x4','Polivalente'].includes(draft?.type) && items.length > 0 && items.every(item => ['ok','issue'].includes(draft.answers?.[item.id]));
 }
 export function refreshPendingAudit(draft) {
-  if (draft.confirmedAt) return draft;
+  if (draft.confirmedAt || isSvbChecklist(draft.type)) return draft;
   const catalog=auditItems(draft.type,draft.vehicle),answers={},notes={};
   for(const item of catalog){
     const previous=draft.catalog.find(old=>(draft.type==='Polivalente'?old.id===item.id:old.section===item.section) && old.label===item.label);

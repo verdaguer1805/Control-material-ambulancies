@@ -27,8 +27,8 @@ test('door joins audits globally without altering confirmed audits or existing a
  const catalog=auditItems('SVB').filter(i=>!i.section.startsWith('Puerta corredera izquierda'));
  const old={type:'SVB',vehicle:'5439',catalog,answers:Object.fromEntries(catalog.map(i=>[i.id,'ok'])),notes:{}};
  assert.ok(auditComplete(old));const next=refreshPendingAudit(old);
- assert.equal(auditComplete(next),false);assert.deepEqual(next.answers,old.answers);
- assert.equal(next.catalog.length-catalog.length,16);
+ assert.equal(auditComplete(next),true);assert.deepEqual(next.answers,old.answers);
+ assert.equal(next,old); // Previously started reviews keep their exact catalog.
  const sent={...old,confirmedAt:'2026-10-10T07:00:00Z'};assert.equal(refreshPendingAudit(sent),sent);
 });
 test('door is submitted, reported, cached, and local preview cannot write operational drafts',()=>{

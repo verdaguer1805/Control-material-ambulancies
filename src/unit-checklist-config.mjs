@@ -1,6 +1,6 @@
 import {tsnuAddedUnits} from './tsnu-fleet-additions.mjs';
 export const UNIT_CHECKLIST_KEY = 'cma_unit_checklist_v1';
-export const TSU_CHECKLISTS = ['SVB', 'Polivalente', 'Logística'];
+export const TSU_CHECKLISTS = ['SVB', 'SVB 4x4', 'Polivalente', 'Logística'];
 // Checklist-only units: deliberately separate from stock/report warehouse mappings.
 export const TSNU_UNITS = {
   'Lot 5 · Girona - Alt Maresme': {

@@ -6,10 +6,11 @@ import { SVB_CABIN_ITEMS } from './svb-cabin-data.mjs';
 import { TSNU_CHECKLIST_CATALOGS, tsnuChecklistItemLabel } from './tsnu-checklist-catalog.mjs';
 import { bpItemLabel } from './bp-quantity.mjs';
 import {BP_ZONES} from './bp-operational.mjs';
+import {isSvbChecklist,svbRightSections} from '../public/checklists/svb-template.js';
 
 export const canReadChecklistReference = access => ['owner', 'supervisor', 'logistics'].includes(access?.role);
 export const CHECKLIST_REFERENCE_TYPES = [
-  ['SVB', 'SVB'], ['T', 'TSNU · Tango (T)'], ['K', 'TSNU · Kilo (K)'], ['KE', 'TSNU · Kilo Eco (KE)'],
+  ['SVB', 'SVB'], ['SVB 4x4','SVB 4x4'], ['T', 'TSNU · Tango (T)'], ['K', 'TSNU · Kilo (K)'], ['KE', 'TSNU · Kilo Eco (KE)'],
   ['KB', 'TSNU · KB'], ['VL', 'TSNU · VL'],
   ['BP', 'BP · Polivalente'], ['Logística', 'Logística'],
 ];
@@ -23,7 +24,7 @@ export function checklistReferenceSections(type) {
     key:section.id,area:zone.title,title:section.title,
     groups:[{title:'',items:section.items.map(bpItemLabel)}],
   })));
-  if (type === 'SVB') return svbAreas.flatMap(([area, sections]) =>
+  if (isSvbChecklist(type)) return svbAreas.map(([area,sections])=>[area,area==='Zona derecha'?svbRightSections(type):sections]).flatMap(([area, sections]) =>
     sections.filter(section => !section.pendingDefinition).map(section => ({
       key: `${area}:${section.id}`, area,
       title: /^(Compartimento\b|Cabina\b)/i.test(section.title)

@@ -35,7 +35,7 @@ export default function ChecklistReference({ access, compact=false }) {
       </label>
       {sections.length>0&&<button type="button" className="secondary" disabled={exporting} onClick={download}>{exporting?'Preparando Excel…':`Descargar checklist ${type} en Excel`}</button>}
       {exportError&&<p role="alert">{exportError}</p>}
-      {!type?<p>Elige el tipo de checklist que quieres consultar.</p>:type==='SVB'?<ChecklistReferenceMap/>:['Polivalente','Logística'].includes(type)?<p role="status">Pendiente de definir. No hay una plantilla disponible todavía.</p>:<>
+      {!type?<p>Elige el tipo de checklist que quieres consultar.</p>:['SVB','SVB 4x4'].includes(type)?<ChecklistReferenceMap key={type} type={type}/>:['Polivalente','Logística'].includes(type)?<p role="status">Pendiente de definir. No hay una plantilla disponible todavía.</p>:<>
       {type==='BP'&&<><BpChecklistReferenceMap/><h4>Lista completa de referencia BP</h4></>}
       {areas.length > 0 && <label>Zona del vehículo
         <select value={area} onChange={event => setArea(event.target.value)}>

@@ -901,7 +901,7 @@ function App() {
     )
       return flash("Selecciona la hora de inicio de guardia");
     const normalizedVehicle = selectedVehicle.replace(/\D/g, "").slice(0, 4);
-    if (selectedService === "TSU" && selectedChecklist === "SVB" && !/^\d{4}$/.test(normalizedVehicle))
+    if (selectedService === "TSU" && ["SVB","SVB 4x4"].includes(selectedChecklist) && !/^\d{4}$/.test(normalizedVehicle))
       return flash("Introduce las 4 cifras de la rotulación del vehículo");
     if(selectedService==='TSNU'){
       try{await ensureAnonymousSession();const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:assignmentAdminPin,p_lot:selectedLot,p_zone:selectedZone,p_unit:unit,p_warehouse_id:selectedWarehouse});if(error)throw error;}
@@ -916,7 +916,7 @@ function App() {
       KEY.shift,
       config.shift,
     );
-    if (config.service === "TSU" && config.checklist === "SVB") {
+    if (config.service === "TSU" && ["SVB","SVB 4x4"].includes(config.checklist)) {
       writeSvbVehicleAssignment(localStorage, displayUnit(unit), normalizedVehicle);
     }
     localStorage.removeItem("cma_svb_checklist_context_v1");
@@ -1271,7 +1271,7 @@ function App() {
     const currentUnit = localStorage.getItem(KEY.unit);
     const currentLot = localStorage.getItem(KEY.lot) || lot;
     const config = readUnitChecklist(localStorage, currentUnit, currentLot);
-    if (!currentUnit || config.service !== "TSU" || config.checklist !== "SVB")
+    if (!currentUnit || config.service !== "TSU" || !["SVB","SVB 4x4"].includes(config.checklist))
       return flash("Esta unidad no tiene asignado el checklist SVB");
     setSvbVehicleNewLabel("");
     setSvbVehicleChangeOpen(true);
@@ -1284,7 +1284,7 @@ function App() {
     if (!/^\d{4}$/.test(normalized)) return flash("La rotulación debe tener exactamente 4 cifras");
     const guard = guardState(currentUnit, localStorage.getItem(KEY.shift));
     writeSvbVehicleAssignment(localStorage, displayUnit(currentUnit), normalized);
-    localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: guard?.code || "", guardStartedAt: guard?.start?.toISOString?.(), guardEndsAt: guard?.end?.toISOString?.(), lot: currentLot, zone: config.zone || unitZone(currentUnit), checklist: "SVB" }));
+    localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({ unit: displayUnit(currentUnit), guardCode: guard?.code || "", guardStartedAt: guard?.start?.toISOString?.(), guardEndsAt: guard?.end?.toISOString?.(), lot: currentLot, zone: config.zone || unitZone(currentUnit), checklist: "SVB", svbVariant: config.checklist }));
     setSvbVehicleChangeOpen(false);
     setSvbVehicleNewLabel("");
     flash(`Vehículo ${normalized} seleccionado. Su checklist queda separado del anterior.`, 5000);
@@ -1292,11 +1292,11 @@ function App() {
   function openSvbChecklist() {
     const assignedUnit = localStorage.getItem(KEY.unit), assignedLot = localStorage.getItem(KEY.lot) || lot;
     const config = readUnitChecklist(localStorage, assignedUnit, assignedLot);
-    if (config.checklist !== "SVB") return flash("Próximamente");
+    if (!["SVB","SVB 4x4"].includes(config.checklist)) return flash("Próximamente");
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
-    localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB"}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v279", window.location.href).href);
+    localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB", svbVariant: config.checklist}));
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v280", window.location.href).href);
   }
   async function loadSystemStatus() {
     if(!canReadSystemStatus(adminAccess))return;
@@ -1703,7 +1703,7 @@ function App() {
     )
       return flash("Selecciona la hora de inicio de guardia");
     const normalizedVehicle = changeVehicle.replace(/\D/g, "").slice(0, 4);
-    if (changeService === "TSU" && changeChecklist === "SVB" && !/^\d{4}$/.test(normalizedVehicle))
+    if (changeService === "TSU" && ["SVB","SVB 4x4"].includes(changeChecklist) && !/^\d{4}$/.test(normalizedVehicle))
       return flash("Introduce las 4 cifras de la rotulación del vehículo");
     if(changeService==='TSNU'){
       try{const {error}=await supabase.rpc('configure_tsnu_assignment',{p_admin_pin:enteredPin,p_lot:changeLot,p_zone:changeZone,p_unit:nextUnit,p_warehouse_id:changeWarehouse});if(error)throw error;}
@@ -1718,7 +1718,7 @@ function App() {
       KEY.shift,
       config.shift,
     );
-    if (config.service === "TSU" && config.checklist === "SVB") {
+    if (config.service === "TSU" && ["SVB","SVB 4x4"].includes(config.checklist)) {
       writeSvbVehicleAssignment(localStorage, displayUnit(nextUnit), normalizedVehicle);
     }
     localStorage.removeItem("cma_svb_checklist_context_v1");
@@ -3534,7 +3534,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v279</span></h1>
+          <h1>Control de material <span className="app-version">v280</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -3762,7 +3762,7 @@ function App() {
                 <select value={changeChecklist} onChange={e=>{setChangeChecklist(e.target.value);setChangeVehicle('');if(e.target.value){setShiftPickerTarget('change');setShiftPickerOpen(true);}}}>
                   <option value="">Selecciona checklist</option>{TSU_CHECKLISTS.map(v=><option key={v}>{v}</option>)}
                 </select>
-                {changeChecklist === "SVB" && <><label>Rotulación del vehículo TSU</label><input inputMode="numeric" maxLength="4" placeholder="Ej. 5439" value={changeVehicle} onChange={e=>setChangeVehicle(e.target.value.replace(/\D/g,'').slice(0,4))}/><p className="muted">Los técnicos podrán cambiarla si se sustituye el vehículo.</p></>}
+                {["SVB","SVB 4x4"].includes(changeChecklist) && <><label>Rotulación del vehículo TSU</label><input inputMode="numeric" maxLength="4" placeholder="Ej. 5439" value={changeVehicle} onChange={e=>setChangeVehicle(e.target.value.replace(/\D/g,'').slice(0,4))}/><p className="muted">Los técnicos podrán cambiarla si se sustituye el vehículo.</p></>}
               </>}
               {nextUnit && !isSupervisorMaterial(nextUnit) && changeService === 'TSU' && (
                 <p className="selected-zone">
@@ -4578,7 +4578,7 @@ function App() {
                   <select value={selectedChecklist} onChange={e=>{setSelectedChecklist(e.target.value);setSelectedVehicle('');if(e.target.value){setShiftPickerTarget('initial');setShiftPickerOpen(true);}}}>
                     <option value="">Selecciona checklist</option>{TSU_CHECKLISTS.map(v=><option key={v}>{v}</option>)}
                   </select>
-                  {selectedChecklist === "SVB" && <><label>Rotulación del vehículo TSU</label><input inputMode="numeric" maxLength="4" placeholder="Ej. 5439" value={selectedVehicle} onChange={e=>setSelectedVehicle(e.target.value.replace(/\D/g,'').slice(0,4))}/><p className="muted">Los técnicos podrán cambiarla si se sustituye el vehículo.</p></>}
+                  {["SVB","SVB 4x4"].includes(selectedChecklist) && <><label>Rotulación del vehículo TSU</label><input inputMode="numeric" maxLength="4" placeholder="Ej. 5439" value={selectedVehicle} onChange={e=>setSelectedVehicle(e.target.value.replace(/\D/g,'').slice(0,4))}/><p className="muted">Los técnicos podrán cambiarla si se sustituye el vehículo.</p></>}
                 </>}
                 {unit && !isSupervisorMaterial(unit) && selectedService === 'TSU' && (
                   <p className="selected-zone">
@@ -4608,10 +4608,10 @@ function App() {
             )}
             {!isSupervisorMaterial(currentUnit) && currentChecklistConfig.service !== 'TSNU' && currentChecklistConfig.checklist !== 'Polivalente' && (
               <div className="card">
-                <button type="button" disabled={currentChecklistConfig.checklist === "SVB" ? !svbAssignedGuard(localStorage.getItem(KEY.shift), new Date(guardTick)) : !currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => openSvbChecklist()}>
+                <button type="button" disabled={["SVB","SVB 4x4"].includes(currentChecklistConfig.checklist) ? !svbAssignedGuard(localStorage.getItem(KEY.shift), new Date(guardTick)) : !currentGuard.active} className="full" style={{ background: "#ffdc45", color: "#222", border: "2px solid #bc9500", fontWeight: 800, padding: 16, borderRadius: 12 }} onClick={() => openSvbChecklist()}>
                   Checklist
                 </button>
-                {currentChecklistConfig.checklist === "SVB" && (
+                {["SVB","SVB 4x4"].includes(currentChecklistConfig.checklist) && (
                   <button type="button" className="secondary full" style={{ marginTop: 10 }} onClick={changeSvbVehicle}>
                     Cambiar vehículo SVB
                   </button>
@@ -5370,13 +5370,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v279" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v280" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
 createRoot(document.getElementById("root")).render(<MobileAppRouter />);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=279", {
+    navigator.serviceWorker.register("./sw.js?v=280", {
       updateViaCache: "none",
     }),
   );
