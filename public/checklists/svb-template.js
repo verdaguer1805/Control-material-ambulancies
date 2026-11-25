@@ -1,4 +1,4 @@
-import {SVB_RIGHT_ZONE_SECTIONS} from './svb-right-zone-data.js?v=280';
+import {SVB_RIGHT_ZONE_SECTIONS} from './svb-right-zone-data.js?v=281';
 
 export const isSvbChecklist = type => type === 'SVB' || type === 'SVB 4x4';
 export const SVB_NORMAL_RIGHT = [
@@ -7,7 +7,7 @@ export const SVB_NORMAL_RIGHT = [
   {id:8,title:'Compartimento 8',items:['Tiras reactivas · 1 bote','Lancetas · 20 unidades','Celulosa precortada · 20 unidades','Termómetro digital · 1 unidad']},
   {id:9,title:'Compartimento 9',items:['Bolsa de gel · 4 unidades','Inmovilizador de hombro · 1 unidad','Manta térmica · 4 unidades']},
   {id:10,title:'Compartimento 10',items:['Apósito 7,2x5 · 10 unidades','Apósito 10x8 · 10 unidades','Apósito 20x8 · 10 unidades','Sutura cutánea de papel 100x6 mm · 5 unidades']},
-  {id:11,title:'Compartimento 11 · Armario inferior',items:['Cuña de cartón de un solo uso · 1 unidad','Botella de cartón de un solo uso · 1 unidad','Bolsa de basura · 1 rollo','Bolsa de residuos Grupo II · 1 rollo','Soporte para bombas de perfusión · 1 unidad']},
+  {id:11,title:'Compartimento 11 · Armario inferior',items:['Cuña de cartón de un solo uso · 1 unidad','Botella de cartón de un solo uso · 1 unidad','Bolsa de basura · 1 rollo','Bolsa de residuos Grupo II · 1 rollo']},
   {id:12,title:'Compartimento 12',items:['Extintor · 1 unidad','Cinta de balizamiento · 1 unidad']},
 ];
 export const SVB_NORMAL_POSITIONS={1:[6,32],2:[27,28],'2a':[40,49],3:[56,23],4:[61,36],5:[61,44],6:[61,52],7:[59,60.2],8:[59,63.5],9:[61,67.7],10:[61.5,72.3],11:[64,81],12:[88,72]};

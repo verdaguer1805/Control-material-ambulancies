@@ -52,3 +52,35 @@ test('invalid pin fails closed without changing saved answers or identity',()=>{
  const s=storage(),key=`cma_svb_template_v1:${context.lot}:${context.unit}:${context.guardCode}:5439`;
  s.setItem(key,'damaged');assert.throws(()=>pinSvbTemplate(s,context,'5439'));assert.equal(s.getItem(key),'damaged');
 });
+
+test('pump support appears once, in frontal compartment 2, in both current catalogs',()=>{
+ for(const type of ['SVB','SVB 4x4']){
+  const support=auditItems(type).filter(i=>/soporte.*bombas/i.test(i.label));
+  assert.equal(support.length,1);
+  assert.equal(support[0].label,'Soporte de bombas · 1 unidad');
+  assert.ok(support[0].id.startsWith('Zona frontal-2-'));
+  const references=checklistReferenceSections(type).flatMap(s=>s.groups.flatMap(g=>g.items)).filter(i=>/soporte.*bombas/i.test(i));
+  assert.deepEqual(references,['Soporte de bombas · 1 unidad']);
+ }
+});
+
+test('variants share every item outside right wall and all unchanged right-wall sections',()=>{
+ const withoutRight=type=>auditItems(type).filter(i=>!i.id.startsWith('Zona derecha-'));
+ assert.deepEqual(withoutRight('SVB'),withoutRight('SVB 4x4'));
+ for(const id of [1,2,'2a',3,4,5,6])assert.deepEqual(svbRightSections('SVB').find(s=>s.id===id),svbRightSections('SVB 4x4').find(s=>s.id===id));
+ for(const type of ['SVB','SVB 4x4']){
+  const items=auditItems(type);assert.equal(new Set(items.map(i=>i.id)).size,items.length);
+  assert.ok(!items.some(i=>/capelina|100\s*[×x]\s*12/i.test(i.label)));
+  for(const section of svbRightSections(type))assert.equal(new Set(section.items).size,section.items.length);
+ }
+});
+
+test('correction never deletes earlier unit answers or changes already-started audit snapshots',()=>{
+ const label='Soporte para bombas de perfusión · 1 unidad',s=storage();
+ const key=`cma_svb_right_zone_mobile_test_v1:${context.unit}:${context.guardCode}:5439`;
+ s.setItem(`cma_svb_template_v1:${context.lot}:${context.unit}:${context.guardCode}:5439`,'SVB');
+ s.setItem(key,JSON.stringify({11:{[label]:'issue','Bolsa de basura · 1 rollo':'ok'}}));
+ const before=s.getItem(key);svbAnswerSnapshot(s,context,'5439');assert.equal(s.getItem(key),before);
+ const old={id:'old-audit',type:'SVB',vehicle:'5439',catalog:[...auditItems('SVB'),{id:'Zona derecha-11-0:4',label,section:'Zona derecha · Compartimento 11 · Armario inferior'}],answers:{'Zona derecha-11-0:4':'issue'},notes:{'Zona derecha-11-0:4':'Original note'}};
+ saveAudit(s,old);assert.deepEqual(refreshPendingAudit(readAudits(s)[0]),old);
+});
