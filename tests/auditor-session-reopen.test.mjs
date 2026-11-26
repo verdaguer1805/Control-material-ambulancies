@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {confirmedAuditorProfile,auditorNeedsSetup,auditorError} from '../src/auditor-client.mjs';
 import {AUDITOR_OFFLINE_KEY,readOfflineAuditor,rememberOfflineAuditor,auditorConnectionFailure,auditorSessionFailure,auditorAccessDenied} from '../src/auditor-offline.mjs';
 const source=fs.readFileSync(new URL('../src/AuditorPortal.jsx',import.meta.url),'utf8');
-const failure=source.slice(source.indexOf(' function verificationFailure('),source.indexOf(' useEffect(()=>{setupMode.current=setup;'));
+const failure=source.slice(source.indexOf(' function verificationFailure('),source.indexOf(' useEffect(()=>{setupMode.current='));
 const verify=source.slice(source.indexOf(' async function verify(){'),source.indexOf(' useEffect(()=>{void verify();'));
 const profile={user_id:'original',full_name:'Example Person',lot:'Other lot',zone:'Other zone',warehouse_id:'central',warehouse_name:'Central',revision:1,active:true,verified:true};
 function harness(){

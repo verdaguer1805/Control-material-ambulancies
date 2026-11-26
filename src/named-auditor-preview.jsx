@@ -1,13 +1,14 @@
 import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import AuditorPortal from './AuditorPortal.jsx';
+import AppUpdateNotice from './AppUpdateNotice.jsx';
 import './styles.css';import './overrides.css';import './falck-brand.css';
 const prefix='cma_named_auditor_demo:';
-const storage={getItem:key=>sessionStorage.getItem(prefix+key),setItem:(key,value)=>sessionStorage.setItem(prefix+key,value),removeItem:key=>sessionStorage.removeItem(prefix+key)};
-const savedServer=JSON.parse(sessionStorage.getItem(prefix+'server')||'null');
+const storage={getItem:key=>localStorage.getItem(prefix+key),setItem:(key,value)=>localStorage.setItem(prefix+key,value),removeItem:key=>localStorage.removeItem(prefix+key)};
+const savedServer=JSON.parse(localStorage.getItem(prefix+'server')||'null');
 let profile=savedServer?.profile||{user_id:'local-example',full_name:'Marc Serra',lot:'Lot 5 · Girona - Alt Maresme',zone:'Olot',warehouse_id:'example-olot',warehouse_name:'Olot central',revision:1,active:true,verified:true};
 const warehouses=[{id:'example-olot',name:'Olot central',lot:profile.lot,zone:'Olot',kind:'central'},{id:'example-fig',name:'Figueres central',lot:profile.lot,zone:'Figueres',kind:'central'}];
-let materialDraft=savedServer?.materialDraft||null,offline=sessionStorage.getItem(prefix+'offline')==='true';const audits=savedServer?.audits||[],receipts=new Map(savedServer?.receipts||[]);
+let materialDraft=savedServer?.materialDraft||null,offline=localStorage.getItem(prefix+'offline')==='true';const audits=savedServer?.audits||[],receipts=new Map(savedServer?.receipts||[]);
 async function fakeRpc(name,p={}){
  if(offline)throw new Error('LOCAL_SIMULATED_CONNECTION_FAILURE');
  if(name==='get_my_auditor_profile')return {...profile,verified:profile.active};
@@ -17,6 +18,8 @@ async function fakeRpc(name,p={}){
  if(name==='get_my_auditor_consumption')return receipts.get(p.p_id)||null;
  if(name==='get_my_auditor_pending_audits')return audits.filter(a=>!a.submitted_at);
  if(name==='authorize_mobile_auditor'){
+  if(p.p_code!=='local-test')throw new Error('INVALID_AUDITOR_AUTHORIZATION');
+  if(!profile.active&&profile.full_name===p.p_full_name&&profile.lot===p.p_lot&&profile.zone===p.p_zone&&profile.warehouse_id===p.p_warehouse_id){profile={...profile,active:true,verified:true};return {...profile};}
   if(audits.some(a=>!a.submitted_at)||Object.values(materialDraft?.materials||{}).some(Number))throw new Error('AUDITOR_PENDING_WORK');
   const w=warehouses.find(w=>w.id===p.p_warehouse_id&&w.zone===p.p_zone&&w.lot===p.p_lot);if(!w)throw new Error('AUDITOR_WAREHOUSE_MISMATCH');
   profile={...profile,active:true,verified:true,full_name:p.p_full_name,lot:p.p_lot,zone:p.p_zone,warehouse_id:w.id,warehouse_name:w.name,revision:profile.revision+1};return {...profile};
@@ -29,11 +32,11 @@ async function fakeRpc(name,p={}){
  if(name==='leave_mobile_auditor'){profile={...profile,active:false,verified:false};return true;}
  throw new Error('Unsupported local simulation');
 }
-async function rpc(name,p={}){const result=await fakeRpc(name,p);sessionStorage.setItem(prefix+'server',JSON.stringify({profile,materialDraft,audits,receipts:[...receipts]}));return result;}
-function resetExample(){for(const key of Object.keys(sessionStorage))if(key.startsWith(prefix))sessionStorage.removeItem(key);location.reload();}
+async function rpc(name,p={}){const result=await fakeRpc(name,p);localStorage.setItem(prefix+'server',JSON.stringify({profile,materialDraft,audits,receipts:[...receipts]}));return result;}
+function resetExample(){for(const key of Object.keys(localStorage))if(key.startsWith(prefix))localStorage.removeItem(key);location.reload();}
 function Example(){
  const [left,setLeft]=useState(false);
  const [connection,setConnection]=useState(!offline);
- return <><div style={{padding:8,background:'#fff4c3',textAlign:'center'}}><button onClick={resetExample}>Reiniciar solo el ejemplo local</button><button onClick={()=>{offline=!offline;sessionStorage.setItem(prefix+'offline',String(offline));setConnection(!offline);window.dispatchEvent(new Event(offline?'offline':'online'));}}>{connection?'Simular fallo de conexión':'Restablecer conexión simulada'}</button></div>{left?<section className="card"><h2>Selector de perfil · Simulación local</h2><p>Se ha salido del perfil auditor. El servidor conserva el historial y la asignación queda inactiva.</p><button onClick={()=>setLeft(false)}>Volver al perfil Auditor</button></section>:<AuditorPortal rpc={rpc} storage={storage} simulation onLeave={()=>setLeft(true)}/>}</>;
+ return <><div style={{padding:8,background:'#fff4c3',textAlign:'center'}}><button onClick={resetExample}>Reiniciar solo el ejemplo local</button><button onClick={()=>{offline=!offline;localStorage.setItem(prefix+'offline',String(offline));setConnection(!offline);window.dispatchEvent(new Event(offline?'offline':'online'));}}>{connection?'Simular fallo de conexión':'Restablecer conexión simulada'}</button></div>{left?<section className="card"><h2>Selector de perfil · Simulación local</h2><p>Se ha salido del perfil auditor. El servidor conserva el historial y la asignación queda inactiva.</p><button onClick={()=>setLeft(false)}>Volver al perfil Auditor</button></section>:<AuditorPortal rpc={rpc} storage={storage} simulation onLeave={()=>setLeft(true)}/>}</>;
 }
-createRoot(document.getElementById('root')).render(<Example/>);
+createRoot(document.getElementById('root')).render(<><AppUpdateNotice version="v283"/><Example/></>);
