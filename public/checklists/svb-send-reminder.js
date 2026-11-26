@@ -1,13 +1,13 @@
-import { checklistFingerprint, checklistReminderKind, showChecklistSendReminder } from './checklist-send-reminder.js?v=283';
-import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from './svb-left-wall-data.js?v=283';
-import { SVB_FRONT_WALL_SECTIONS, frontSectionStatus, frontRequiredSections } from './svb-front-wall-data.js?v=283';
-import { SVB_RIGHT_ZONE_SECTIONS, rightZoneStatus } from './svb-right-zone-data.js?v=283';
-import { SVB_DOOR_SECTIONS, doorSectionStatus, doorRequired } from './svb-door-data.js?v=283';
-import { cabinStatus } from './svb-cabin-data.js?v=283';
-import { svbGuardStatus } from './svb-guard-window.js?v=283';
-import { readSvbVehicleAssignment } from './svb-vehicle-assignment.js?v=283';
+import { checklistFingerprint, checklistReminderKind, showChecklistSendReminder } from './checklist-send-reminder.js?v=284';
+import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from './svb-left-wall-data.js?v=284';
+import { SVB_FRONT_WALL_SECTIONS, frontSectionStatus, frontRequiredSections } from './svb-front-wall-data.js?v=284';
+import { SVB_RIGHT_ZONE_SECTIONS, rightZoneStatus } from './svb-right-zone-data.js?v=284';
+import { SVB_DOOR_SECTIONS, doorSectionStatus, doorRequired } from './svb-door-data.js?v=284';
+import { cabinStatus } from './svb-cabin-data.js?v=284';
+import { svbGuardStatus } from './svb-guard-window.js?v=284';
+import { readSvbVehicleAssignment } from './svb-vehicle-assignment.js?v=284';
 
-import {pinSvbTemplate,svbRightSections} from './svb-template.js?v=283';
+import {pinSvbTemplate,svbRightSections} from './svb-template.js?v=284';
 const read = (storage, key) => { try { return JSON.parse(storage.getItem(key) || '{}'); } catch { return {}; } };
 const scopeOf = (context, vehicle) => `${context.unit}:${context.guardCode}:${vehicle}`;
 export const svbSentSnapshotKey = (context, vehicle) => `cma_svb_sent_snapshot_v1:${scopeOf(context, vehicle)}`;
@@ -59,7 +59,7 @@ export function installSvbSendReminder({ overview = false, send, canPrompt = () 
       // Recheck context/completeness in the existing submit handler; never send a different guard.
       if (overview) return send();
       sessionStorage.setItem(`cma_svb_send_intent_v1:${scope}`, snapshot);
-      location.assign('./svb-zones.html?v=283');
+      location.assign('./svb-zones.html?v=284');
     }, () => { closeModal = null; });
   }
   addEventListener('cma:svb-answers-changed', () => queueMicrotask(check));

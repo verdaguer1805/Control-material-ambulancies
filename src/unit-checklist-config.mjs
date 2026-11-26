@@ -5,8 +5,8 @@ export const TSU_CHECKLISTS = ['SVB', 'SVB 4x4', 'Polivalente', 'Logística'];
 export const TSNU_UNITS = {
   'Lot 5 · Girona - Alt Maresme': {
     Olot: Object.fromEntries([
-      'K1374', 'K1376', 'K1377', 'T1731', 'T1732', 'T1733', 'T1734',
-      'T1735', 'T1736', 'T1737', 'T1738', 'T1739', 'T1740', 'T1741',
+      'K1374', 'K1376', 'K1377', 'T1651', 'T1731', 'T1732', 'T1733', 'T1734',
+      'T1735', 'T1736', 'T1737', 'T1738', 'T1739', 'T1740',
       'T1742', 'T1743', 'T1744', 'KE1388',
     ].map(unit => [unit, 'TSNU'])),
     Figueres: tsnuAddedUnits('Figueres'),
@@ -14,6 +14,8 @@ export const TSNU_UNITS = {
     Blanes: tsnuAddedUnits('Blanes'),
   },
 };
+// Historical classification only: retired units must not appear in selectors.
+const RETIRED_TSNU_UNITS = {'Lot 5 · Girona - Alt Maresme':{Olot:['T1741']}};
 const CAMPDEVANOL_TSNU = new Set(['K1376','K1377','T1731','T1732','T1733','T1734','T1735','T1736']);
 export function tsnuWarehouse(unit, lot, zone) {
   if (!Object.hasOwn(TSNU_UNITS[lot]?.[zone] || {}, unit)) return '';
@@ -34,13 +36,13 @@ export function readUnitChecklist(storage, unit, lot) {
   return {unit, lot, service:'TSU', checklist:/^BP[0-9]+$/i.test(unit)?'Polivalente':''};
 }
 export function deviceServiceLabel(unit, lot) {
-  return Object.values(TSNU_UNITS[lot] || {}).some(units => Object.hasOwn(units, unit)) ? 'TSNU · Solo checklist' : 'TSU / Material';
+  return Object.values(TSNU_UNITS[lot] || {}).some(units => Object.hasOwn(units, unit)) || Object.values(RETIRED_TSNU_UNITS[lot]||{}).some(units=>units.includes(unit)) ? 'TSNU · Solo checklist' : 'TSU / Material';
 }
 export function managedDeviceZone(device, lots) {
   const zones = lots[device.lot] || {};
   const supervisor = /^Material supervisor\s*·\s*(.+)$/i.exec(device.unit || '');
   if (supervisor && Object.hasOwn(zones, supervisor[1])) return supervisor[1];
-  return Object.keys(zones).find(zone => Object.hasOwn(zones[zone], device.unit) || Object.hasOwn(TSNU_UNITS[device.lot]?.[zone] || {}, device.unit)) || '';
+  return Object.keys(zones).find(zone => Object.hasOwn(zones[zone], device.unit) || Object.hasOwn(TSNU_UNITS[device.lot]?.[zone] || {}, device.unit) || RETIRED_TSNU_UNITS[device.lot]?.[zone]?.includes(device.unit)) || '';
 }
 export function filterManagedDevices(devices, service = 'all', includeRevoked = false, scope = {}, lots = {}) {
   return devices.filter(device => {

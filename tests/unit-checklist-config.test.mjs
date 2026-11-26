@@ -34,10 +34,12 @@ test('supervisor material keeps no shift and no checklist',()=>{
 test('TSNU cannot accidentally select an existing TSU unit',()=>{
  assert.throws(()=>validateUnitChecklist({...base,service:'TSNU',warehouse:'Camprodon',warehouseId:'lot5_olot_camprodon'},{G453:'Camprodon'}));
 });
-test('all 18 remaining Olot TSNU units have automatic checklist and no shift',()=>{
+test('all 18 current Olot TSNU units have automatic checklist and no shift',()=>{
  const lot='Lot 5 · Girona - Alt Maresme';
  const units=TSNU_UNITS[lot].Olot;
  assert.equal(Object.keys(units).length,18);
+ assert.equal(units.T1651,'TSNU');
+ assert.equal(Object.hasOwn(units,'T1741'),false);
  assert.equal(units.KE1388,'TSNU');
  for(const unit of Object.keys(units)) {
   const result=validateUnitChecklist({...base,unit,lot,service:'TSNU',checklist:'',shift:'',warehouse:'Olot',warehouseId:'lot5_olot_central'},units);

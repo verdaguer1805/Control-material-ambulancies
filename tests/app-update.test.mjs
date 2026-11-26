@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {releaseFromWorker,freshAppUrl,pendingAuditUpdate} from '../src/app-update.mjs';
 test('update detection ignores errors and parses the published worker release',()=>{
- assert.equal(releaseFromWorker('const CACHE = "cma-v283";'),283);
+ assert.equal(releaseFromWorker('const CACHE = "cma-v999";'),999);
  assert.equal(releaseFromWorker('<html>error 503</html>'),0);
 });
 test('pending or unreadable audits block normal update; sent audits allow it',()=>{
