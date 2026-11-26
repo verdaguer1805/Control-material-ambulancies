@@ -6,6 +6,15 @@ export const BP_ZONES = [...BP_PHOTO_DRAFT.map(z=>({...z,groups:z.points.flatMap
  {id:'cabin',title:'Cabina de conducción',points:[],groups:BP_CHECKLIST_SECTIONS.filter(s=>s.sourceRow===311).map(s=>({...s,point:1}))}];
 export const BP_ITEMS=BP_ZONES.flatMap(z=>z.groups.flatMap(s=>s.items.map(i=>({id:i.id,label:bpItemLabel(i),section:`${z.title} · ${s.title}`}))));
 export function bpPointItems(zone,point){return zone.groups.filter(g=>point==null||g.point===point).flatMap(g=>g.items.map(i=>i.id));}
+// An audit owns its catalog snapshot. Never require newer, invisible items.
+export function bpDraftPointItems(draft,zone,point){
+ const ids=new Set(bpPointItems(zone,point));
+ return draft.catalog.filter(item=>ids.has(item.id)).map(item=>item.id);
+}
+export function bpLegacyItems(draft){
+ const mapped=new Set(BP_ZONES.flatMap(zone=>bpPointItems(zone)));
+ return draft.catalog.filter(item=>!mapped.has(item.id));
+}
 export function bpStatus(answers,ids){return !ids.length||ids.some(id=>!['ok','issue'].includes(answers?.[id]))?'pending':ids.some(id=>answers[id]==='issue')?'issue':'ok';}
 export function bpDraftKey({lot,zone,unit,guardCode,vehicle}){
  return 'cma_bp_review_v1:'+JSON.stringify([lot,zone,unit,guardCode,vehicle]);

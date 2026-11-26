@@ -2,6 +2,7 @@
 import {PGlite} from '../tmp/warehouse-db-test/node_modules/@electric-sql/pglite/dist/index.js';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import {legacyBpCatalog} from './browser/legacy-bp-catalog.mjs';
 const db=new PGlite();
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const one=id(1),two=id(2),three=id(3),owner=id(4),supervisor=id(5),wrong=id(6);
@@ -136,6 +137,21 @@ try{
  await scalar('select submit_mobile_auditor_audit($1,$2,$3,$4,$5::jsonb)',[recoveryId,recovered.revision,'5132','SVB',JSON.stringify(recoveredPayload)]);
  assert.equal(await scalar('select count(*)::int from supervisor_vehicle_audits where id=$1',[recoveryId]),1);
  assert.equal(await scalar("select count(*)::int from auditor_access_history where user_id=$1 and action='reauthorize_preserving_work'",[wrong]),1);
+ // Apply the same type-extension used by bp-production-v1 to this minimal fixture.
+ await db.exec(`do $$ declare definition text; begin
+ definition:=pg_get_functiondef('public.begin_mobile_auditor_audit(uuid,integer,text,text,jsonb)'::regprocedure);
+ execute replace(definition,'''TSNU'',''SVB''','''TSNU'',''SVB'',''Polivalente'''); end $$;`);
+ const legacyCatalog=await legacyBpCatalog(),legacyId=id(5133);
+ await scalar('select begin_mobile_auditor_audit($1,$2,$3,$4,$5::jsonb)',[legacyId,recovered.revision,'5132','Polivalente',JSON.stringify(legacyCatalog)]);
+ const legacyAnswers=Object.fromEntries(legacyCatalog.map(i=>[i.id,'ok']));legacyAnswers[legacyCatalog[0].id]='issue';
+ const legacyNotes={[legacyCatalog[0].id]:'Original BP observation'};
+ await scalar('select save_mobile_auditor_draft($1,$2,1,$3::jsonb,$4::jsonb)',[legacyId,recovered.revision,JSON.stringify(legacyAnswers),JSON.stringify(legacyNotes)]);
+ const legacyPayload=legacyCatalog.map(i=>({...i,status:legacyAnswers[i.id],note:legacyNotes[i.id]||''}));
+ for(let attempt=0;attempt<2;attempt++)await scalar('select submit_mobile_auditor_audit($1,$2,$3,$4,$5::jsonb)',[legacyId,recovered.revision,'5132','Polivalente',JSON.stringify(legacyPayload)]);
+ assert.equal(await scalar('select count(*)::int from supervisor_vehicle_audits where id=$1',[legacyId]),1);
+ assert.deepEqual(await scalar('select catalog from auditor_audit_drafts where id=$1',[legacyId]),legacyCatalog);
+ assert.deepEqual(await scalar('select notes from auditor_audit_drafts where id=$1',[legacyId]),legacyNotes);
+ console.log('PASS: exact v274 BP catalog, 222 original items, original note, complete submission and idempotent retry.');
  await db.exec("select set_config('test.uid','',false)");await assert.rejects(scalar('select get_my_auditor_profile()'),/Authentication/);
  console.log('PASS: multiple auditors, supervisor phone preserved, no admin session, warehouse/lot/revision binding, exact-once consumption, scoped reports, pending-work block, immutable audit history, revocation/reactivation and persistent code-attempt limits.');
 }catch(error){console.error(error.message,error.where||'',error.query||'');process.exitCode=1;}finally{await db.close();}
