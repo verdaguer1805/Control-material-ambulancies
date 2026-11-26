@@ -56,6 +56,9 @@ export function auditorError(error){
  const message=String(error?.message||error||'');
  for(const [code,text] of Object.entries({
   AUDITOR_PENDING_WORK:'Termina y envía las auditorías y consumos pendientes antes de cambiar de zona.',
+  AUDITOR_RECOVERY_REVISION_MISMATCH:'No se ha podido conservar la revisión original del permiso. No se ha borrado ningún trabajo. Contacta con el propietario antes de volver a autorizar.',
+  AUDITOR_RECOVERY_SCOPE_MISMATCH:'Hay trabajos de una asignación anterior. El propietario debe revisar el móvil antes de reactivarlo. No se ha modificado ninguna auditoría.',
+  AUDITOR_RECOVERY_OTHER_ROLE_ACTIVE:'Este móvil tiene otro perfil operativo activo. El propietario debe revisarlo antes de recuperar el acceso auditor. Los trabajos siguen guardados.',
   AUDITOR_NOT_AUTHORIZED:'Este móvil no tiene autorización de auditor o su acceso ha sido revocado.',
   AUDITOR_PROFILE_NOT_FOUND:'No se ha encontrado el perfil auditor de esta sesión. No se ha borrado el perfil ni el trabajo guardado. Vuelve a verificar o contacta con el propietario antes de autorizar de nuevo.',
   LOCAL_AUTH_SESSION_MISSING:'No se ha podido recuperar la sesión original de este móvil. Los trabajos siguen guardados. Vuelve a verificar la conexión; no se ha creado otro auditor.',

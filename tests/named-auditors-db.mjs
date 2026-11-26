@@ -115,6 +115,27 @@ try{
  assert.equal((await authorize('test-owner','Jordi Puig','Olot','olot-c')).verified,true);
  assert.equal((await scalar('select get_my_auditor_pending_audits()')).length,0);
  assert.equal(await scalar('select active from device_authorizations where user_id=$1',[one]),true);
+ const recoverySql=fs.readFileSync(new URL('../sql/auditor-resume-inactive-v1.sql',import.meta.url),'utf8');
+ await db.exec(recoverySql);await db.exec(recoverySql);
+ await actor(wrong);
+ const recoveryProfile=await scalar('select get_my_auditor_profile()'),recoveryId=id(5132);
+ await scalar('select begin_mobile_auditor_audit($1,$2,$3,$4,$5::jsonb)',[recoveryId,recoveryProfile.revision,'5132','SVB',JSON.stringify(catalog)]);
+ await scalar('select save_mobile_auditor_draft($1,$2,99,$3::jsonb,$4::jsonb)',[recoveryId,recoveryProfile.revision,JSON.stringify({'section:0':'issue'}),JSON.stringify({'section:0':'Keep original observation'})]);
+ await db.query('update auditor_devices set active=false where user_id=$1',[wrong]);
+ const beforeRecovery=await scalar('select to_jsonb(d) from auditor_audit_drafts d where id=$1',[recoveryId]);
+ await assert.rejects(scalar('select get_my_auditor_pending_audits()'),/NOT_AUTHORIZED/);
+ assert.equal((await authorize('wrong-code','Other Auditor','Olot','olot-c')).error,'INVALID_AUDITOR_AUTHORIZATION');
+ assert.equal((await scalar('select get_my_auditor_profile()')).active,false);
+ await assert.rejects(authorize('test-owner','Other Auditor','Figueres','fig-c'),/PENDING_WORK/);
+ await assert.rejects(authorize('test-owner','Different Person','Olot','olot-c'),/PENDING_WORK/);
+ const recovered=await authorize('test-owner','Other Auditor','Olot','olot-c');
+ assert.equal(recovered.active,true);assert.equal(recovered.revision,recoveryProfile.revision);assert.equal(recovered.user_id,wrong);
+ assert.deepEqual((await scalar('select get_my_auditor_pending_audits()'))[0],beforeRecovery);
+ const recoveredPayload=[{...catalog[0],status:'issue',note:'Keep original observation'}];
+ await scalar('select submit_mobile_auditor_audit($1,$2,$3,$4,$5::jsonb)',[recoveryId,recovered.revision,'5132','SVB',JSON.stringify(recoveredPayload)]);
+ await scalar('select submit_mobile_auditor_audit($1,$2,$3,$4,$5::jsonb)',[recoveryId,recovered.revision,'5132','SVB',JSON.stringify(recoveredPayload)]);
+ assert.equal(await scalar('select count(*)::int from supervisor_vehicle_audits where id=$1',[recoveryId]),1);
+ assert.equal(await scalar("select count(*)::int from auditor_access_history where user_id=$1 and action='reauthorize_preserving_work'",[wrong]),1);
  await db.exec("select set_config('test.uid','',false)");await assert.rejects(scalar('select get_my_auditor_profile()'),/Authentication/);
  console.log('PASS: multiple auditors, supervisor phone preserved, no admin session, warehouse/lot/revision binding, exact-once consumption, scoped reports, pending-work block, immutable audit history, revocation/reactivation and persistent code-attempt limits.');
 }catch(error){console.error(error.message,error.where||'',error.query||'');process.exitCode=1;}finally{await db.close();}

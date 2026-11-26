@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import VehicleAudit from './VehicleAudit.jsx';
+import {canRecoverAuditor} from './auditor-recovery.mjs';
 import {ensureAnonymousSession,supabase} from './supabase';
 import {MATERIALS} from './data';
 import {materialDisplayName} from './material-display.mjs';
@@ -31,7 +32,7 @@ function AuditorNotice({message,busy,onClose}){
   {!busy&&<button type="button" className="primary full" autoFocus onClick={onClose}>Aceptar</button>}
  </dialog>;
 }
-export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v281'}){
+export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v282'}){
  const call=rpc;
  const [cachedProfile]=useState(()=>readOfflineAuditor(localStorage));
  const [canReview,setCanReview]=useState(!!cachedProfile),[connectionNote,setConnectionNote]=useState(cachedProfile?'Revisión local disponible. Comprobando conexión para el envío...':'');
@@ -64,7 +65,7 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
     lastVerifyError.current=new Error('AUDITOR_NOT_AUTHORIZED');
     setCanReview(false);localStorage.removeItem(AUDITOR_OFFLINE_KEY);profileNow.current=null;
     setName(raw?.full_name||'');setLot(raw?.lot||'');setZone(raw?.zone||'');setWarehouse(raw?.warehouse_id||'');setCode('');setupMode.current=true;setSetup(true);
-    if(raw)setNotice('Este perfil auditor está inactivo. Autorízalo de nuevo con el código del propietario o supervisor de la zona.');
+    if(raw)setNotice('Este perfil auditor está inactivo. Para recuperar los trabajos pendientes, un propietario o supervisor debe autorizar este mismo móvil con su código, manteniendo nombre, lote, zona y almacén. No borres datos ni cambies de perfil.');
     return;
    }
    if(!p){lastVerifyError.current=new Error('AUDITOR_NOT_AUTHORIZED');profileNow.current=null;setCanReview(false);localStorage.removeItem(AUDITOR_OFFLINE_KEY);setNotice('Acceso no autorizado. Contacta con el propietario o la supervisión.');return;}
@@ -108,13 +109,15 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
  async function authorize(event){
   event.preventDefault();if(closeUnitRequired&&!closeUnitConfirmed){setNotice('Confirma el cierre de la guardia anterior antes de cambiar el perfil.');return;}setBusy(true);setVerified(false);setNotice('Verificando la asignación con el servidor...');
   try{
-   if(hasLocalPending())throw new Error('AUDITOR_PENDING_WORK');
    const expected={full_name:name.trim().replace(/\s+/g,' '),lot,zone,warehouse_id:warehouse};
+   const recovering=canRecoverAuditor(profile,expected,readAudits(localStorage),currentWork.current);
+   if(hasLocalPending()&&!recovering)throw new Error('AUDITOR_PENDING_WORK');
    const result=await call('authorize_mobile_auditor',{p_code:code,p_full_name:expected.full_name,p_lot:lot,p_zone:zone,p_warehouse_id:warehouse,p_close_unit:closeUnitRequired&&closeUnitConfirmed});
    const confirmed=confirmedAuditorProfile(result,expected);if(!confirmed)throw new Error('AUDITOR_WAREHOUSE_MISMATCH');
+   if(recovering&&(confirmed.user_id!==profile.user_id||confirmed.revision!==profile.revision))throw new Error('AUDITOR_RECOVERY_REVISION_MISMATCH');
    // Invalidate any focus/background verification started before authorization.
    verifyRun.current++;
-   localStorage.removeItem(AUDITOR_WORK_KEY);localStorage.removeItem('cma_device_authorization_v1');localStorage.removeItem('cma_svb_checklist_context_v1');localStorage.removeItem('cma_tsnu_active_shift_v1');
+   if(!recovering){localStorage.removeItem(AUDITOR_WORK_KEY);localStorage.removeItem('cma_device_authorization_v1');localStorage.removeItem('cma_svb_checklist_context_v1');localStorage.removeItem('cma_tsnu_active_shift_v1');}
    localStorage.setItem('cma_unit',`Auditor · ${confirmed.zone} · ${confirmed.full_name}`);localStorage.setItem('cma_lot',confirmed.lot);
    if(!simulation){rememberAuthorizedIdentity(localStorage,confirmed.user_id);void supabase.auth.getSession().then(({data})=>data.session&&rememberRecoverySession(data.session,localStorage)).catch(()=>{});}
    localStorage.setItem(AUDITOR_MODE_KEY,'auditor');profileNow.current=confirmed;setProfile(confirmed);setupMode.current=false;setSetup(false);setCode('');
