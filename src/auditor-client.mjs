@@ -63,6 +63,7 @@ export function auditorError(error){
   AUDITOR_PROFILE_NOT_FOUND:'No se ha encontrado el perfil auditor de esta sesión. No se ha borrado el perfil ni el trabajo guardado. Vuelve a verificar o contacta con el propietario antes de autorizar de nuevo.',
   LOCAL_AUTH_SESSION_MISSING:'No se ha podido recuperar la sesión original de este móvil. Los trabajos siguen guardados. Vuelve a verificar la conexión; no se ha creado otro auditor.',
   AUDITOR_REQUEST_TIMEOUT:'No se ha recibido confirmación a tiempo. Los datos siguen guardados. Vuelve a verificar antes de repetir la operación.',
+  AUDITOR_LEAVE_NOT_CONFIRMED:'No se ha confirmado el cambio de perfil. Los trabajos locales siguen guardados; vuelve a verificar el permiso antes de repetir.',
   AUDITOR_ASSIGNMENT_CHANGED:'La asignación ha cambiado. Verifica de nuevo el almacén antes de enviar.',
   AUDITOR_WAREHOUSE_MISMATCH:'El almacén no coincide con la asignación validada. No se ha descontado material.',
   INVALID_AUDITOR_AUTHORIZATION:'Código incorrecto o sin permiso para esta zona.',

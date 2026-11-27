@@ -13,5 +13,5 @@ test('admin hides revoked phones without merging people or changing active devic
  assert.deepEqual(filter([old]),[]);assert.deepEqual(filter(null),[]);
  assert.equal(one.active,true);assert.equal(two.active,true);
  assert.match(source,/key=\{row.user_id\}/);
- assert.match(source,/varios móviles autorizados/);
+ assert.match(source,/Comprueba la referencia del móvil/);
 });

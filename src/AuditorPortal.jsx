@@ -32,13 +32,26 @@ function AuditorNotice({message,busy,onClose}){
   {!busy&&<button type="button" className="primary full" autoFocus onClick={onClose}>Aceptar</button>}
  </dialog>;
 }
-export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v287'}){
+function AuditorProfileChangeDialog({profile,onCancel,onConfirm}){
+ const dialog=useRef(null);
+ useEffect(()=>{const node=dialog.current;if(!node.open)node.showModal();return()=>{if(node.open)node.close();};},[]);
+ return <dialog ref={dialog} className="auditor-notice-dialog" aria-labelledby="auditor-profile-change-title" onCancel={event=>{event.preventDefault();onCancel();}}>
+  <h2 id="auditor-profile-change-title">¿Cambiar el perfil de este móvil?</h2>
+  {profile&&<p>{profile.full_name}<br/>Móvil {profile.user_id.slice(0,8)} · {profile.lot} · {profile.zone}</p>}
+  {profile?<><p>Este móvil dejará de estar autorizado como auditor. Para volver a auditar necesitarás una nueva autorización. No se borrarán las auditorías ni los consumos enviados.</p>
+  <p>Si solo has terminado por hoy, cancela y cierra la aplicación: conservarás el permiso.</p></>:<p>Volverás al selector de perfil. No se cambiarán los permisos ni se borrarán los registros guardados.</p>}
+  <button type="button" className="secondary full" autoFocus onClick={onCancel}>Cancelar</button>
+  <button type="button" className="danger full" onClick={onConfirm}>Sí, cambiar perfil</button>
+ </dialog>;
+}
+export default function AuditorPortal({onLeave,rpc=productionCall,storage:localStorage=window.localStorage,simulation=false,version='v288'}){
  const call=rpc;
  const [cachedProfile]=useState(()=>readOfflineAuditor(localStorage));
  const [canReview,setCanReview]=useState(!!cachedProfile),[connectionNote,setConnectionNote]=useState(cachedProfile?'Revisión local disponible. Comprobando conexión para el envío...':'');
  const [closeUnitRequired,setCloseUnitRequired]=useState(false),[closeUnitConfirmed,setCloseUnitConfirmed]=useState(false);
+ const [leavePrompt,setLeavePrompt]=useState(false);
  const [profile,setProfile]=useState(null),[verified,setVerified]=useState(false),[loading,setLoading]=useState(true),[options,setOptions]=useState([]),[setup,setSetup]=useState(false),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[name,setName]=useState(''),[lot,setLot]=useState(''),[zone,setZone]=useState(''),[warehouse,setWarehouse]=useState(''),[code,setCode]=useState(''),[work,setWork]=useState(()=>readWork(localStorage)),[search,setSearch]=useState(''),[pending,setPending]=useState([]),[materialNames,setMaterialNames]=useState([]);
- const saveQueue=useRef(Promise.resolve()),currentWork=useRef(work),verifyRun=useRef(0),leaving=useRef(false),setupMode=useRef(false);
+ const saveQueue=useRef(Promise.resolve()),currentWork=useRef(work),verifyRun=useRef(0),leaving=useRef(false),authorizing=useRef(false),setupMode=useRef(false);
  const profileNow=useRef(cachedProfile),lastVerifyError=useRef(null),registeredDrafts=useRef(new Set());
  useEffect(()=>{if(cachedProfile){setProfile(cachedProfile);setLoading(false);}},[]);
  function verificationFailure(error){
@@ -106,8 +119,17 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
   try{setOptions(await call('get_auditor_warehouse_options'));}catch(error){setVerified(false);setNotice(auditorError(error));return;}
   setName(profile?.full_name||'');setLot(profile?.lot||'');setZone(profile?.zone||'');setWarehouse(profile?.warehouse_id||'');setCode('');setupMode.current=true;setSetup(true);setNotice('');
  }
+ function cancelSetup(){
+  if(authorizing.current||leaving.current)return;
+  setCode('');setNotice('');setSetup(false);
+  // Cancelling an assignment edit never grants or revokes access. Re-read the
+  // existing active permission after a failed attempt; inactive recovery stays
+  // paused so focus/reopen does not trap the user in the authorization dialog.
+  setupMode.current=profile?.active!==true;
+  if(profile?.active===true)void verify();
+ }
  async function authorize(event){
-  event.preventDefault();if(closeUnitRequired&&!closeUnitConfirmed){setNotice('Confirma el cierre de la guardia anterior antes de cambiar el perfil.');return;}setBusy(true);setVerified(false);setNotice('Verificando la asignación con el servidor...');
+  event.preventDefault();if(authorizing.current||leaving.current)return;if(closeUnitRequired&&!closeUnitConfirmed){setNotice('Confirma el cierre de la guardia anterior antes de cambiar el perfil.');return;}authorizing.current=true;setBusy(true);setVerified(false);setNotice('Verificando la asignación con el servidor...');
   try{
    const expected={full_name:name.trim().replace(/\s+/g,' '),lot,zone,warehouse_id:warehouse};
    const recovering=canRecoverAuditor(profile,expected,readAudits(localStorage),currentWork.current);
@@ -122,7 +144,7 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
    if(!simulation){rememberAuthorizedIdentity(localStorage,confirmed.user_id);void supabase.auth.getSession().then(({data})=>data.session&&rememberRecoverySession(data.session,localStorage)).catch(()=>{});}
    localStorage.setItem(AUDITOR_MODE_KEY,'auditor');profileNow.current=confirmed;setProfile(confirmed);setupMode.current=false;setSetup(false);setCode('');
    if(await verify())setNotice(simulation?'Simulación completada. Asignación ficticia validada; no se han enviado datos reales.':'Asignación y almacén confirmados por el servidor.');
-  }catch(error){if(String(error.message).includes('UNIT_SHIFT_MUST_BE_CLOSED'))setCloseUnitRequired(true);setNotice(auditorError(error));}finally{setBusy(false);}
+  }catch(error){if(String(error.message).includes('UNIT_SHIFT_MUST_BE_CLOSED'))setCloseUnitRequired(true);setNotice(auditorError(error));}finally{authorizing.current=false;setBusy(false);}
  }
  function edit(material,delta){
   if(!verified||busy)return;
@@ -148,10 +170,23 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
    setNotice(simulation?`Simulación de consumo completada en ${profile.warehouse_name}. No se ha descontado material real.`:`Consumo enviado y confirmado. Material descontado de ${profile.warehouse_name}.`);
   }catch(error){setNotice(auditorError(error));}finally{setBusy(false);}
  }
- async function leave(){
+ function requestLeave(){
+  if(leaving.current||authorizing.current||busy)return;
   if(hasLocalPending()||pending.length){setNotice('Termina y envía primero los trabajos pendientes.');return;}
-  leaving.current=true;verifyRun.current++;setBusy(true);
-  try{await saveQueue.current;if(profile?.active)await call('leave_mobile_auditor');const wasAuditor=clearAuditorLocalProfile(localStorage);if(wasAuditor&&!simulation)void forgetRecoverySession().catch(()=>{});onLeave();}catch(error){setNotice(auditorError(error));}finally{leaving.current=false;setBusy(false);}
+  setLeavePrompt(true);
+ }
+ async function leave(){
+  if(!leavePrompt||leaving.current||authorizing.current)return;
+  if(hasLocalPending()||pending.length){setLeavePrompt(false);setNotice('Termina y envía primero los trabajos pendientes.');return;}
+  leaving.current=true;verifyRun.current++;setBusy(true);setLeavePrompt(false);setNotice('Confirmando el cambio de perfil con el servidor...');
+  try{
+   await saveQueue.current;
+   if(hasLocalPending())throw new Error('AUDITOR_PENDING_WORK');
+   if(profile?.user_id){const confirmed=await call('leave_mobile_auditor');if(confirmed!==true)throw new Error('AUDITOR_LEAVE_NOT_CONFIRMED');}
+   // A response lost in transit must never remove the local identity or work.
+   if(hasLocalPending())throw new Error('AUDITOR_PENDING_WORK');
+   const wasAuditor=clearAuditorLocalProfile(localStorage);if(wasAuditor&&!simulation)void forgetRecoverySession().catch(()=>{});onLeave();
+  }catch(error){setNotice(auditorError(error));}finally{leaving.current=false;setBusy(false);}
  }
  async function registerDraft(draft,p=profileNow.current){
   requireAuditScope(draft,p);
@@ -187,15 +222,16 @@ export default function AuditorPortal({onLeave,rpc=productionCall,storage:localS
    catch(error){verificationFailure(error);if(auditorConnectionFailure(error))return [];throw error;}
   },
  };
- return <div className="app auditor-mobile"><header className="header"><div className="header-copy"><h1>Control de material <span className="app-version">{version}</span></h1><small>Auditorías y consumo de material</small>{profile&&<><div className="unit-header">{profile.full_name}</div><div>{profile.lot} · {profile.zone}</div></>}</div><img className="falck-header-logo" src="./falck-symbol-2026.png" alt="Falck"/></header><main>
-  <div className="auditor-toolbar"><button className="secondary" disabled={busy||loading} onClick={openSetup}>Cambiar zona</button><button className="secondary" disabled={busy||loading} onClick={leave}>Cambiar perfil</button></div>
+ return <div className="app auditor-mobile"><header className="header"><div className="header-copy"><h1>Control de material <span className="app-version">{version}</span></h1><small>Auditorías y consumo de material</small>{profile&&<><div className="unit-header">{profile.full_name}</div><div>{profile.lot} · {profile.zone}</div><small>Referencia del móvil: {profile.user_id.slice(0,8)}</small></>}</div><img className="falck-header-logo" src="./falck-symbol-2026.png" alt="Falck"/></header><main>
+  <div className="auditor-toolbar"><button className="secondary" disabled={busy||loading} onClick={openSetup}>Cambiar zona</button><button className="secondary" disabled={busy||loading} onClick={requestLeave}>Cambiar perfil</button></div>
+  {leavePrompt&&<AuditorProfileChangeDialog profile={profile} onCancel={()=>setLeavePrompt(false)} onConfirm={leave}/>}
   {notice&&<AuditorNotice message={notice} busy={busy} onClose={()=>setNotice('')}/>}
   {connectionNote&&<p className="auditor-notice" role="status">{connectionNote}</p>}
   {simulation&&<div className="auditor-notice">SIMULACIÓN LOCAL · Datos ficticios. No envía datos, no autoriza móviles ni modifica estoc real. La confirmación real solo se habilitará tras instalar y verificar el SQL.</div>}
   {!loading&&!verified&&(!profile||setup)&&<button type="button" className="secondary full" disabled={busy} onClick={()=>{void verify();void call('get_auditor_warehouse_options').then(setOptions).catch(error=>setNotice(auditorError(error)));}}>Volver a verificar</button>}
   {setup&&closeUnitRequired&&<label className="card"><input type="checkbox" checked={closeUnitConfirmed} onChange={e=>setCloseUnitConfirmed(e.target.checked)}/> Confirmo el cierre de la guardia anterior de este móvil. Si su checklist no se envió, seguirá como «No realizado»; no se marcará como completado.</label>}
   {loading?<div className="card">Verificando autorización y almacén...</div>:!setup&&profile&&<section className={`card auditor-confirmation ${verified?'confirmed':''}`} role="status"><strong>{verified?(simulation?'Simulación · Asignación validada del ejemplo':'✓ Almacén confirmado por el servidor'):'Almacén no verificado · Envío bloqueado'}</strong><p>{profile.warehouse_name||profile.warehouse_id}</p><small>{profile.lot} · {profile.zone}</small>{!verified&&<button className="secondary full" onClick={verify}>Volver a verificar</button>}</section>}
-  {setup&&<form className="card" onSubmit={authorize}><h2>{profile?.active===false?'Recuperar autorización del móvil':profile?'Cambiar asignación':'Configurar móvil auditor'}</h2><label>Nombre y apellidos<input required maxLength={100} value={name} onChange={e=>setName(e.target.value)} autoComplete="name"/></label><label>Lote<select required value={lot} onChange={e=>{setLot(e.target.value);setZone('');setWarehouse('');}}><option value="">Selecciona...</option>{[...new Set(options.map(w=>w.lot))].sort().map(l=><option key={l}>{l}</option>)}</select></label><label>Zona<select required value={zone} onChange={e=>{setZone(e.target.value);setWarehouse('');}}><option value="">Selecciona...</option>{[...new Set(options.filter(w=>w.lot===lot).map(w=>w.zone))].sort().map(z=><option key={z}>{z}</option>)}</select></label><label>Almacén de retirada de material<select required value={warehouse} onChange={e=>setWarehouse(e.target.value)}><option value="">Selecciona...</option>{options.filter(w=>w.lot===lot&&w.zone===zone).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Central':'Subalmacén'} · {w.name}</option>)}</select></label><label>Código del propietario o supervisor de esta zona<input required type="password" value={code} autoComplete="off" onChange={e=>setCode(e.target.value)}/></label><p className="muted">El código autoriza solo este perfil. No abre administración ni sustituye otros móviles.</p><button disabled={busy} className="primary full">{busy?'Verificando...':'Autorizar y confirmar almacén'}</button>{profile&&<button type="button" disabled={busy} className="secondary full" onClick={()=>{setupMode.current=true;setSetup(false);setCode('');setNotice('');}}>Cancelar</button>}</form>}
+  {setup&&<form className="card" onSubmit={authorize}><h2>{profile?.active===false?'Recuperar autorización del móvil':profile?'Cambiar asignación':'Configurar móvil auditor'}</h2><label>Nombre y apellidos<input required maxLength={100} value={name} onChange={e=>setName(e.target.value)} autoComplete="name"/></label><label>Lote<select required value={lot} onChange={e=>{setLot(e.target.value);setZone('');setWarehouse('');}}><option value="">Selecciona...</option>{[...new Set(options.map(w=>w.lot))].sort().map(l=><option key={l}>{l}</option>)}</select></label><label>Zona<select required value={zone} onChange={e=>{setZone(e.target.value);setWarehouse('');}}><option value="">Selecciona...</option>{[...new Set(options.filter(w=>w.lot===lot).map(w=>w.zone))].sort().map(z=><option key={z}>{z}</option>)}</select></label><label>Almacén de retirada de material<select required value={warehouse} onChange={e=>setWarehouse(e.target.value)}><option value="">Selecciona...</option>{options.filter(w=>w.lot===lot&&w.zone===zone).map(w=><option key={w.id} value={w.id}>{w.kind==='central'?'Central':'Subalmacén'} · {w.name}</option>)}</select></label><label>Código del propietario o supervisor de esta zona<input required type="password" value={code} autoComplete="off" onChange={e=>setCode(e.target.value)}/></label><p className="muted">El código autoriza solo este perfil. No abre administración ni sustituye otros móviles.</p><button disabled={busy} className="primary full">{busy?'Verificando...':'Autorizar y confirmar almacén'}</button>{profile&&<button type="button" disabled={busy} className="secondary full" onClick={cancelSetup}>Cancelar</button>}</form>}
   {!setup&&profile&&<><VehicleAudit key={`${profile.user_id}:${profile.revision}`} supervisor={`Auditor · ${profile.zone} · ${profile.full_name}`} lot={profile.lot} zone={profile.zone} authorized={canReview} sendAuthorized={verified} auditorService={service} storageOverride={localStorage} onAlert={setNotice}/>
   <section className="card"><h2>Material retirado</h2><p>Se descontará de <strong>{profile.warehouse_name}</strong> al enviar y confirmar el consumo.</p><label>Buscar material<input value={search} onChange={e=>setSearch(e.target.value)}/></label>{(materialNames.length?materialNames:[]).filter(m=>MATERIALS.includes(m)&&materialDisplayName(m).toLowerCase().includes(search.toLowerCase())).map(m=><div className="material" key={m}><span>{materialDisplayName(m)}</span><div className="counter"><button disabled={!verified||busy} onClick={()=>edit(m,-1)}>−</button><span className="qty">{work?.materials?.[m]||0}</span><button disabled={!verified||busy} onClick={()=>edit(m,1)}>+</button></div></div>)}</section>
   <footer className="auditor-send-bar" aria-label="Envío de consumo de auditor"><button type="button" className="primary" disabled={!verified||busy||!Object.values(work?.materials||{}).some(Number)} onClick={send}>{busy?'Confirmando...':'Enviar consumo'}</button></footer></>}

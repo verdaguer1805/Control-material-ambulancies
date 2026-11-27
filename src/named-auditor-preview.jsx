@@ -39,4 +39,4 @@ function Example(){
  const [connection,setConnection]=useState(!offline);
  return <><div style={{padding:8,background:'#fff4c3',textAlign:'center'}}><button onClick={resetExample}>Reiniciar solo el ejemplo local</button><button onClick={()=>{offline=!offline;localStorage.setItem(prefix+'offline',String(offline));setConnection(!offline);window.dispatchEvent(new Event(offline?'offline':'online'));}}>{connection?'Simular fallo de conexión':'Restablecer conexión simulada'}</button></div>{left?<section className="card"><h2>Selector de perfil · Simulación local</h2><p>Se ha salido del perfil auditor. El servidor conserva el historial y la asignación queda inactiva.</p><button onClick={()=>setLeft(false)}>Volver al perfil Auditor</button></section>:<AuditorPortal rpc={rpc} storage={storage} simulation onLeave={()=>setLeft(true)}/>}</>;
 }
-createRoot(document.getElementById('root')).render(<><AppUpdateNotice version="v287"/><Example/></>);
+createRoot(document.getElementById('root')).render(<><AppUpdateNotice version="v288"/><Example/></>);

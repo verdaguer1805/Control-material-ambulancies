@@ -1,4 +1,4 @@
-import {svbGuardStatus} from './svb-guard-window.js?v=287';
+import {svbGuardStatus} from './svb-guard-window.js?v=288';
 
 export const CHECKLIST_PENDING_PREFIX = 'cma_checklist_pending_v1:';
 export const CHECKLIST_PENDING_EVENT = 'cma:checklist-pending-changed';

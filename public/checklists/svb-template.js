@@ -1,4 +1,4 @@
-import {SVB_RIGHT_ZONE_SECTIONS} from './svb-right-zone-data.js?v=287';
+import {SVB_RIGHT_ZONE_SECTIONS} from './svb-right-zone-data.js?v=288';
 
 export const isSvbChecklist = type => type === 'SVB' || type === 'SVB 4x4';
 export const SVB_NORMAL_RIGHT_V1 = [

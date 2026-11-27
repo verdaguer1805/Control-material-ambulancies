@@ -1,18 +1,18 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=287";
-import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=287";
-import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=287";
-import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=287";
-import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=287";
-import{cabinStatus}from"./svb-cabin-data.js?v=287";
-import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=287";
-import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=287';
-import { checklistFingerprint } from './checklist-send-reminder.js?v=287';
-import {unitSvbRightSections} from './svb-template.js?v=287';
-import {readChecklistPending,beginChecklistAttempt,failChecklistAttempt,confirmChecklistAttempt,checklistPendingText,checklistPendingLabel,showChecklistPendingDialog} from './checklist-pending.js?v=287';
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=288";
+import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=288";
+import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=288";
+import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=288";
+import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=288";
+import{cabinStatus}from"./svb-cabin-data.js?v=288";
+import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=288";
+import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=288';
+import { checklistFingerprint } from './checklist-send-reminder.js?v=288';
+import {unitSvbRightSections} from './svb-template.js?v=288';
+import {readChecklistPending,beginChecklistAttempt,failChecklistAttempt,confirmChecklistAttempt,checklistPendingText,checklistPendingLabel,showChecklistPendingDialog} from './checklist-pending.js?v=288';
 let submitting = false;
-import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=287';
+import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=288';
 
-document.querySelector(".head h1 small").textContent="v287";
+document.querySelector(".head h1 small").textContent="v288";
 
 // Retain the existing controls/handlers while making the send action prominent.
 const fixedPanel=document.createElement('section'),scrollPanel=document.createElement('section');

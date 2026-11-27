@@ -1,0 +1,87 @@
+Auditor access lifecycle — v288, 27 November 2026
+
+Deployment status
+Owner manually installed sql/auditor-access-lifecycle-v2.sql and confirmed all
+four readiness flags true on 27 November 2026. Publication of v288 authorized.
+No production device permission changes performed by the release process.
+For other environments run the whole SQL file, not only the readiness SELECT.
+Expected final flags: auditor_retry_ready, auditor_dates_ready,
+auditor_leave_trace_ready, auditor_checked_revoke_ready = true.
+The guarded migration requires auditor-resume-inactive-v1.sql already installed.
+If it rejects an unexpected function definition, stop; do not remove its guards.
+
+User-facing behavior
+- Cambiar perfil first opens a centered confirmation. Cancel, Escape, or closing
+  the app while this prompt is open does not revoke access or clear saved work.
+- Only confirming the change calls the server exit operation. A confirmed exit
+  deactivates this device; returning afterwards requires authorization again.
+- Server-only or local pending work blocks changing profile, including inactive
+  profiles. Failed/ambiguous responses do not remove the saved local identity.
+- Cancelling a zone edit rechecks the existing active assignment. It never
+  grants access and never reactivates an inactive profile silently.
+- The mobile and Admin show the same short profile reference for identification.
+- Admin shows only Última autorización (Europe/Madrid date and time). Neither
+  first registration nor last general update is substituted for that timestamp.
+
+Dates and history
+- Authorization date comes from authorize/reassign/reauthorize_preserving_work/
+  enable events recorded by the server. Reading/opening the app does not change it.
+- Revocation and self-exit retain before/after state and acting authenticated ID.
+  Actions distinguish an administrative revoke from leave on the device itself.
+- Repeating a successful same-active-assignment request is a retry, not a new
+  grant: it preserves revision, dates and pending work. Regranting an inactive
+  profile records a new authorization event without changing its first created_at.
+- Legacy unknown dates remain unknown; missing past events are not invented.
+- Shared authorization codes identify a role, not necessarily the human who
+  typed them. Do not present actor_user_id as proof of a named administrator.
+
+Safety boundaries
+- Installation does not update any existing grant, assignment, stock or audit.
+- New checked Admin revoke is tied to the displayed revision + updated_at and
+  cannot revoke a newer reassigned/reactivated grant using an old confirmation.
+- Existing owner/supervisor role and zone checks remain unchanged. This is not
+  a redesign of organization/lot-scoped administrator credentials.
+- Device references represent persisted authentication identities, not hardware
+  identifiers. Clearing browser storage/reinstalling can produce another identity.
+- Names are not unique identities. No automatic merging/revocation of identical
+  names is performed. One-person/one-phone replacement needs explicit verified
+  identification; the canceled single-active-by-name migration must not be run.
+- Work from other mobile profiles, inventory and completed reports are untouched.
+
+Local verification commands
+node --test tests/auditor-profile-change.test.mjs tests/auditor-registration.test.mjs tests/auditor-active-list.test.mjs
+node --test tests/auditor-admin.test.mjs
+node tests/auditor-access-lifecycle-db.mjs
+node tests/named-auditors-db.mjs
+npm run test:release
+npm run build -- --config tests/browser/auditor-reopen.config.mjs
+node tests/browser/auditor-profile-change.mjs
+node tests/browser/auditor-reopen.mjs
+npm run build -- --config tests/browser/auditor-manager.config.mjs
+node tests/browser/auditor-manager.mjs
+Browser tests use fixtures, block production Supabase requests and require the
+bundled Playwright module path in PLAYWRIGHT_MODULE when not installed locally.
+
+Verified locally on 27 November 2026
+- Full general suite: 374 passing tests, zero failures.
+- Embedded PostgreSQL: lifecycle/timestamp migration applied twice, then again
+  after transitions, with all 12 test-table snapshots unchanged by installation.
+- Embedded PostgreSQL: original named-auditor integration suite passes.
+- Mobile browser: 2 cancel/change-profile scenarios across lots/zones and 7
+  reopen/old-checklist regression scenarios pass. No production calls made.
+- Admin unit tests exercise actual component handlers, including ambiguous
+  responses, stale permissions, missing migration, cancellation and double clicks.
+- Admin browser: 390x844 fixture confirms latest date only, full device/scope
+  confirmation, Cancel/Escape with no revocation, and only the selected phone
+  deactivated after checked confirmation. Same-name other phone remains unchanged.
+- Final production build completed successfully; existing bundle-size warning
+  remains. Production publication is checked separately after CI deployment.
+
+v288 release rerun
+- All 374 general tests passed again after the release identifiers changed.
+- Both browser fixtures rebuilt; all 10 distinct browser scenarios passed.
+- One initial second-lot profile-reopen assertion timed out. Cause unproven;
+  four subsequent full profile-change runs (8 scenarios) passed without page
+  errors, and the seven existing reopen regression cases also passed.
+- Independent backend review: 20 focused tests and embedded database suite pass.
+- No tests authorized, revoked or submitted work against production.

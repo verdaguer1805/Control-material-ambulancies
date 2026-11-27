@@ -1,0 +1,40 @@
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import path from 'node:path';
+import {readFile} from 'node:fs/promises';
+const root=path.resolve('dist-auditor-manager-check');
+const server=http.createServer(async(req,res)=>{try{
+ const target=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);if(!target.startsWith(root+path.sep))throw Error();
+ res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png'})[path.extname(target)]||'application/octet-stream');res.end(await readFile(target));
+}catch{res.writeHead(404);res.end();}});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${server.address().port}`;
+const browser=await chromium.launch({headless:true,channel:'msedge'});
+try{
+ const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),errors=[];
+ await context.route('**/*.supabase.co/**',route=>route.abort());page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(base+'/tests/browser/auditor-manager-preview.html');await page.getByRole('button',{name:'Móviles auditores',exact:true}).click();
+ assert.equal(await page.getByRole('columnheader',{name:'Última autorización',exact:true}).count(),1);
+ assert.equal(await page.getByRole('columnheader',{name:/Primera alta|Alta del móvil/}).count(),0);
+ assert.equal(await page.getByText('27/11/2026 16:33:44',{exact:true}).count(),2);
+ assert.equal(await page.getByText(/01\/10\/2026/).count(),0);
+ const firstRow=page.getByRole('row').filter({hasText:'Móvil 11111111'});
+ await firstRow.getByRole('button',{name:'Revocar',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'¿Revocar este móvil auditor?'});await dialog.waitFor();
+ const content=await dialog.innerText();for(const text of ['Móvil 11111111','Lot A','Zone A','Central A','auditoría(s) pendiente(s)','material pendiente'])assert.ok(content.includes(text));
+ const box=await dialog.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390&&box.y>=0&&box.y+box.height<=844,'floating confirmation fits mobile viewport');
+ await dialog.getByRole('button',{name:'Cancelar',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.__auditorAdminFixture.calls.filter(c=>c.name==='revoke_mobile_auditor_checked').length),0);
+ assert.equal(await page.getByRole('button',{name:'Revocar',exact:true}).count(),2);
+ await firstRow.getByRole('button',{name:'Revocar',exact:true}).click();await page.keyboard.press('Escape');
+ assert.equal(await page.evaluate(()=>window.__auditorAdminFixture.calls.filter(c=>c.name==='revoke_mobile_auditor_checked').length),0);
+ await firstRow.getByRole('button',{name:'Revocar',exact:true}).click();await dialog.getByRole('button',{name:'Sí, revocar este móvil',exact:true}).click();
+ await page.getByText('Acceso revocado y comprobado. Las auditorías y los consumos guardados se conservan.',{exact:true}).waitFor();await page.getByRole('button',{name:'Aceptar',exact:true}).click();
+ assert.equal(await page.getByRole('row').filter({hasText:'Móvil 11111111'}).count(),0);
+ assert.equal(await page.getByRole('row').filter({hasText:'Móvil 22222222'}).count(),1);
+ const snapshot=await page.evaluate(()=>window.__auditorAdminFixture);assert.equal(snapshot.rows[0].active,false);assert.equal(snapshot.rows[1].active,true);
+ assert.equal(snapshot.calls.filter(c=>c.name==='revoke_mobile_auditor_checked').length,1);
+ assert.deepEqual(snapshot.calls.find(c=>c.name==='revoke_mobile_auditor_checked').args,{p_user_id:snapshot.rows[0].user_id,p_expected_revision:4,p_expected_updated_at:'2026-11-27T15:33:44Z'});
+ assert.deepEqual(errors,[]);console.log('PASS Admin mobile dialog: latest date only; same-name phones distinguishable; cancel/Escape no mutation; checked confirm revokes only selected phone and rereads server.');
+ await context.close();
+}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
