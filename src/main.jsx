@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import AppUpdateNotice from './AppUpdateNotice.jsx';
+import ChecklistPendingNotice from './ChecklistPendingNotice.jsx';
 import ReplenishmentPanel from './ReplenishmentPanel.jsx';
 import {replenishmentGroups,boundedReplenishment} from './replenishment.mjs';
 import {isReportsOnlyAccess,canReadAllReportZones,adminAccessLabel,canCorrectConsumption,canReadSystemStatus,canReadInoperability} from './admin-report-access.mjs';
@@ -1298,7 +1299,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB", svbVariant: config.checklist}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v286", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v287", window.location.href).href);
   }
   async function loadSystemStatus() {
     if(!canReadSystemStatus(adminAccess))return;
@@ -3508,7 +3509,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v286</span></h1>
+          <h1>Control de material <span className="app-version">v287</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -4572,6 +4573,7 @@ function App() {
         )}
         {mode === "worker" && currentUnit && (
           <>
+            {!isSupervisorMaterial(currentUnit) && ["SVB","SVB 4x4"].includes(currentChecklistConfig.checklist) && <ChecklistPendingNotice lot={localStorage.getItem(KEY.lot)||lot} zone={currentChecklistConfig.zone||unitZone(currentUnit)} unit={displayUnit(currentUnit)} type="SVB"/>}
             {isSupervisorMaterial(currentUnit) && (
               <React.Suspense fallback={<div className="card">Cargando auditorías...</div>}>
                 <VehicleAudit key={`${currentUnit}:${lot}`} supervisor={displayUnit(currentUnit)} lot={localStorage.getItem(KEY.lot) || lot} zone={currentChecklistConfig.zone || unitZone(currentUnit)} authorized={deviceAuth.checked && deviceAuth.authorized} />
@@ -5345,13 +5347,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v286" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v287" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
-createRoot(document.getElementById("root")).render(<><AppUpdateNotice version="v286"/><MobileAppRouter /></>);
+createRoot(document.getElementById("root")).render(<><AppUpdateNotice version="v287"/><MobileAppRouter /></>);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=286", {
+    navigator.serviceWorker.register("./sw.js?v=287", {
       updateViaCache: "none",
     }),
   );

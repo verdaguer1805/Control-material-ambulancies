@@ -46,7 +46,7 @@ test('new and legacy audit drafts resume verbatim including notes and send with 
 test('legacy payload fingerprint is unchanged; normal payload identifies catalog',()=>{
  const s=storage();s.setItem(`cma_svb_submitted_v1:${context.unit}:${context.guardCode}:5439`,'yes');
  assert.deepEqual(svbAnswerSnapshot(s,context,'5439'),{left:{},front:{},right:{},cabin:{},door:{}});
- assert.deepEqual(svbAnswerSnapshot(storage(),context,'5439')._template,{type:'SVB',version:1});
+ assert.deepEqual(svbAnswerSnapshot(storage(),context,'5439')._template,{type:'SVB',version:2});
 });
 test('invalid pin fails closed without changing saved answers or identity',()=>{
  const s=storage(),key=`cma_svb_template_v1:${context.lot}:${context.unit}:${context.guardCode}:5439`;

@@ -1,17 +1,18 @@
-import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=286";
-import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=286";
-import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=286";
-import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=286";
-import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=286";
-import{cabinStatus}from"./svb-cabin-data.js?v=286";
-import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=286";
-import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=286';
-import { checklistFingerprint } from './checklist-send-reminder.js?v=286';
-import {pinSvbTemplate,svbRightSections} from './svb-template.js?v=286';
+import{SVB_LEFT_WALL_SECTIONS as leftSections,sectionStatus,leftRequiredSections}from"./svb-left-wall-data.js?v=287";
+import{SVB_FRONT_WALL_SECTIONS as frontSections,frontSectionStatus,frontRequiredSections}from"./svb-front-wall-data.js?v=287";
+import{SVB_RIGHT_ZONE_SECTIONS as rightSections,rightZoneStatus}from"./svb-right-zone-data.js?v=287";
+import{svbGuardStatus,svbGuardLabel}from"./svb-guard-window.js?v=287";
+import{SVB_DOOR_SECTIONS as doorSections,doorSectionStatus,doorRequired}from"./svb-door-data.js?v=287";
+import{cabinStatus}from"./svb-cabin-data.js?v=287";
+import{readSvbVehicleAssignment,writeSvbVehicleAssignment}from"./svb-vehicle-assignment.js?v=287";
+import { installSvbSendReminder, svbAnswerSnapshot, svbReviewComplete, rememberSvbSubmission, svbSentSnapshotKey } from './svb-send-reminder.js?v=287';
+import { checklistFingerprint } from './checklist-send-reminder.js?v=287';
+import {unitSvbRightSections} from './svb-template.js?v=287';
+import {readChecklistPending,beginChecklistAttempt,failChecklistAttempt,confirmChecklistAttempt,checklistPendingText,checklistPendingLabel,showChecklistPendingDialog} from './checklist-pending.js?v=287';
 let submitting = false;
-import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=286';
+import {withRequestDeadline,REQUEST_TIMEOUT_MESSAGE} from './request-deadline.js?v=287';
 
-document.querySelector(".head h1 small").textContent="v286";
+document.querySelector(".head h1 small").textContent="v287";
 
 // Retain the existing controls/handlers while making the send action prominent.
 const fixedPanel=document.createElement('section'),scrollPanel=document.createElement('section');
@@ -27,9 +28,13 @@ const byId=id=>document.getElementById(id),read=key=>{try{return JSON.parse(loca
 const guardInfo=document.createElement("p");guardInfo.id="guardInfo";guardInfo.style.cssText="padding:12px;border:2px solid #006477;border-radius:12px;background:#e8f4f6;font-weight:800;text-align:center";document.querySelector(".head").append(guardInfo);
 const context=read("cma_svb_checklist_context_v1"),scope=`${context.unit||"TSU"}:${context.guardCode||"guardia"}`;
 let vehicle=readSvbVehicleAssignment(localStorage,context.unit,context.guardCode);
+const pendingScope=()=>({...context,type:'SVB',vehicle});
+const pendingRecord=()=>context.unit&&context.lot&&context.zone&&context.guardCode&&vehicle?readChecklistPending(localStorage,pendingScope()):null;
+let storageWarning='';
+function pendingStatus(){const row=pendingRecord();return storageWarning||(row?`⚠ Checklist pendiente de confirmar. ${checklistPendingLabel(row)}. ${checklistPendingText(row)}`:'');}
 const draftKey=zone=>`cma_svb_${zone}_${zone==="right"?"zone":"wall"}_mobile_test_v1:${scope}:${vehicle}`;
 const zoneAnswers=zone=>read(draftKey(zone));
-function state(zone){const answers=zoneAnswers(zone);if(zone==="cabin")return cabinStatus(answers);const confirmed=Boolean(localStorage.getItem(`cma_svb_submitted_v1:${scope}:${vehicle}`));if(zone==="door"){if(!doorRequired(answers,confirmed))return"exempt";const values=doorSections.map(s=>doorSectionStatus(s,answers));return values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}const sections=zone==="left"?leftRequiredSections(leftSections,answers,confirmed):zone==="front"?frontRequiredSections(frontSections,answers,confirmed):svbRightSections(pinSvbTemplate(localStorage,context,vehicle)),status=zone==="left"?sectionStatus:zone==="front"?frontSectionStatus:rightZoneStatus,values=sections.map(s=>status(s,answers));return !values.length||values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}
+function state(zone){const answers=zoneAnswers(zone);if(zone==="cabin")return cabinStatus(answers);const confirmed=Boolean(localStorage.getItem(`cma_svb_submitted_v1:${scope}:${vehicle}`));if(zone==="door"){if(!doorRequired(answers,confirmed))return"exempt";const values=doorSections.map(s=>doorSectionStatus(s,answers));return values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}const sections=zone==="left"?leftRequiredSections(leftSections,answers,confirmed):zone==="front"?frontRequiredSections(frontSections,answers,confirmed):unitSvbRightSections(localStorage,context,vehicle),status=zone==="left"?sectionStatus:zone==="front"?frontSectionStatus:rightZoneStatus,values=sections.map(s=>status(s,answers));return !values.length||values.includes("pending")?"pending":values.includes("issue")?"issue":"ok"}
 function paint(id,value){const el=byId(id);el.classList.remove("pending","ok","issue","exempt");el.classList.add(value);el.querySelector("small").textContent=value==="exempt"?"No incluida en el envío anterior":"Revisar zona"}
 const SESSION_KEY="sb-dfnywetqnccykzjyihzq-auth-token";
 function storedSession(){try{const value=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");return{root:value,session:value?.currentSession||value}}catch{return{root:null,session:null}}}
@@ -37,9 +42,10 @@ async function refreshSession(signal){const{root,session}=storedSession();if(!se
 async function sendChecklist(token, answers, signal){return fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_svb_checklist`,{signal,method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({p_guard_code:context.guardCode,p_vehicle_label:vehicle,p_guard_started_at:context.guardStartedAt,p_answers:answers})})}
 function submissionError(reason){if(reason.includes("CHECKLIST_GUARD_EXPIRED"))return"La guardia ha finalizado. No se ha enviado el checklist anterior. Vuelve a Registro de consumo para abrir el nuevo turno.";if(reason.includes("CHECKLIST_GUARD_TOO_EARLY"))return"El checklist de la próxima guardia se puede realizar desde una hora antes del inicio.";if(reason.includes("DEVICE_NOT_AUTHORIZED"))return"Este dispositivo ya no consta como autorizado. Vuelve al registro de consumo.";if(reason.includes("UNIT_WAREHOUSE_NOT_CONFIGURED"))return"La unidad no tiene almacén configurado. Contacta con supervisión.";if(reason.includes("INVALID_SVB_CHECKLIST"))return"No se ha podido validar el checklist. Vuelve a entrar desde Registro de consumo.";if(reason.includes("AUTH_SESSION_EXPIRED"))return"La sesión del dispositivo ha caducado. Vuelve a Registro de consumo y entra otra vez al checklist.";return"No se ha podido completar el envío. El checklist sigue guardado; vuelve a intentarlo."}
 function render(){
+ const pending=pendingStatus();byId('submitStatus').classList.toggle('pending-warning',Boolean(pending));byId('submitStatus').setAttribute('role',pending?'alert':'status');
  const guardStatus=svbGuardStatus(context);guardInfo.textContent=svbGuardLabel(context);
  const guardValid=guardStatus==="current"||guardStatus==="upcoming";
- if(!guardValid){byId("submitChecklist").disabled=true;byId("submitStatus").textContent=guardInfo.textContent;for(const id of["left","front","right","cabin","door"])byId(id).classList.add("locked");return}
+ if(!guardValid){byId("submitChecklist").disabled=true;byId("submitStatus").textContent=pending||guardInfo.textContent;for(const id of["left","front","right","cabin","door"])byId(id).classList.add("locked");return}
  const validContext=context.checklist==="SVB"&&context.unit&&context.lot&&context.zone,valid=validContext&&/^\d{4}$/.test(vehicle);
  byId("unitNumber").textContent=context.unit||"—";byId("vehicleNumber").textContent=valid?vehicle:"—";
  byId("vehicleCard").classList.toggle("confirmed",valid);byId("vehicleSummary").classList.toggle("hidden",!valid);
@@ -55,7 +61,7 @@ function render(){
  const sentSnapshot=localStorage.getItem(svbSentSnapshotKey(context,vehicle));
  const changed=confirmed && sentSnapshot && sentSnapshot!==checklistFingerprint(svbAnswerSnapshot(localStorage,context,vehicle));
  button.textContent=confirmed?"Reenviar checklist actualizado":"Finalizar y enviar checklist";
- if(!submitting)byId("submitStatus").textContent=complete?(confirmed&&!changed?"✓ Checklist enviado y confirmado correctamente.":changed?"Hay cambios pendientes de enviar.":"Todas las zonas revisadas. Falta enviar."):"Completa las cinco zonas para poder enviarlo.";
+ if(!submitting)byId("submitStatus").textContent=pending||(complete?(confirmed&&!changed?"✓ Checklist enviado y confirmado correctamente.":changed?"Hay cambios pendientes de enviar.":"Todas las zonas revisadas. Falta enviar."):"Completa las cinco zonas para poder enviarlo.");
 }
 byId("saveVehicle").onclick=()=>{const next=byId("vehicleInput").value.replace(/\D/g,"").slice(0,4);if(!writeSvbVehicleAssignment(localStorage,context.unit,next)){byId("vehicleMsg").textContent="La rotulación debe tener 4 cifras.";return}vehicle=next;render()};
 byId("changeVehicle").onclick=()=>{byId("vehicleSummary").classList.add("hidden");byId("vehicleSetup").classList.remove("hidden");byId("vehicleSetup").style.display="grid";byId("vehicleInput").value=vehicle;byId("vehicleInput").focus()};
@@ -66,20 +72,29 @@ byId("submitChecklist").onclick=async()=>{
  const answers=svbAnswerSnapshot(localStorage,context,vehicle),confirmed=Boolean(localStorage.getItem(`cma_svb_submitted_v1:${scope}:${vehicle}`));
  if(!svbReviewComplete(answers,confirmed)){render();return}
  submitting=true;button.disabled=true;byId("changeVehicle").disabled=true;status.textContent="Enviando checklist...";
+ let attempt,receivedAt;
  try{
+  attempt=beginChecklistAttempt(localStorage,pendingScope());storageWarning='';
   await withRequestDeadline(async signal=>{
    let token=storedSession().session?.access_token;if(!token)token=await refreshSession(signal);
    if(signal.aborted)throw new Error('CHECKLIST_REQUEST_TIMEOUT');
    let response=await sendChecklist(token,answers,signal);
    if(response.status===401){token=await refreshSession(signal);if(signal.aborted)throw new Error('CHECKLIST_REQUEST_TIMEOUT');response=await sendChecklist(token,answers,signal)}
    if(!response.ok)throw new Error(await response.text());
-   const confirmation=await response.json();if(!confirmation?.submitted_at)throw new Error('CHECKLIST_CONFIRMATION_MISSING');
+   const confirmation=await response.json();if(!confirmation?.submitted_at)throw new Error('CHECKLIST_CONFIRMATION_MISSING');receivedAt=confirmation.submitted_at;
   });
   localStorage.setItem(`cma_svb_submitted_v1:${scope}:${vehicle}`,new Date().toISOString());
   rememberSvbSubmission(localStorage,context,vehicle,answers);
+  confirmChecklistAttempt(localStorage,attempt,receivedAt);
   status.textContent="✓ Checklist enviado y confirmado correctamente.";button.textContent="Reenviar checklist actualizado";
- }catch(error){status.textContent=error?.message==='CHECKLIST_REQUEST_TIMEOUT'?REQUEST_TIMEOUT_MESSAGE:error instanceof TypeError?"No hay conexión. El checklist sigue guardado y pendiente de enviar; reintenta cuando vuelva la cobertura.":submissionError(String(error?.message||error))}
- finally{submitting=false;byId("changeVehicle").disabled=false;button.disabled=!["current","upcoming"].includes(svbGuardStatus(context))}
+ }catch(error){
+  try{failChecklistAttempt(localStorage,attempt,error);}catch{}
+  if(!attempt)storageWarning='No se ha podido guardar el aviso de envío en este móvil. No se ha enviado el checklist. No borres los datos y avisa a supervisión.';
+  const message=storageWarning||(error?.message==='CHECKLIST_REQUEST_TIMEOUT'?REQUEST_TIMEOUT_MESSAGE:error instanceof TypeError?"No hay conexión. El checklist sigue guardado y pendiente de enviar; reintenta cuando vuelva la cobertura.":submissionError(String(error?.message||error)));
+  showChecklistPendingDialog(message,checklistPendingLabel(pendingScope()));
+ }
+ finally{submitting=false;byId("changeVehicle").disabled=false;render();}
 };
 installSvbSendReminder({overview:true,send:()=>byId("submitChecklist").onclick(),canPrompt:()=>!submitting});
 addEventListener("pageshow",render);addEventListener("focus",render);document.addEventListener("visibilitychange",()=>{if(!document.hidden)render()});setInterval(()=>{guardInfo.textContent=svbGuardLabel(context);if(!["current","upcoming"].includes(svbGuardStatus(context)))render()},15000);render();
+const restoredPending=pendingRecord();if(restoredPending)showChecklistPendingDialog(checklistPendingText(restoredPending),checklistPendingLabel(restoredPending));

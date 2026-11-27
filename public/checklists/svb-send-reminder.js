@@ -1,13 +1,14 @@
-import { checklistFingerprint, checklistReminderKind, showChecklistSendReminder } from './checklist-send-reminder.js?v=286';
-import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from './svb-left-wall-data.js?v=286';
-import { SVB_FRONT_WALL_SECTIONS, frontSectionStatus, frontRequiredSections } from './svb-front-wall-data.js?v=286';
-import { SVB_RIGHT_ZONE_SECTIONS, rightZoneStatus } from './svb-right-zone-data.js?v=286';
-import { SVB_DOOR_SECTIONS, doorSectionStatus, doorRequired } from './svb-door-data.js?v=286';
-import { cabinStatus } from './svb-cabin-data.js?v=286';
-import { svbGuardStatus } from './svb-guard-window.js?v=286';
-import { readSvbVehicleAssignment } from './svb-vehicle-assignment.js?v=286';
+import { checklistFingerprint, checklistReminderKind, showChecklistSendReminder } from './checklist-send-reminder.js?v=287';
+import { SVB_LEFT_WALL_SECTIONS, sectionStatus, leftRequiredSections } from './svb-left-wall-data.js?v=287';
+import { SVB_FRONT_WALL_SECTIONS, frontSectionStatus, frontRequiredSections } from './svb-front-wall-data.js?v=287';
+import { SVB_RIGHT_ZONE_SECTIONS, rightZoneStatus } from './svb-right-zone-data.js?v=287';
+import { SVB_DOOR_SECTIONS, doorSectionStatus, doorRequired } from './svb-door-data.js?v=287';
+import { cabinStatus } from './svb-cabin-data.js?v=287';
+import { svbGuardStatus } from './svb-guard-window.js?v=287';
+import { readSvbVehicleAssignment } from './svb-vehicle-assignment.js?v=287';
 
-import {pinSvbTemplate,svbRightSections} from './svb-template.js?v=286';
+import {pinSvbTemplate,pinSvbRightVersion,svbRightSections} from './svb-template.js?v=287';
+import {readChecklistPending} from './checklist-pending.js?v=287';
 const read = (storage, key) => { try { return JSON.parse(storage.getItem(key) || '{}'); } catch { return {}; } };
 const scopeOf = (context, vehicle) => `${context.unit}:${context.guardCode}:${vehicle}`;
 export const svbSentSnapshotKey = (context, vehicle) => `cma_svb_sent_snapshot_v1:${scopeOf(context, vehicle)}`;
@@ -15,14 +16,14 @@ export function svbAnswerSnapshot(storage, context, vehicle) {
   const type=pinSvbTemplate(storage,context,vehicle);
   const answers=Object.fromEntries(['left', 'front', 'right', 'cabin', 'door'].map(zone => [zone,
     read(storage, `cma_svb_${zone}_${zone === 'right' ? 'zone' : 'wall'}_mobile_test_v1:${scopeOf(context, vehicle)}`)]));
-  if(type==='SVB')answers._template={type:'SVB',version:1};
+  if(type==='SVB')answers._template={type:'SVB',version:pinSvbRightVersion(storage,context,vehicle)};
   return answers;
 }
 export function svbReviewComplete(answers, confirmed) {
   const sectionsComplete = (sections, status, values) => sections.every(section => status(section, values) !== 'pending');
   return sectionsComplete(leftRequiredSections(SVB_LEFT_WALL_SECTIONS, answers.left, confirmed), sectionStatus, answers.left)
     && sectionsComplete(frontRequiredSections(SVB_FRONT_WALL_SECTIONS, answers.front, confirmed), frontSectionStatus, answers.front)
-    && sectionsComplete(svbRightSections(answers._template?.type || 'SVB 4x4'), rightZoneStatus, answers.right)
+    && sectionsComplete(svbRightSections(answers._template?.type || 'SVB 4x4',answers._template?.version||1), rightZoneStatus, answers.right)
     && cabinStatus(answers.cabin) !== 'pending'
     && (!doorRequired(answers.door, confirmed) || sectionsComplete(SVB_DOOR_SECTIONS, doorSectionStatus, answers.door));
 }
@@ -40,6 +41,9 @@ export function installSvbSendReminder({ overview = false, send, canPrompt = () 
       closeModal?.(); closeModal = null; return;
     }
     const scope = scopeOf(context, vehicle), answers = svbAnswerSnapshot(localStorage, context, vehicle);
+    // A persistent pending warning replaces the completion prompt after a failed send.
+    // The existing Enviar button remains available; do not stack competing dialogs.
+    if(readChecklistPending(localStorage,{...context,type:'SVB',vehicle}))return;
     const confirmed = Boolean(localStorage.getItem(`cma_svb_submitted_v1:${scope}`));
     const snapshot = checklistFingerprint(answers), sentKey = svbSentSnapshotKey(context, vehicle);
     // Old confirmed checklists have no baseline. Adopt one without inventing an edit.
@@ -59,7 +63,7 @@ export function installSvbSendReminder({ overview = false, send, canPrompt = () 
       // Recheck context/completeness in the existing submit handler; never send a different guard.
       if (overview) return send();
       sessionStorage.setItem(`cma_svb_send_intent_v1:${scope}`, snapshot);
-      location.assign('./svb-zones.html?v=286');
+      location.assign('./svb-zones.html?v=287');
     }, () => { closeModal = null; });
   }
   addEventListener('cma:svb-answers-changed', () => queueMicrotask(check));

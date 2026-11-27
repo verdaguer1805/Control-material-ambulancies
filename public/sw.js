@@ -1,8 +1,9 @@
-const CACHE = "cma-v286";
+const CACHE = "cma-v287";
 const APP_SHELL = ["./", "./index.html", "./admin.html", "./admin/", "./admin/manifest.webmanifest", "./icon.svg", "./falck-symbol-2026.png", "./svb-zones.html", "./svb-door-preview.html", "./checklists/svb-door-data.js", "./checklists/svb-puerta-izquierda-mobile.jpg", "./svb-cabin.html", "./checklists/svb-cabin.js", "./checklists/svb-cabin-data.js", "./svb-preview.html", "./svb-front-preview.html", "./svb-right-preview.html", "./checklists/svb-paret-lateral-esquerre-mobile.jpg", "./checklists/svb-paret-frontal-mobile.jpg", "./checklists/svb-zona-derecha-mobile.jpg", "./checklists/svb-front-wall-data.js", "./checklists/svb-left-wall-data.js", "./checklists/svb-right-zone-data.js", "./checklists/svb-vehicle-assignment.js", "./checklists/svb-guard-window.js", "./checklists/svb-zones-production.js"];
 
 APP_SHELL.push("./checklists/svb-zones-layout.css");
 APP_SHELL.push("./checklists/request-deadline.js");
+APP_SHELL.push("./checklists/checklist-pending.js");
 APP_SHELL.push("./checklists/svb-template.js", "./checklists/svb-normal-right-four-drawers.png");
 APP_SHELL.push(...['left','front','rear-left','rear-right','sliding-left','under-vacuum'].map(id=>`./checklists/bp/${id}.png`));
 APP_SHELL.push("./checklists/checklist-send-reminder.js", "./checklists/svb-send-reminder.js", "./checklists/svb-send-reminder-page.js");

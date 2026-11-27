@@ -43,7 +43,7 @@ export const isTsnuAuthorizationError = error =>
   /DEVICE_NOT_AUTHORIZED|MULTIPLE_ACTIVE_DEVICES|TSNU_UNIT_NOT_CONFIGURED|TSNU_ASSIGNMENT_REQUIRED/.test(errorMessage(error));
 
 export const isTsnuConnectivityError = error =>
-  /Failed to fetch|Load failed|NetworkError|network request|fetch failed|ERR_NETWORK|timeout/i.test(errorMessage(error));
+  /Failed to fetch|Load failed|NetworkError|network request|fetch failed|ERR_NETWORK|timeout|CHECKLIST_CONFIRMATION_MISSING/i.test(errorMessage(error));
 
 export const isTsnuSessionError = error =>
   /INVALID_SHIFT|INVALID_OPEN_SHIFT|SHIFT_ID_CONFLICT|OPEN_SHIFT_EXISTS|INCOMPLETE_CHECKLIST|CHECKLIST_ALREADY_SUBMITTED|CHECKLIST_REQUIRED|INVALID_END_TIME|INVALID_WITHDRAWAL|INVALID_MATERIAL_QUANTITY|MATERIAL_NOT_IN_INVENTORY|OPERATION_ID_CONFLICT/.test(errorMessage(error));

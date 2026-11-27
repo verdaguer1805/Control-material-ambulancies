@@ -1,0 +1,30 @@
+Release v287 - 2026-11-27
+
+Persistent checklist send warnings
+- SVB and BP save the attempt before HTTP. Closing or reopening does not erase it.
+- A centred warning can be acknowledged; the persistent notice remains until a
+  valid server receipt confirms the matching attempt.
+- Separate lot, zone, unit, vehicle, guard and checklist family. An expired guard
+  stays visible as unconfirmed; it is not reassigned or resent as a new guard.
+- SVB/BP retry uses the existing send action and backend identity. No new
+  automatic resend or extension of backend guard deadlines.
+- TSNU retains its existing ordered outbox and automatic retry, now requiring
+  checklist_submitted_at before removing a checklist operation.
+- Failed edited resends cannot display the previous confirmation as confirmation
+  of unsent changes. Storage errors do not erase answers or trigger fresh sends.
+
+SVB normal right-wall catalog v2 (not SVB 4x4)
+- Compartment 7: sterile forceps 2, sterile scissors 2.
+- Compartment 9: ice bags 2, heat bag 1; other items unchanged.
+- Compartment 10: 7.2x5, 10x8 and 20x8 dressings 4 each.
+- Existing normal unit drafts pin catalog v1. New guards use v2. Existing audit
+  snapshots are retained; new audits and consultation/export share catalog v2.
+
+Validation
+- 359 release tests passing.
+- 9 isolated browser scenarios: network failure, reload/reopen, timeout, expired
+  guard, close in flight, failed edited resend, unavailable storage, BP retry,
+  TSNU missing/valid receipt. All RPCs mocked; no production writes.
+- Production build passing; independent read-only review found no blocker.
+- No SQL migration. No inventory, authorization or historical-row updates.
+- Unrelated local public/falck-eagle-admin.png change excluded from release.

@@ -8,6 +8,7 @@ import { materialDisplayName } from "./material-display.mjs";
 import { tsnuChecklistGroups, tsnuChecklistLabel, tsnuChecklistItemLabel } from './tsnu-checklist-catalog.mjs';
 import { checklistItems } from './checklist-demo.mjs';
 import { showChecklistSendReminder } from '../public/checklists/checklist-send-reminder.js';
+import {showChecklistPendingDialog,dismissChecklistPendingDialog} from '../public/checklists/checklist-pending.js';
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 function Modal({ title, children, close, footer }) {
@@ -25,7 +26,13 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   const [recoveryShiftId,setRecoveryShiftId]=useState(""), [recoveryOpen,setRecoveryOpen]=useState(false), [recoveryPin,setRecoveryPin]=useState("");
   const syncLock=useRef(false), resyncRequested=useRef(false);
   const completionPrompted=useRef(false), finishLock=useRef(false);
+  const pendingWarningShown=useRef(false);
   const daily = (assignedChecklist || vehicleType) === "TSNU";
+  const pendingChecklists=production&&daily?readTsnuOutbox(localStorage).filter(row=>row.type==='checklist'&&(!row.lot||row.lot===lot)&&(!row.unit||row.unit===unit)&&(!row.zone||row.zone===zone)):[];
+  const tsnuPendingMessage='El servidor todavía no ha confirmado el checklist. Sigue guardado en este móvil y se reintentará al recuperar la conexión. No borres los datos de la aplicación.';
+  useEffect(()=>{if(!pendingChecklists.length){pendingWarningShown.current=false;dismissChecklistPendingDialog();return;}if(pendingWarningShown.current||busy||syncing)return;
+    pendingWarningShown.current=true;showChecklistPendingDialog(tsnuPendingMessage,`${unit} · ${pendingChecklists.length} checklist(s) pendiente(s)`);
+  },[pendingChecklists.length,busy,syncing,unit]);
   const [from,setFrom] = useState(today), [to,setTo] = useState(today), [zoneFilter,setZoneFilter] = useState(""), [warehouseFilter,setWarehouseFilter] = useState(""), [lotFilter,setLotFilter] = useState("");
   useEffect(() => { if(!notice) return; const timer=setTimeout(()=>setNotice(""),4000); return ()=>clearTimeout(timer); },[notice]);
   useEffect(() => {
@@ -70,7 +77,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     if(!production)return null;
     if(syncLock.current){resyncRequested.current=true;return null;}
     syncLock.current=true;setSyncing(true);
-    try{await withRequestDeadline(()=>ensureAnonymousSession());const result=await syncTsnuOutbox(localStorage,async operation=>{const [name,args]=rpcForTsnuOperation(operation);const {error}=await withRequestDeadline(signal=>supabase.rpc(name,args).abortSignal(signal));if(error)throw error;});const failure=result.failed[0],failedShift=failure&&!isTsnuConnectivityError(failure.error)?failure.operation?.shiftId||"":"";setRecoveryShiftId(failedShift);if(showResult){setNotice(result.failed.length?failedShift?"Hay una sesión anterior bloqueando la sincronización. Utiliza la recuperación supervisada.":/CHECKLIST_REQUEST_TIMEOUT/.test(String(failure?.error?.message||failure?.error||''))?REQUEST_TIMEOUT_MESSAGE:"No se ha confirmado la sincronización: los registros continúan guardados en este dispositivo. Reintenta cuando tengas conexión.":result.synced.length?`Pendientes sincronizados correctamente (${result.synced.length})`:"No hay registros pendientes");if(failedShift)setRecoveryOpen(true);}return result;}
+    try{await withRequestDeadline(()=>ensureAnonymousSession());const result=await syncTsnuOutbox(localStorage,async operation=>{const [name,args]=rpcForTsnuOperation(operation);const {data,error}=await withRequestDeadline(signal=>supabase.rpc(name,args).abortSignal(signal));if(error)throw error;if(operation.type==='checklist'&&!data?.checklist_submitted_at)throw new Error('CHECKLIST_CONFIRMATION_MISSING');});const failure=result.failed[0],failedShift=failure&&!isTsnuConnectivityError(failure.error)?failure.operation?.shiftId||"":"";setRecoveryShiftId(failedShift);if(showResult){setNotice(result.failed.length?failedShift?"Hay una sesión anterior bloqueando la sincronización. Utiliza la recuperación supervisada.":/CHECKLIST_REQUEST_TIMEOUT/.test(String(failure?.error?.message||failure?.error||''))?REQUEST_TIMEOUT_MESSAGE:"No se ha confirmado la sincronización: los registros continúan guardados en este dispositivo. Reintenta cuando tengas conexión.":result.synced.length?`Pendientes sincronizados correctamente (${result.synced.length})`:"No hay registros pendientes");if(failedShift)setRecoveryOpen(true);}return result;}
     catch(error){if(showResult)setNotice(/CHECKLIST_REQUEST_TIMEOUT/.test(error.message||'')?REQUEST_TIMEOUT_MESSAGE:"No se ha confirmado la sincronización: los registros continúan guardados en este dispositivo");return null;}finally{syncLock.current=false;setSyncing(false);if(resyncRequested.current){resyncRequested.current=false;queueMicrotask(()=>void syncProduction());}}
   }
   function start() {
@@ -106,7 +113,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
     if(finishLock.current)return;
     if(expireLocalShift()) {void syncProduction();return;}
     finishLock.current=true;setBusy(true);
-    try { const result=completeDemo(draft); if(production){queueTsnuOperation(localStorage,{localId:`checklist:${result.sessionId}`,type:'checklist',shiftId:result.sessionId,answers:result.answers});saveTsnuShift(localStorage,result);}else saveDemo(localStorage,result); setActiveShift(result); setMaterial({}); setOpen(false); if(production){setNotice("Checklist guardado en este dispositivo. Comprobando el envío...");await syncProduction();setNotice(readTsnuOutbox(localStorage).some(row=>row.shiftId===result.sessionId&&row.type==='checklist')?"Checklist pendiente de sincronizar. Todavía no está confirmado.":"Checklist enviado y confirmado correctamente.");}else setNotice("Checklist guardado correctamente"); }
+    try { const result=completeDemo(draft); if(production){queueTsnuOperation(localStorage,{localId:`checklist:${result.sessionId}`,type:'checklist',shiftId:result.sessionId,answers:result.answers,unit,lot,zone,startedAt:result.startedAt});saveTsnuShift(localStorage,result);}else saveDemo(localStorage,result); setActiveShift(result); setMaterial({}); setOpen(false); if(production){setNotice("Checklist guardado en este dispositivo. Comprobando el envío...");await syncProduction();const pending=readTsnuOutbox(localStorage).some(row=>row.shiftId===result.sessionId&&row.type==='checklist');setNotice(pending?'':"Checklist enviado y confirmado correctamente.");if(pending){pendingWarningShown.current=true;showChecklistPendingDialog(tsnuPendingMessage,`${unit} · ${result.date}`);}}else setNotice("Checklist guardado correctamente"); }
     catch(e) { setNotice(e.message || "No se ha podido guardar la prueba."); }
     finally {finishLock.current=false;setBusy(false);}
   }
@@ -151,6 +158,7 @@ export default function ChecklistDemo({ unit, lot, zone, warehouse, shift, repor
   const checklistQueued = production && activeShift?.completed && readTsnuOutbox(localStorage).some(row=>row.shiftId===activeShift.sessionId && row.type==='checklist');
   const checklistSyncError = production && activeShift && readTsnuOutbox(localStorage).some(row=>row.shiftId===activeShift.sessionId && row.type==='checklist' && row.lastSyncError);
   return <div className="checklist-demo">
+    {pendingChecklists.length>0&&<section className="card" role="alert" data-checklist-pending-banner style={{border:'2px solid #b45309',background:'#fff7e6',color:'#713f12'}}><strong>⚠ Checklist pendiente de confirmar ({pendingChecklists.length})</strong><p>{tsnuPendingMessage}</p>{pendingChecklists.map(row=><p key={row.localId}>{row.unit||'Guardia anterior'}{row.startedAt?` · ${new Date(row.startedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'})}`:''}</p>)}<button className="secondary full" disabled={syncing} onClick={()=>syncProduction(true)}>{syncing?'Sincronizando...':'Reintentar envío del checklist'}</button></section>}
     {reportsOnly ? <button className="secondary" onClick={showReport}>Checklist · informes de prueba</button> : <div className="card checklist-demo-card">
       {!daily || !activeShift || !activeShift.completed ? <button className="checklist-yellow" onClick={start}>{daily && activeShift ? "Continuar checklist pendiente" : daily ? `Iniciar guardia y realizar checklist${production?'':' · PRUEBA'}` : "Checklist de material · PRUEBA"}</button> : <div className="checklist-active-banner">{checklistQueued ? "Checklist guardado · Pendiente de sincronizar" : "✓ Checklist confirmado · Guardia activa"}</div>}
       {checklistSyncError && <p className="checklist-pending-warning" role="alert">El checklist todavía no se ha confirmado. Pulsa «Sincronizar pendientes»; si continúa el error, avisa a supervisión. No borres los datos de la aplicación.</p>}
