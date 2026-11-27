@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import XLSX from "xlsx-js-style";
 import { DEFAULT_STOCK_LOT, getWarehouseScope, canAccessWarehouseScope } from "../src/warehouse-config.mjs";
+import {replenishmentGroups,boundedReplenishment} from '../src/replenishment.mjs';
 
 const source = readFileSync(new URL("../src/main.jsx", import.meta.url), "utf8");
 const fixture = (lot, zone, prefix) => ({
@@ -18,7 +19,10 @@ const otherLot = getWarehouseScope("Otro lote", "Figueres", [fixture("Otro lote"
 function harness(scope, options = {}) {
   const calls = [], filters = [], messages = [];
   const context = {
-    XLSX, Blob, Date, console, AbortController,
+    XLSX, Blob, Date, console, AbortController,replenishmentGroups,boundedReplenishment,
+    STOCK_DEMO_MATERIALS:['Test'],stockDemoLot:scope?.lot,stockDemoZone:scope?.zone,
+    materialVisibilityFromRows:()=>({Test:true}),DEFAULT_MATERIAL_VISIBILITY:{Test:true},
+    setMaterialVisibility:()=>{},saveMaterialVisibility:()=>{},localStorage:{},
     stockScope: scope, stockScopeAllowed: !!scope,
     STOCK_DEMO_CENTRAL: scope?.centralLabel, STOCK_REMOTE_IDS: scope?.remoteIds || {},
     STOCK_DEMO_LOCATIONS: scope?.locations || [], MATERIALS: ["Test"],
@@ -33,10 +37,10 @@ function harness(scope, options = {}) {
     stockHistoryLoading: false, stockHistoryFrom: "2026-09-16", stockHistoryTo: "2026-09-16", stockHistoryDestination: "",
     materialLabel: (m) => m, saveAs: (blob) => { context.blob = blob; },
     supabase: {
-      rpc: async (name, args) => { calls.push({ name, args }); return { error: null }; },
+      rpc: (name, args) => { calls.push({ name, args }); const result=Promise.resolve({ data:[],error: null });result.abortSignal=()=>result;return result; },
       from: (table) => {
         const query = {};
-        for (const method of ["select", "eq", "in", "gte", "lte", "order", "range"]) {
+        for (const method of ["select", "eq", "in", "gte", "lte", "order", "range", "abortSignal"]) {
           query[method] = (...args) => { filters.push({ table, method, args }); return query; };
         }
         query.then = (resolve, reject) => Promise.resolve(options.queryResult?.(table) || { data: [], error: null }).then(resolve, reject);
@@ -111,7 +115,7 @@ test("receipt and transfer use the selected zone IDs, never Olot", async () => {
 
 test("inactive scope cannot initialize inventory or submit material", async () => {
   const h = harness(null);
-  h.load("  async function loadRemoteStock()", "  function openStockPicker(");
+  h.load("  async function loadRemoteStock(", "  function openStockPicker(");
   h.load("  async function applyStockPicker()", "  async function openStockHistory()");
   await h.context.loadRemoteStock();
   await h.context.applyStockPicker();
@@ -123,7 +127,7 @@ test("stock load reads only selected warehouses and ignores stale response", asy
   let release;
   const delayed = new Promise((resolve) => { release = resolve; });
   const h = harness(figueres, { queryResult: (table) => table === "warehouse_inventory" ? delayed : { data: [], error: null } });
-  h.load("  async function loadRemoteStock()", "  function openStockPicker(");
+  h.load("  async function loadRemoteStock(", "  function openStockPicker(");
   const loading = h.context.loadRemoteStock();
   await new Promise((resolve) => setImmediate(resolve));
   h.context.stockLoadSequence.current++;
@@ -131,6 +135,32 @@ test("stock load reads only selected warehouses and ignores stale response", asy
   await loading;
   assert.equal(h.context.lastStockDemo, undefined);
   assert.deepEqual(h.filters.filter((f) => f.method === "eq").map((f) => f.args[1]), figueres.warehouseIds);
+});
+
+test('missing inventory rows read as zero, never 300, and fresh needs are returned',async()=>{
+ const h=harness(figueres,{queryResult:()=>({data:[{warehouse_id:figueres.central.id,material:'Test',quantity:2,minimum_quantity:4}],error:null})});
+ h.load('  async function loadRemoteStock(', '  function openStockPicker(');
+ const fresh=await h.context.loadRemoteStock();
+ assert.ok(fresh,'fresh read must not silently fail inside the catch');
+ assert.equal(fresh.levels[figueres.locations[1]].Test,0);
+ assert.equal(fresh.levels[figueres.centralLabel].Test,2);
+ assert.equal(fresh.groups[0].items[0].replenish,2);
+ assert.equal(h.context.lastStockRemoteLoading,false);
+ assert.equal(h.messages.length,0);
+});
+
+test('stock read deadline releases loading and late replies cannot replace inventory',async()=>{
+ let release;
+ const delayed=new Promise(resolve=>{release=resolve;});
+ const h=harness(figueres,{queryResult:()=>delayed});
+ h.load('  async function loadRemoteStock(', '  function openStockPicker(');
+ assert.equal(await h.context.loadRemoteStock(5),null);
+ assert.equal(h.context.lastStockRemoteLoading,false);
+ assert.equal(h.context.lastStockDemo,undefined);
+ release({data:[],error:null});await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(h.context.lastStockDemo,undefined);
+ const signal=h.filters.find(f=>f.method==='abortSignal').args[0];
+ assert.equal(signal.aborted,true);
 });
 
 test("history is restricted to selected warehouse IDs and includes audited inventory adjustments", async () => {

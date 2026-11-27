@@ -17,8 +17,88 @@ export function removeReplenishmentRow(draft,material,proposals=[]){
 }
 export function replenishmentDraft(scope,destination,proposals,id) {
   if(!scope.warehouseIds.includes(destination))throw new Error('INVALID_DESTINATION');
-  return {version:1,id,destination,origin:destination===scope.central.id?'':scope.central.id,
+  return {version:2,id,destination,origin:destination===scope.central.id?'':scope.central.id,
     rows:Object.fromEntries(proposals.map(x=>[x.material,{quantity:String(x.replenish),checked:false}])),request:null};
+}
+
+export function validateReplenishmentDraft(scope,draft,destination){
+  const origin=destination===scope.central.id?'':scope.central.id;
+  const invalid=()=>{throw new Error('Borrador no válido para este almacén. No se ha borrado; solicita revisión.');};
+  if(!scope.warehouseIds.includes(destination)||![1,2].includes(draft?.version)||
+    draft.destination!==destination||draft.origin!==origin||!draft.id||
+    !draft.rows||typeof draft.rows!=='object'||Array.isArray(draft.rows))invalid();
+  const r=draft.request;
+  if(r&&(r.p_request_id!==draft.id||r.p_lot!==scope.lot||r.p_zone!==scope.zone||
+    r.p_origin_id!==(origin||null)||r.p_destination_id!==destination||
+    !r.p_items||typeof r.p_items!=='object'||Array.isArray(r.p_items)||!Object.keys(r.p_items).length||
+    Object.values(r.p_items).some(q=>typeof q!=='number'||!validReplenishmentQuantity(q))))invalid();
+  return draft;
+}
+
+// One calculation for the screen, exports and the fresh check before delivery.
+// A configured minimum always describes actual stock, never a future transfer.
+// Supervisor supplies without a minimum retain their explicit consumption queue.
+export function replenishmentGroups(locations,materials,levels,minimums,pending={},types={}){
+  return locations.map((location,index)=>({location,items:materials.map(material=>{
+    const quantity=Number(levels[location]?.[material]||0);
+    const minimum=Number(minimums[location]?.[material]||0);
+    const consumption=Number(pending[location]?.[material]||0);
+    const supplyType=types[material]||'standard';
+    const replenish=minimum>0?Math.max(0,minimum-quantity):
+      index>0&&supplyType==='supervisor'?Math.max(0,consumption):0;
+    return {material,quantity,minimum,pending:consumption,supplyType,replenish,urgent:replenish>0};
+  }).filter(item=>item.replenish>0)}));
+}
+
+const rowBasis=(material,proposals,levels,minimums)=>JSON.stringify([
+  Number(levels[material]||0),Number(minimums[material]||0),
+  Number(proposals.find(item=>item.material===material)?.replenish||0),
+]);
+
+// Never rebase an uncertain send: its id and payload must survive refresh/reopen.
+// Old v1 drafts have no basis, so automatic quantities are recalculated once.
+// Explicit extras remain editable even when stock already meets the minimum.
+export function reconcileReplenishment(draft,proposals,levels={},minimums={}){
+  if(draft.request)return draft;
+  const rows={};
+  for(const [material,row] of Object.entries(draft.rows)){
+    const basis=rowBasis(material,proposals,levels,minimums);
+    const proposal=proposals.find(item=>item.material===material);
+    if(row.registered){rows[material]=row;continue;}
+    if(row.manual===true){rows[material]={...row,checked:false,basis};continue;}
+    if(!proposal)continue;
+    rows[material]={...row,manual:false,checked:false,basis,
+      quantity:row.basis===basis?String(row.quantity):String(proposal.replenish)};
+  }
+  for(const proposal of proposals){
+    if(!rows[proposal.material])rows[proposal.material]={quantity:String(proposal.replenish),
+      checked:false,manual:false,basis:rowBasis(proposal.material,proposals,levels,minimums)};
+  }
+  // v285 must not reopen confirmed per-row deliveries as unchecked pending rows.
+  const next={...draft,version:2,rows};
+  return JSON.stringify(next)===JSON.stringify(draft)?draft:next;
+}
+
+export function replenishmentRowRequest(scope,draft,material,materials){
+  const row=draft.rows[material];
+  if(!row||row.registered)throw new Error('DELIVERY_ALREADY_REGISTERED');
+  return replenishmentRequest(scope,{...draft,rows:{[material]:{...row,checked:true}}},materials);
+}
+
+export function completeReplenishment(draft,receipt,nextId){
+  if(!draft.request||receipt?.request_id!==draft.request.p_request_id)throw new Error('UNCONFIRMED_RECEIPT');
+  const rows={...draft.rows};
+  // Use the immutable request, not the current checkbox/row state (legacy batches too).
+  for(const [material,quantity] of Object.entries(draft.request.p_items)){
+    rows[material]={...rows[material],quantity:String(quantity),checked:false,
+      registered:{requestId:receipt.request_id,confirmedAt:receipt.confirmed_at||null}};
+  }
+  return {...draft,version:2,id:nextId,request:null,rows};
+}
+
+export function reopenReplenishment(draft){
+  if(draft.request)return draft;
+  return {...draft,rows:Object.fromEntries(Object.entries(draft.rows).filter(([,row])=>!row.registered))};
 }
 export function replenishmentItems(rows,materials) {
   const items={};

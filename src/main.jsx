@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import AppUpdateNotice from './AppUpdateNotice.jsx';
 import ReplenishmentPanel from './ReplenishmentPanel.jsx';
+import {replenishmentGroups,boundedReplenishment} from './replenishment.mjs';
 import {isReportsOnlyAccess,canReadAllReportZones,adminAccessLabel,canCorrectConsumption,canReadSystemStatus,canReadInoperability} from './admin-report-access.mjs';
 import {canUnitDeclareInoperability} from './unit-operability.mjs';
 import { stockEntryQuantity } from "./stock-entry-quantity.mjs";
@@ -1297,7 +1298,7 @@ function App() {
     const selected = svbAssignedGuard(localStorage.getItem(KEY.shift));
     if (!selected) return flash("No hay una guardia disponible para realizar el checklist");
     localStorage.setItem("cma_svb_checklist_context_v1", JSON.stringify({unit: displayUnit(assignedUnit), guardCode: selected.code, guardStartedAt: selected.start, guardEndsAt: selected.end, lot: assignedLot, zone: config.zone || unitZone(assignedUnit), checklist: "SVB", svbVariant: config.checklist}));
-    window.location.assign(new URL("./svb-zones.html?from=pwa-v285", window.location.href).href);
+    window.location.assign(new URL("./svb-zones.html?from=pwa-v286", window.location.href).href);
   }
   async function loadSystemStatus() {
     if(!canReadSystemStatus(adminAccess))return;
@@ -1768,19 +1769,24 @@ function App() {
     setChangeUnitOpen(false);
     flash("Móvil sin asignar. Ya puedes configurarlo de nuevo");
   }
-  async function loadRemoteStock() {
+  async function loadRemoteStock(timeoutMs = 20000) {
     if (!stockScopeAllowed) return;
     const request = ++stockLoadSequence.current;
     setStockRemoteLoaded(false);
     setStockRemoteLoading(true);
+    const controller = new AbortController();
     try {
+      // The deadline includes session recovery and all queries. Aborted/late
+      // responses never reach the state setters below or block the next attempt.
+      const { data, materialSettings } = await boundedReplenishment(async () => {
       await ensureAnonymousSession();
+      if (controller.signal.aborted) throw new Error('STOCK_READ_ABORTED');
       const inventoryResults = await Promise.all(
         Object.values(STOCK_REMOTE_IDS).map((warehouseId) =>
           supabase
             .from("warehouse_inventory")
             .select("warehouse_id,material,quantity,minimum_quantity,minimum_base_quantity,safety_percentage,pending_replenishment")
-            .eq("warehouse_id", warehouseId),
+            .eq("warehouse_id", warehouseId).abortSignal(controller.signal),
         ),
       );
       const failed = inventoryResults.find((result) => result.error);
@@ -1790,10 +1796,12 @@ function App() {
         .rpc("get_material_configuration", {
           p_lot: stockDemoLot,
           p_zone: stockDemoZone,
-        });
+        }).abortSignal(controller.signal);
       if (materialSettingsError) throw materialSettingsError;
+      return { data, materialSettings };
+      }, null, timeoutMs);
       const levels = Object.fromEntries(
-        STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 300)]),
+        STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 0)]),
       );
       const minimums = Object.fromEntries(
         STOCK_DEMO_LOCATIONS.map((location) => [location, stockLevel({}, 0)]),
@@ -1832,12 +1840,15 @@ function App() {
       const scopedVisibility = materialVisibilityFromRows(MATERIALS, DEFAULT_MATERIAL_VISIBILITY, materialSettings);
       setMaterialVisibility(scopedVisibility);
       saveMaterialVisibility(localStorage, scopedVisibility, stockDemoLot, stockDemoZone);
-      return { levels, minimums, minimumBases, safetyPercentages, pendingReplenishment };
+      return { levels, minimums, minimumBases, safetyPercentages, pendingReplenishment,
+        groups: replenishmentGroups(STOCK_DEMO_LOCATIONS,STOCK_DEMO_MATERIALS,levels,minimums,pendingReplenishment,
+          Object.fromEntries((materialSettings || []).map(item=>[item.material,item.supply_type]))) };
     } catch (error) {
       if (request !== stockLoadSequence.current) return;
       flash("No se ha podido cargar el inventario");
       return null;
     } finally {
+      controller.abort();
       if (request === stockLoadSequence.current) setStockRemoteLoading(false);
     }
   }
@@ -3485,48 +3496,10 @@ function App() {
       .filter((zone) => adminCanAccessAllReportZones || zone === adminAccess?.zone)
       .sort((a, b) => a.localeCompare(b)),
     stockDemoReady = stockScopeAllowed,
-    stockReplenishmentGroups = (() => {
-      if (!stockScopeAllowed || !stockRemoteLoaded) return [];
-      const subwarehouseGroups = STOCK_DEMO_LOCATIONS.slice(1).map((location) => ({
-        location,
-        items: STOCK_DEMO_MATERIALS.map((material) => {
-          const quantity = Number(stockDemo.levels[location]?.[material] || 0);
-          const minimum = Number(stockMinimums[location]?.[material] || 0);
-          const pending = Number(stockPendingReplenishment[location]?.[material] || 0);
-          const supplyType = stockMaterialTypes[material] || "standard";
-          const urgent = supplyType === "supervisor"
-            ? pending > 0
-            : minimum > 0 && quantity < minimum;
-          return {
-            material,
-            quantity,
-            minimum,
-            pending,
-            supplyType,
-            urgent,
-            replenish: supplyType === "supervisor"
-              ? pending
-              : minimum > 0
-                ? Math.max(0, minimum - quantity)
-                : 0,
-          };
-        }).filter((item) => item.replenish > 0),
-      }));
-      const centralItems = STOCK_DEMO_MATERIALS.map((material) => {
-        const quantity = Number(stockDemo.levels[STOCK_DEMO_CENTRAL]?.[material] || 0);
-        const minimum = Number(stockMinimums[STOCK_DEMO_CENTRAL]?.[material] || 0);
-        const pending = Number(stockPendingReplenishment[STOCK_DEMO_CENTRAL]?.[material] || 0);
-        const supplyType = stockMaterialTypes[material] || "standard";
-        // Solo stock actual: una salida futura no es una salida registrada.
-        // Las necesidades de los subalmacenes se muestran por separado.
-        const replenish = minimum > 0
-          ? Math.max(0, minimum - quantity)
-          : 0;
-        const urgent = minimum > 0 && quantity < minimum;
-        return { material, quantity, minimum, pending, supplyType, urgent, replenish };
-      }).filter((item) => item.replenish > 0);
-      return [{ location: STOCK_DEMO_CENTRAL, items: centralItems }, ...subwarehouseGroups];
-    })(),
+    stockReplenishmentGroups = stockScopeAllowed && stockRemoteLoaded
+      ? replenishmentGroups(STOCK_DEMO_LOCATIONS,STOCK_DEMO_MATERIALS,stockDemo.levels,
+          stockMinimums,stockPendingReplenishment,stockMaterialTypes)
+      : [],
     stockUrgentCount = stockReplenishmentGroups.reduce(
       (total, group) => total + group.items.filter((item) => item.urgent).length,
       0,
@@ -3535,7 +3508,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-copy">
-          <h1>Control de material <span className="app-version">v285</span></h1>
+          <h1>Control de material <span className="app-version">v286</span></h1>
           <small>
             {mode === "admin" ? "Administración" : currentChecklistConfig.service === 'TSNU' ? "Checklist TSNU" : "Registro de consumo"}
           </small>
@@ -5250,7 +5223,8 @@ function App() {
                     scope={stockScope} actor={adminAccessLabel(adminAccess)}
                     groups={stockReplenishmentGroups} materials={STOCK_DEMO_MATERIALS}
                     materialLabel={materialLabel} levels={stockDemo.levels} minimums={stockMinimums}
-                    onClose={()=>setStockReplenishmentOpen(false)} onRefresh={loadRemoteStock}
+                    inventoryReady={stockRemoteLoaded && !stockRemoteLoading}
+                    onClose={()=>setStockReplenishmentOpen(false)} onRefresh={()=>loadRemoteStock(7000)}
                     onExcel={exportStockReplenishmentExcel} onPdf={exportStockReplenishmentPdf}
                     onSubmit={async request=>{
                       await ensureAnonymousSession();
@@ -5371,13 +5345,13 @@ function App() {
 function MobileAppRouter(){
  const [role,setRole]=useState(()=>localStorage.getItem(AUDITOR_MODE_KEY));
  React.useEffect(()=>{const refresh=()=>setRole(localStorage.getItem(AUDITOR_MODE_KEY));window.addEventListener('cma-mobile-role-changed',refresh);return()=>window.removeEventListener('cma-mobile-role-changed',refresh);},[]);
- if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v285" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
+ if(currentMode()==='worker'&&role==='auditor')return <React.Suspense fallback={<div className="card">Cargando perfil auditor...</div>}><AuditorPortal version="v286" onLeave={()=>{localStorage.removeItem(AUDITOR_MODE_KEY);setRole(null);}}/></React.Suspense>;
  return <App/>;
 }
-createRoot(document.getElementById("root")).render(<><AppUpdateNotice version="v285"/><MobileAppRouter /></>);
+createRoot(document.getElementById("root")).render(<><AppUpdateNotice version="v286"/><MobileAppRouter /></>);
 if ("serviceWorker" in navigator)
   addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js?v=285", {
+    navigator.serviceWorker.register("./sw.js?v=286", {
       updateViaCache: "none",
     }),
   );

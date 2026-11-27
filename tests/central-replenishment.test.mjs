@@ -1,22 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-import vm from 'node:vm';
-
-const source=readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
-const start=source.indexOf('stockReplenishmentGroups = (() => {');
-const end=source.indexOf('stockUrgentCount =',start);
-const expression=source.slice(start,end).replace(/^stockReplenishmentGroups = /,'').trim().replace(/,$/,'');
+import {replenishmentGroups} from '../src/replenishment.mjs';
 function groups({quantity=12,minimum=12,type='standard',scope='lot5_olot',subQuantity=1}={}) {
   const central=scope+'_central',sub=scope+'_sub';
-  return vm.runInNewContext(expression,{
-    stockScopeAllowed:true,stockRemoteLoaded:true,
-    STOCK_DEMO_CENTRAL:central,STOCK_DEMO_LOCATIONS:[central,sub],STOCK_DEMO_MATERIALS:['Test'],
-    stockDemo:{levels:{[central]:{Test:quantity},[sub]:{Test:subQuantity}}},
-    stockMinimums:{[central]:{Test:minimum},[sub]:{Test:2}},
-    stockPendingReplenishment:{[central]:{Test:20},[sub]:{Test:1}},
-    stockMaterialTypes:{Test:type}
-  });
+  return replenishmentGroups([central,sub],['Test'],
+    {[central]:{Test:quantity},[sub]:{Test:subQuantity}},
+    {[central]:{Test:minimum},[sub]:{Test:2}},
+    {[central]:{Test:20},[sub]:{Test:1}},{Test:type});
 }
 test('central orders use actual stock only for all material types, zones and lots',()=>{
   for(const scope of ['lot5_olot','lot5_figueres','lot7_other'])for(const type of ['standard','supervisor']){

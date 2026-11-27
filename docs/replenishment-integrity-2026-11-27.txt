@@ -1,0 +1,59 @@
+Reposició: revisió del 27/11/2026 per a la versió v286
+
+Abast: Qué llevar a cada almacén / Reposición, lectura de l'inventari,
+esborranys locals, confirmacions, reintents, aïllament per lot/zona/magatzem.
+No s'han consultat ni modificat estocs reals durant les proves.
+No s'han canviat assignacions de mòbils, checklists o auditories.
+El fitxer public/falck-eagle-admin.png ja estava modificat i no s'ha tocat.
+
+Defectes comprovats al codi anterior
+- Es mostraven estoc/mínim actuals però quantitats antigues de l'esborrany.
+  Reobrir només afegia noves necessitats: no recalculava ni retirava les resoltes.
+- Els materials de supervisió amb mínim positiu podien continuar mostrant
+  consum pendent malgrat haver corregit l'inventari fins al mínim.
+- loadRemoteStock omplia files absents amb 300 a la lectura del client.
+  Això NO acredita que la base de dades hagi afegit 300 a cap material.
+- La lectura global d'inventari no tenia un termini màxim propi.
+
+Canvis
+- Un únic càlcul compartit per pantalla, exports i comprovació abans d'enviar.
+  Amb mínim positiu: màxim(0, mínim-estoc). Sense mínim, es conserva la cua
+  explícita de consum dels materials de supervisió dels submagatzems.
+- Esborrany vinculat a la base d'estoc/mínim/necessitat. Si canvia la base,
+  recalcular la quantitat automàtica; si es cobreix el mínim, retirar-la.
+  Conservar extres explícits i edicions quan la base no ha canviat.
+- Confirmació directa per material; confirmat = Registrado + Entregado.
+  Sense Propuesto, checkbox o confirmació global addicional.
+- Comprovar inventari fresc abans de registrar. Si ha canviat la línia,
+  actualitzar-la i demanar revisar-la sense enviar encara.
+- Persistir petició immutable abans de l'RPC. Reintentar el mateix ID/payload.
+  Conservar també els lots d'enviament antics v285 sense dividir-los.
+- Bloqueig de dos enviaments simultanis entre pestanyes amb Web Locks;
+  idempotència de servidor mantinguda. En navegadors antics sense Web Locks,
+  el mateix ID continua impedint dos payloads diferents o un doble descompte.
+- Borrador v2: una pestanya v285 no el pot reobrir com a material sense enviar.
+- Lectura: files absents = 0; termini i abort per evitar esperes indefinides.
+  No acceptar una resposta tardana o d'una zona substituïda.
+
+Comprovacions
+- 348 proves unitàries/regressió generals: correctes.
+- Build de producció: correcte; avís preexistent de mida de bundles.
+- Navegador amb backend local aïllat: 36 magatzems d'Olot, Figueres, Girona
+  i Blanes; estoc corregit, origen/destí, extres, zero, paperera, dues pestanyes,
+  doble clic, pèrdua de resposta, tancar/reobrir, fallada de lectura, falta
+  d'espai local i recuperació d'enviament agrupat v285.
+- PostgreSQL aïllat (PGlite): idempotència, transacció completa o cap canvi,
+  permisos/lot/zona, conflicte de payload i fila absent inicialitzada a zero.
+- Cas sintètic d'un altre lot/zona a les proves de càlcul i àmbit.
+
+Reproducció
+node --test tests/*.test.mjs
+npx vite build --config tests/replenishment-preview.config.mjs
+node tests/replenishment-browser.mjs
+node tests/replenishment-db.mjs
+npm run build -- --outDir dist-replenishment-integrity-check
+
+No cal un SQL nou per aquests canvis. Es reutilitza
+confirm_warehouse_replenishment de sql/warehouse-replenishment-v1.sql.
+Després del desplegament cal verificar la versió dels fitxers servits a mòbils,
+administració, auditor i service worker. Aquest document recull les proves locals.

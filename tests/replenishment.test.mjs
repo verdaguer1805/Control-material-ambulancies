@@ -30,7 +30,7 @@ test('zero or invalid quantities uncheck delivery and cannot be checked again',(
 });
 test('confirmation feedback stays by the button and refresh never holds the send lock',()=>{
  const source=fs.readFileSync(new URL('../src/ReplenishmentPanel.jsx',import.meta.url),'utf8');
- assert.match(source,/disabled=\{frozen\|\|invalid\}/);
+ assert.match(source,/disabled=\{frozen\|\|invalid\|\|registered\}/);
  assert.match(source,/aria-invalid=\{invalid\}/);
  assert.match(source,/replenishment-footer-notice/);
  assert.match(source,/createPortal/);
@@ -38,7 +38,9 @@ test('confirmation feedback stays by the button and refresh never holds the send
  assert.match(source,/role="alertdialog"/);
  assert.match(source,/\(busy\|\|message\|\|refreshNotice\)&&<ReplenishmentNotice/);
  assert.match(source,/!busy&&<button className="primary" onClick=\{onDismiss\}>Entendido/);
- assert.match(source,/void boundedReplenishment\(\(\)=>onRefresh\?\.\(\),null,8000\)/);
+ assert.match(source,/void freshStock\(\)\.then/);
+ assert.match(source,/boundedReplenishment\(\(\)=>refreshRef.current\?\.\(\),null,8000\)/);
+ assert.doesNotMatch(source,/Sí, registrar entrega|type="checkbox"/);
  assert.doesNotMatch(source,/await onRefresh/);
 });
 test('replenishment covers every configured lot and zone and never defaults to Olot',()=>{

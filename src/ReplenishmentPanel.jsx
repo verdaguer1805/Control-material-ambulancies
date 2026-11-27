@@ -1,110 +1,158 @@
 import React,{useState,useRef,useEffect} from 'react';
 import {createPortal} from 'react-dom';
-import {replenishmentKey,replenishmentDraft,replenishmentRequest,replenishmentShortages,boundedReplenishment,definitiveReplenishmentFailure,validReplenishmentQuantity,editReplenishmentRow} from './replenishment.mjs';
+import {replenishmentKey,replenishmentDraft,replenishmentRowRequest,replenishmentShortages,
+ boundedReplenishment,definitiveReplenishmentFailure,validReplenishmentQuantity,
+ editReplenishmentRow,canRemoveReplenishmentRow,removeReplenishmentRow,
+ reconcileReplenishment,completeReplenishment,reopenReplenishment,validateReplenishmentDraft} from './replenishment.mjs';
 import './replenishment.css';
-import {canRemoveReplenishmentRow,removeReplenishmentRow} from './replenishment.mjs';
 
 function ReplenishmentNotice({busy,message,refreshNotice,onDismiss}){
  const box=useRef(null),dismiss=useRef(onDismiss);
  dismiss.current=onDismiss;
- useEffect(()=>{
-  const previous=document.activeElement;
-  box.current?.focus();
-  return()=>{if(previous?.isConnected)previous.focus();};
- },[]);
+ useEffect(()=>{const previous=document.activeElement;box.current?.focus();return()=>{if(previous?.isConnected)previous.focus();};},[]);
  return createPortal(<div className="replenishment-notice-backdrop"><section ref={box} tabIndex={-1} className="card replenishment-notice" role="alertdialog" aria-modal="true" aria-label={busy?'Confirmando reposición':'Aviso de reposición'} onKeyDown={e=>{
   if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if(!busy)dismiss.current();}
   if(e.key==='Tab'){e.preventDefault();(box.current.querySelector('button')||box.current).focus();}
  }}>
   <h3>{busy?'Confirmando reposición…':'Aviso de reposición'}</h3>
-  <div aria-live="polite">{busy?<p>Enviando al servidor. Espera la confirmación; no vuelvas a enviar la entrega.</p>:<>{message&&<p>{message}</p>}{refreshNotice&&<p>{refreshNotice}</p>}</>}</div>
+  <div aria-live="polite">{busy?<p>Comprobando el inventario y registrando la entrega. Espera la confirmación del servidor.</p>:<>{message&&<p>{message}</p>}{refreshNotice&&<p>{refreshNotice}</p>}</>}</div>
   {!busy&&<button className="primary" onClick={onDismiss}>Entendido</button>}
  </section></div>,document.body);
 }
 
-export default function ReplenishmentPanel({scope,actor,groups,materials,materialLabel,levels,minimums,onSubmit,onRefresh,onClose,onExcel,onPdf,storage=localStorage,preview=false}){
- const [destination,setDestination]=useState(''),[draft,setDraft]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[confirmation,setConfirmation]=useState(null),[adding,setAdding]=useState(false),[search,setSearch]=useState(''),[extraMaterial,setExtraMaterial]=useState('');
- const sending=useRef(false),active=useRef(true);
- const [refreshNotice,setRefreshNotice]=useState('');
- useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
+export default function ReplenishmentPanel({scope,actor,groups,materials,materialLabel,levels,minimums,
+ inventoryReady=true,onSubmit,onRefresh,onClose,onExcel,onPdf,storage=localStorage,preview=false}){
+ const [destination,setDestination]=useState(''),[draft,setDraft]=useState(null);
+ const [message,setMessage]=useState(''),[busy,setBusy]=useState(false),[refreshNotice,setRefreshNotice]=useState('');
+ const [adding,setAdding]=useState(false),[search,setSearch]=useState(''),[extraMaterial,setExtraMaterial]=useState('');
+ const [refreshing,setRefreshing]=useState(false),[verified,setVerified]=useState(false);
+ const [snapshot,setSnapshot]=useState({groups,levels,minimums});
+ const sending=useRef(false),active=useRef(true),destinationRef=useRef(''),generation=useRef(0);
+ const snapshotRef=useRef(snapshot),refreshRef=useRef(onRefresh);
+ refreshRef.current=onRefresh;
+ useEffect(()=>{active.current=true;return()=>{active.current=false;++generation.current;};},[]);
  const key=destination?replenishmentKey(scope,actor,destination):'';
  const label=id=>Object.entries(scope.remoteIds).find(([,value])=>value===id)?.[0]||id;
- const group=groups.find(g=>scope.remoteIds[g.location]===destination);
- const frozen=busy||!!draft?.request;
+ const proposals=(data,id)=>data.groups.find(g=>scope.remoteIds[g.location]===id)?.items||[];
+ const rebase=(saved,data)=>reconcileReplenishment(saved,proposals(data,saved.destination),data.levels[label(saved.destination)],data.minimums[label(saved.destination)]);
+ const frozen=busy||refreshing||!verified||!!draft?.request;
  const normalize=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase().trim();
  const extraOptions=materials.filter(m=>!draft?.rows[m]&&normalize(materialLabel(m)).includes(normalize(search)));
+
+ function read(id){
+  const stored=storage.getItem(replenishmentKey(scope,actor,id));
+  const saved=stored?JSON.parse(stored):replenishmentDraft(scope,id,[],crypto.randomUUID());
+  return validateReplenishmentDraft(scope,saved,id);
+ }
  function persist(next){
-  try{storage.setItem(replenishmentKey(scope,actor,next.destination),JSON.stringify(next));setDraft(next);return true;}
-  catch{setMessage('No se puede guardar el borrador en este dispositivo. No se ha enviado nada. Libera espacio antes de continuar.');return false;}
+  // Persist before sending. Storage failure must never create an untracked operation.
+  storage.setItem(replenishmentKey(scope,actor,next.destination),JSON.stringify(next));
+  if(active.current&&destinationRef.current===next.destination)setDraft(next);
+ }
+ function acceptSnapshot(data){
+  snapshotRef.current=data;setSnapshot(data);
+  const id=destinationRef.current;
+  if(!id||sending.current)return;
+  try{const saved=read(id),next=rebase(saved,data);if(next!==saved)persist(next);else setDraft(saved);}
+  catch{setMessage('No se pudo actualizar el borrador. Se conserva sin enviar.');}
+ }
+ // Loading is not an empty inventory. Never erase drafts during a parent refresh.
+ useEffect(()=>{if(inventoryReady)acceptSnapshot({groups,levels,minimums});},[groups,levels,minimums,inventoryReady]);
+ async function freshStock(){
+  const result=await boundedReplenishment(()=>refreshRef.current?.(),null,8000);
+  if(!result?.groups||!result.levels||!result.minimums)throw new Error('No se ha podido comprobar el inventario actual. No se ha enviado nada. Comprueba la conexión y vuelve a intentarlo.');
+  return result;
+ }
+ async function refreshSelected({reopen=false}={}){
+  const id=destinationRef.current,token=generation.current;
+  if(!id||sending.current)return;
+  setRefreshing(true);
+  try{
+   const data=await freshStock();
+   if(!active.current||token!==generation.current)return;
+   snapshotRef.current=data;setSnapshot(data);
+   const saved=read(id);persist(rebase(reopen?reopenReplenishment(saved):saved,data));setVerified(true);
+  }catch(error){if(active.current&&token===generation.current){setVerified(false);setRefreshNotice(error.message);}}
+  finally{if(active.current&&token===generation.current)setRefreshing(false);}
  }
  function choose(id){
-  setMessage('');setRefreshNotice('');setConfirmation(null);setAdding(false);setSearch('');setExtraMaterial('');setDestination(id);setDraft(null);
-  if(!id){setDraft(null);return;}
-  try{
-   const stored=storage.getItem(replenishmentKey(scope,actor,id));
-   const next=stored?JSON.parse(stored):replenishmentDraft(scope,id,groups.find(g=>scope.remoteIds[g.location]===id)?.items||[],crypto.randomUUID());
-   if(next.version!==1||next.destination!==id||!next.rows||!next.id)throw new Error('Invalid draft');
-   // Include newly detected needs when reopening, without overwriting edited quantities
-   // or changing an uncertain request that must be retried byte-for-byte.
-   if(!next.request)for(const item of groups.find(g=>scope.remoteIds[g.location]===id)?.items||[]){
-    if(!next.rows[item.material])next.rows[item.material]={quantity:String(item.replenish),checked:false};
-    next.rows[item.material].manual=false;
-   }
-   if(!next.request)next.rows=Object.fromEntries(Object.entries(next.rows).map(([m,row])=>[m,editReplenishmentRow(row,{})]));
-   persist(next);
-  }catch{setDraft(null);setMessage('No se ha podido recuperar el borrador. No se ha borrado: solicita revisión antes de preparar otra entrega.');}
+  ++generation.current;destinationRef.current=id;setDestination(id);setDraft(null);setVerified(false);
+  setMessage('');setRefreshNotice('');setAdding(false);setSearch('');setExtraMaterial('');setRefreshing(false);
+  if(!id)return;
+  try{const saved=read(id);persist(saved);void refreshSelected({reopen:true});}catch(error){setMessage(error.message);}
  }
  useEffect(()=>{
-  const handler=e=>{if(e.key===key&&!sending.current){setConfirmation(null);choose(destination);}};
+  const handler=e=>{if(e.key===key&&!sending.current&&destinationRef.current){try{setDraft(read(destinationRef.current));}catch{setMessage('El borrador ha cambiado en otra pestaña. Cierra y vuelve a abrir esta pantalla.');}}};
   window.addEventListener('storage',handler);return()=>window.removeEventListener('storage',handler);
- },[key,destination,groups]);
- function edit(material,patch){
-  if(frozen)return;
-  try{const saved=JSON.parse(storage.getItem(key));if(saved?.id!==draft.id||saved?.request){choose(destination);setMessage('El borrador ha cambiado en otra pestaña. Revisa los datos actualizados.');return;}}catch{return;}
-  setMessage('');
-  return persist({...draft,rows:{...draft.rows,[material]:editReplenishmentRow(draft.rows[material],patch)}});
+ },[key]);
+ useEffect(()=>{
+  const refresh=()=>{if(document.visibilityState==='visible'&&!sending.current&&!refreshing)void refreshSelected();};
+  const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
+  return()=>{clearInterval(timer);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
+ },[key,refreshing]);
+
+ function currentEditable(material){
+  const saved=read(destination);
+  if(saved.id!==draft.id||saved.request||JSON.stringify(saved.rows[material])!==JSON.stringify(draft.rows[material])){
+   setDraft(saved);throw new Error('La lista ha cambiado en otra pestaña. Revisa los datos actualizados.');
+  }
+  return saved;
  }
- function prepare(){
-  setMessage('');
-  try{
-   const request=replenishmentRequest(scope,draft,materials);
-   const missing=replenishmentShortages(request,levels[scope.centralLabel]);
-   if(missing.length)throw new Error('Stock insuficiente en origen: '+missing.map(([m,q])=>`${materialLabel(m)} (solicitas ${q}, hay ${levels[scope.centralLabel]?.[m]||0})`).join('; '));
-   setConfirmation(request);
-  }catch(error){setMessage(error.message);}
+ function edit(material,patch){
+  if(frozen||draft.rows[material]?.registered)return false;
+  try{const saved=currentEditable(material);persist(rebase({...saved,rows:{...saved.rows,[material]:editReplenishmentRow(saved.rows[material],patch)}},snapshotRef.current));return true;}
+  catch(error){setMessage(error.message||'No se puede guardar el borrador. No se ha enviado nada.');return false;}
  }
  function removeExtra(material){
   if(frozen||sending.current)return;
-  try{
-   const saved=JSON.parse(storage.getItem(key));
-   if(saved?.id!==draft.id||saved?.request){choose(destination);setMessage('El borrador ha cambiado. Revisa los datos actualizados.');return;}
-   const next=removeReplenishmentRow(saved,material,group?.items||[]);
-   if(next!==saved){setConfirmation(null);persist(next);}
-  }catch{setMessage('No se pudo retirar el material de la lista. El borrador se conserva.');}
+  try{persist(removeReplenishmentRow(currentEditable(material),material,proposals(snapshotRef.current,destination)));}catch(error){setMessage(error.message);}
  }
- async function submit(request){
-  if(sending.current)return;
-  sending.current=true;setBusy(true);setMessage('');setRefreshNotice('');setConfirmation(null);
-  try{
-   const current=JSON.parse(storage.getItem(key));
-   if(current?.id!==draft.id|| (current.request&&JSON.stringify(current.request)!==JSON.stringify(request)))throw new Error('DRAFT_CHANGED');
-   if(!persist({...draft,request}))return;
+
+ async function submit(material=null){
+  if(sending.current||!draft)return;
+  const expectedId=draft.id,expectedRow=material?JSON.stringify(draft.rows[material]):null;
+  const id=destination,token=generation.current;
+  sending.current=true;setBusy(true);setMessage('');setRefreshNotice('');
+  let request=null;
+  const run=async()=>{
+   let saved=read(id);
+   if(saved.id!==expectedId)throw new Error('La entrega ya se ha registrado o la lista ha cambiado. Revisa la lista actualizada.');
+   if(material){
+    if(saved.request)throw new Error('Hay un envío pendiente. Pulsa «Reintentar confirmación» antes de continuar.');
+    const data=await freshStock();
+    if(!active.current||token!==generation.current)throw new Error('La pantalla ha cambiado. No se ha enviado nada.');
+    snapshotRef.current=data;setSnapshot(data);setVerified(true);
+    saved=read(id); // Another tab may have edited during the network read.
+    if(saved.id!==expectedId||saved.request||JSON.stringify(saved.rows[material])!==expectedRow)throw new Error('La lista ha cambiado en otra pestaña. Revisa los datos actualizados.');
+    const updated=rebase(saved,data);persist(updated);
+    if(JSON.stringify(updated.rows[material])!==expectedRow)throw new Error('El inventario o el mínimo ha cambiado. Hemos actualizado la cantidad necesaria. Revisa la lista; no se ha registrado ninguna entrega.');
+    const candidate=replenishmentRowRequest(scope,updated,material,materials);
+    if(replenishmentShortages(candidate,data.levels[scope.centralLabel]).length)throw new Error('Stock insuficiente en el almacén central. No se ha registrado la entrega.');
+    // Persist the immutable payload before setting request: a storage error is not a send.
+    saved={...updated,request:candidate};persist(saved);request=candidate;
+   }else{
+    request=saved.request;if(!request)throw new Error('No hay ningún envío pendiente. Revisa la lista actualizada.');
+   }
    const receipt=await boundedReplenishment(onSubmit,request);
-   if(receipt?.request_id!==request.p_request_id)throw new Error('UNCONFIRMED_RECEIPT');
-   // Retain unchecked materials. Checked quantities are cleared only after a server receipt.
-   const remaining=Object.fromEntries(Object.entries(draft.rows).filter(([,r])=>!r.checked));
-   const next={...draft,id:crypto.randomUUID(),rows:remaining,request:null};
-   if(!persist(next)){if(active.current)setMessage('El servidor ha confirmado la reposición, pero no se pudo limpiar el borrador. Reintentar la misma operación no duplicará el movimiento.');return;}
-   if(active.current)setMessage(preview?'PRUEBA: reposición simulada. No se ha modificado ningún almacén.':`Reposición confirmada por el servidor en ${label(destination)}. Referencia: ${receipt.request_id.slice(0,8)}.`);
-   // The server receipt completes the send. Inventory refresh must never hold
-   // the submit lock or turn a successful delivery into an uncertain request.
-   void boundedReplenishment(()=>onRefresh?.(),null,8000).then(result=>{
-    if(result===null&&active.current)setRefreshNotice('Entrega registrada. No se pudo refrescar el inventario; vuelve a abrirlo para consultar el stock actualizado.');
-   }).catch(()=>{if(active.current)setRefreshNotice('Entrega registrada. El inventario tarda en actualizarse; no repitas esta entrega.');});
+   const latest=read(id);
+   if(latest.id!==expectedId||JSON.stringify(latest.request)!==JSON.stringify(request))throw new Error('DRAFT_CHANGED');
+   persist(completeReplenishment(latest,receipt,crypto.randomUUID()));
+   if(active.current)setMessage(preview?'PRUEBA: entrega registrada en el inventario simulado. No se ha modificado ningún almacén real.':`Entrega registrada en ${label(id)}. Referencia: ${receipt.request_id.slice(0,8)}.`);
+   request=null; // Slow refresh cannot turn a confirmed receipt into an uncertain send.
+   void freshStock().then(data=>{
+    if(active.current&&token===generation.current){snapshotRef.current=data;setSnapshot(data);persist(rebase(read(id),data));setVerified(true);}
+   }).catch(()=>{if(active.current&&token===generation.current)setRefreshNotice('Entrega registrada. El inventario tarda en actualizarse; no repitas esta entrega.');});
+  };
+  try{
+   // Serialize tabs. Fallback browsers still share the id checked by the server.
+   if(navigator.locks?.request)await navigator.locks.request(key,run);else await run();
   }catch(error){
-   if(definitiveReplenishmentFailure(error))persist({...draft,request:null});
-   if(active.current)setMessage(definitiveReplenishmentFailure(error)?`No se ha registrado la reposición: ${error.message}. Revisa las cantidades y actualiza el inventario.`:
-    'No se ha podido confirmar el resultado. El envío queda guardado y bloqueado para evitar duplicados. Recupera la conexión y pulsa «Reintentar confirmación». No prepares otra entrega con estos mismos materiales.');
+   if(request){
+    const definitive=definitiveReplenishmentFailure(error);
+    if(definitive){try{const current=read(id);if(current.request?.p_request_id===request.p_request_id)persist({...current,request:null});}catch{}}
+    if(active.current)setMessage(definitive?`No se ha registrado la entrega: ${error.message}. Revisa las cantidades.`:
+     'No se ha podido confirmar el resultado. El envío queda guardado para evitar duplicados. Recupera la conexión y pulsa «Reintentar confirmación». No prepares otra entrega de estos materiales.');
+   }else if(active.current){try{setDraft(read(id));}catch{}setMessage(error.message||'No se pudo guardar el borrador. No se ha enviado nada.');}
   }finally{sending.current=false;if(active.current)setBusy(false);}
  }
  return <div className="modal-backdrop"><section className="card export-modal stock-replenishment-modal replenishment-panel" role="dialog" aria-modal="true" aria-label="Reposición de almacenes">
@@ -114,30 +162,29 @@ export default function ReplenishmentPanel({scope,actor,groups,materials,materia
   {(busy||message||refreshNotice)&&<ReplenishmentNotice busy={busy} message={message} refreshNotice={refreshNotice} onDismiss={()=>{setMessage('');setRefreshNotice('');}}/>}
   {draft&&<>
    <p className="replenishment-route"><b>Origen:</b> {draft.origin?label(draft.origin):'Entrada externa / proveedor'}<br/><b>Destino:</b> {label(destination)}</p>
-   <p className="muted">Edita la cantidad realmente entregada y marca «Dejado». El stock solo cambia al confirmar. El borrador se conserva en este navegador.</p>
-   {draft.request&&<p role="status">Pendiente de confirmación del servidor. No se pueden cambiar las cantidades hasta resolver este envío.</p>}
+   <p className="muted">Ajusta la cantidad que has dejado y confírmala en su botón. «Registrado» significa que el servidor ha guardado la entrega. No hay un segundo paso de envío.</p>
+   {refreshing&&<p role="status">Actualizando existencias…</p>}
+   {draft.request&&<p role="status">Hay un envío pendiente de confirmación. Sus cantidades se conservan sin cambios.</p>}
    <div className="replenishment-rows">{Object.entries(draft.rows).map(([material,row])=>{
-    const proposal=group?.items.find(i=>i.material===material);
-    const invalid=!validReplenishmentQuantity(row.quantity);
-    return <div key={material} className={`replenishment-row ${row.checked?'checked':''}`}><div><strong>{materialLabel(material)}</strong>{canRemoveReplenishmentRow(draft,material,group?.items||[])&&<button type="button" className="replenishment-remove" disabled={frozen} title="Eliminar material añadido de la lista" aria-label={`Eliminar de la lista: ${materialLabel(material)}`} onClick={()=>removeExtra(material)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>}<small>Stock: {levels[label(destination)]?.[material]||0} · Mínimo: {minimums[label(destination)]?.[material]||0} · Propuesto: {proposal?.replenish||0}</small></div>
-     <label>Cantidad<input type="number" inputMode="numeric" min="0" step="1" max="2147483647" disabled={frozen} value={row.quantity} aria-invalid={invalid} aria-label={`Cantidad de ${materialLabel(material)}`} onChange={e=>edit(material,{quantity:e.target.value})}/>{invalid&&<small className="replenishment-invalid">Sin entrega: introduce una cantidad entera mayor que 0 para marcar «Dejado».</small>}</label>
-     <label className="replenishment-check"><input type="checkbox" disabled={frozen||invalid} checked={row.checked} onChange={e=>edit(material,{checked:e.target.checked})}/>Dejado</label></div>;
+    const invalid=!validReplenishmentQuantity(row.quantity),registered=!!row.registered;
+    return <div key={material} className={`replenishment-row ${registered?'checked':''}`} data-material={material}><div><strong>{materialLabel(material)}</strong>{!registered&&canRemoveReplenishmentRow(draft,material,proposals(snapshot,destination))&&<button type="button" className="replenishment-remove" disabled={frozen} title="Eliminar material añadido de la lista" aria-label={`Eliminar de la lista: ${materialLabel(material)}`} onClick={()=>removeExtra(material)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>}<small>Stock: {snapshot.levels[label(destination)]?.[material]||0} · Mínimo: {snapshot.minimums[label(destination)]?.[material]||0}</small>{row.manual&&!registered&&<small>Añadido manualmente</small>}</div>
+     <label>{registered?'Entregado':'Cantidad a dejar'}<input type="number" inputMode="numeric" min="0" step="1" max="2147483647" disabled={frozen||registered} value={row.quantity} aria-invalid={invalid} aria-label={`Cantidad de ${materialLabel(material)}`} onChange={e=>edit(material,{quantity:e.target.value})}/>{invalid&&<small className="replenishment-invalid">Introduce una cantidad entera mayor que 0 para confirmar.</small>}</label>
+     <button className={registered?'secondary replenishment-registered':'primary replenishment-deliver'} disabled={frozen||invalid||registered} onClick={()=>submit(material)}>{registered?'✓ Registrado':`Confirmar ${row.quantity||0} ${Number(row.quantity)===1?'unidad dejada':'unidades dejadas'}`}</button></div>;
    })}</div>
-   {!Object.keys(draft.rows).length&&<p>No hay materiales propuestos. Puedes añadir otro material.</p>}
+   {!Object.keys(draft.rows).length&&<p>No hay material pendiente de reponer. Puedes añadir otro material.</p>}
    <button className="secondary" disabled={frozen} onClick={()=>setAdding(!adding)}>Añadir otro material</button>
    {adding&&<div className="replenishment-add"><label>Buscar material<input type="search" placeholder="Ej. guantes, vendas…" value={search} disabled={frozen} onChange={e=>{setSearch(e.target.value);setExtraMaterial('');}}/></label>
     <p className="muted">Los materiales que ya están en la lista se editan directamente arriba.</p>
-    {!extraOptions.length?<p role="status">No hay otros materiales que coincidan con esta búsqueda.</p>:<label>Material<select value={extraMaterial} disabled={frozen} onChange={e=>setExtraMaterial(e.target.value)}><option value="">Selecciona material</option>{extraOptions.map(m=><option key={m} value={m}>{materialLabel(m)}</option>)}</select></label>}
+    {!extraOptions.length?<p role="status">No hay otros materiales que coincidan con esta búsqueda.</p>:<label>Material<select aria-label="Material añadido" value={extraMaterial} disabled={frozen} onChange={e=>setExtraMaterial(e.target.value)}><option value="">Selecciona material</option>{extraOptions.map(m=><option key={m} value={m}>{materialLabel(m)}</option>)}</select></label>}
     {search&&<button className="secondary" disabled={frozen} onClick={()=>{setSearch('');setExtraMaterial('');}}>Limpiar búsqueda</button>}
-    <button className="primary" disabled={frozen||!extraOptions.includes(extraMaterial)} onClick={()=>{if(!edit(extraMaterial,{quantity:'1',checked:false,manual:true}))return;setMessage(`${materialLabel(extraMaterial)} añadido a la lista. Ajusta la cantidad y marca «Dejado» solo si lo has entregado.`);setExtraMaterial('');setSearch('');setAdding(false);}}>Añadir a la lista</button>
+    <button className="primary" disabled={frozen||!extraOptions.includes(extraMaterial)} onClick={()=>{if(!edit(extraMaterial,{quantity:'1',checked:false,manual:true}))return;setExtraMaterial('');setSearch('');setAdding(false);}}>Añadir a la lista</button>
    </div>}
    <footer className="replenishment-footer" aria-busy={busy}>
-    {(message||busy||refreshNotice)&&<div className="replenishment-footer-notice" role="status">{busy?'Enviando al servidor… Espera la confirmación. Si no responde, podrás reintentar sin duplicar la entrega.':message}{refreshNotice&&<small>{refreshNotice}</small>}</div>}
-    <button className="secondary" disabled={busy} onClick={onClose}>Guardar y continuar después</button><button className="primary" disabled={busy} onClick={()=>draft.request?submit(draft.request):prepare()}>{busy?'Confirmando…':draft.request?'Reintentar confirmación':'Confirmar reposición'}</button></footer>
+    {(message||busy||refreshNotice)&&<div className="replenishment-footer-notice" role="status">{busy?'Comprobando y registrando la entrega…':message}{refreshNotice&&<small>{refreshNotice}</small>}</div>}
+    <button className="secondary" disabled={busy} onClick={onClose}>Guardar y continuar después</button>
+    {draft.request?<button className="primary" disabled={busy} onClick={()=>submit()}>Reintentar confirmación</button>:!verified&&!refreshing&&<button className="primary" onClick={()=>{setRefreshNotice('');void refreshSelected();}}>Actualizar inventario</button>}
+   </footer>
   </>}
-  <div className="toolbar">{onExcel&&<button className="secondary" disabled={busy} onClick={onExcel}>Exportar Excel</button>}{onPdf&&<button className="secondary" disabled={busy} onClick={onPdf}>Exportar PDF</button>}</div>
-  {confirmation&&<div className="modal-backdrop"><section className="card replenishment-confirm" role="alertdialog" aria-modal="true" aria-label="Confirmar entrega"><h3>Confirmar entrega en {label(destination)}</h3><p>Origen: {draft.origin?label(draft.origin):'Entrada externa / proveedor'}</p><ul>{Object.entries(confirmation.p_items).map(([m,q])=><li key={m}>{materialLabel(m)}: <b>{q}</b></li>)}</ul>
-   {draft.origin&&Object.entries(confirmation.p_items).some(([m,q])=>Number(levels[scope.centralLabel]?.[m]||0)-q<Number(minimums[scope.centralLabel]?.[m]||0))&&<p role="alert">Aviso: el almacén de origen quedará por debajo del mínimo en algún material.</p>}
-   <p>Solo se registrarán estos materiales. ¿Confirmas que ya los has dejado?</p><button className="secondary" onClick={()=>setConfirmation(null)}>Revisar</button><button className="primary" onClick={()=>submit(confirmation)}>Sí, registrar entrega</button></section></div>}
+  <div className="toolbar">{onExcel&&<button className="secondary" disabled={busy||!inventoryReady} onClick={onExcel}>Exportar Excel</button>}{onPdf&&<button className="secondary" disabled={busy||!inventoryReady} onClick={onPdf}>Exportar PDF</button>}</div>
  </section></div>;
 }
